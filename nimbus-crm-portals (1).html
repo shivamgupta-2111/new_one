@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nimbus CRM – Portals</title>
+<style>
+:root{--blue:#0176d3;--navy:#032d60;--line:#dddbda;--muted:#706e6b;--bg:#f3f3f3;--green:#2e6b4a;--red:#ba0517}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);font:13px/1.4 "Segoe UI",system-ui,sans-serif;color:#181818}
+a{color:var(--blue);cursor:pointer;text-decoration:none}a:hover{text-decoration:underline}
+button,input,select,textarea{font:inherit}button{cursor:pointer}
+.card{background:#fff;border:1px solid var(--line);border-radius:4px}
+.btn{background:#fff;border:1px solid var(--line);color:var(--blue);padding:5px 12px;border-radius:4px;white-space:nowrap}
+.btn:hover{background:#f3f3f3}.btn.brand{background:var(--blue);border-color:var(--blue);color:#fff}.btn.brand:hover{background:#014486}
+.btn.danger{color:var(--red)}
+/* nav */
+.top{background:var(--navy);color:#fff;display:flex;align-items:center;gap:12px;padding:0 16px;height:46px}
+.brand{font-weight:700;font-size:17px;display:flex;align-items:center;gap:6px}
+.top input{margin-left:auto;width:260px;padding:6px 12px;border:0;border-radius:16px}
+.top .btn{background:transparent;color:#fff;border-color:#4a6a96;padding:3px 8px;font-size:12px}
+.nav{background:#fff;border-bottom:1px solid var(--line);display:flex;padding:0 12px;overflow-x:auto}
+.nav a{padding:12px 14px;color:#181818;border-bottom:3px solid transparent;white-space:nowrap}
+.nav a:hover{text-decoration:none;background:#f3f9ff}.nav a.on{border-color:var(--blue);color:var(--blue);font-weight:600}
+.page{max-width:1320px;margin:12px auto;padding:0 12px}
+/* home */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px}
+.kpi{padding:14px 16px;border-left:4px solid var(--blue)}.kpi b{display:block;font-size:24px;color:var(--navy)}.kpi span{color:var(--muted)}
+.g2{display:grid;grid-template-columns:1.4fr 1fr;gap:12px;margin-bottom:12px}
+.card h3{margin:0;padding:11px 14px;font-size:14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.bd{padding:12px 14px}
+.bar{display:grid;grid-template-columns:110px 1fr 90px;gap:8px;align-items:center;margin:7px 0;font-size:12px}
+.bar i{display:block;height:16px;background:var(--blue);border-radius:3px;min-width:2px}.bar .t{background:#ecebea;border-radius:3px}
+.li{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid #eee}.li:last-child{border:0}
+.li small{color:var(--muted);display:block}
+/* list */
+.lh{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);gap:8px;flex-wrap:wrap}
+.lh h2{margin:0;font-size:18px}.lh small{color:var(--muted);display:block}
+.lh input,.lh select{padding:5px 8px;border:1px solid var(--line);border-radius:4px}
+table{width:100%;border-collapse:collapse}th{background:#fafaf9;text-align:left;color:var(--muted);padding:8px 12px;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid var(--line)}tbody tr:hover{background:#f3f9ff}
+.pill{padding:2px 9px;border-radius:10px;font-size:11.5px;background:#e8f1fc;color:var(--blue);white-space:nowrap}
+.pill.g{background:#e5f5ea;color:var(--green)}.pill.r{background:#fde8e8;color:var(--red)}.pill.y{background:#fff4de;color:#a05a00}
+.empty{padding:30px;text-align:center;color:var(--muted)}
+/* record */
+.rh{padding:12px 16px;margin-bottom:12px}.rt{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.ic{width:36px;height:36px;border-radius:4px;display:grid;place-items:center;color:#fff;font-weight:700}
+.rt small{display:block;color:var(--muted);font-size:11px}.rt h1{margin:0;font-size:20px}
+.acts{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.hl{display:flex;gap:40px;margin-top:12px;flex-wrap:wrap}.hl small{display:block;color:var(--muted);font-size:11.5px}
+.path{display:flex;list-style:none;margin:0 0 12px;padding:12px;gap:6px}
+.path li{flex:1;height:32px;display:grid;place-items:center;background:#ecebea;font-size:12px;cursor:pointer;
+clip-path:polygon(0 0,calc(100% - 14px) 0,100% 50%,calc(100% - 14px) 100%,0 100%,14px 50%)}
+.path li:first-child{clip-path:polygon(0 0,calc(100% - 14px) 0,100% 50%,calc(100% - 14px) 100%,0 100%)}
+.path li.d{background:var(--green);color:#fff}.path li.c{background:var(--navy);color:#fff;font-weight:600}.path li.l{background:var(--red);color:#fff}
+.cols{display:grid;grid-template-columns:1fr 340px;gap:12px}
+.tabs{display:flex;padding:0 14px;border-bottom:1px solid var(--line)}.tabs a{padding:11px 12px;color:#555;border-bottom:3px solid transparent}.tabs a.on{color:#181818;font-weight:600;border-color:var(--blue)}
+.two{display:grid;grid-template-columns:1fr 1fr;column-gap:34px;padding:6px 18px 14px}
+.f{border-bottom:1px solid var(--line);padding:8px 0;min-height:46px}.f label{display:block;color:var(--muted);font-size:11.5px}
+.side{display:flex;flex-direction:column;gap:12px}
+.ql{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;padding:10px 14px}
+.q{position:relative;padding:4px 0}
+.q .pop{display:none;position:absolute;left:0;top:100%;z-index:20;width:250px;background:#fff;border:1px solid var(--line);border-radius:4px;box-shadow:0 4px 14px rgba(0,0,0,.2);padding:8px 10px}
+.q:hover .pop{display:block}.pop div{padding:4px 0;border-bottom:1px solid #eee}.pop div:last-child{border:0}.pop small{color:var(--muted)}
+.rl .it{padding:8px 14px;border-bottom:1px solid #eee}.rl .it:last-child{border:0}
+.tl .row{display:flex;gap:6px;padding:12px 18px}.tl input{flex:1;padding:6px 8px;border:1px solid var(--line);border-radius:4px}
+.tl .n{margin:0 18px 10px;padding-left:10px;border-left:2px solid var(--blue)}.tl .n small{color:var(--muted);display:block}
+/* modal */
+.mo{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;place-items:center;z-index:50;padding:12px}.mo.on{display:grid}
+.mo .card{width:560px;max-width:100%;max-height:92vh;overflow:auto}
+.fm{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;padding:14px}.fm label{display:block;font-size:12px;color:var(--muted);margin-bottom:2px}
+.fm input,.fm select,.fm textarea{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:4px}.fm .w{grid-column:1/-1}
+.mf{padding:10px 14px;border-top:1px solid var(--line);text-align:right;background:#f3f3f3}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:9px 18px;border-radius:4px;display:none;z-index:99}
+.pb{display:flex;gap:16px;align-items:center;padding:12px 14px;margin-bottom:12px}
+.of{position:relative;border-bottom:1px solid var(--line);padding:7px 0;min-height:44px}.of label{display:block;color:var(--muted);font-size:11.5px}.of .ov{padding-right:22px;min-height:16px;word-break:break-word}
+.pen{position:absolute;right:0;top:20px;border:0;background:none;color:#999;font-size:13px;padding:0}.pen:hover{color:var(--blue)}
+.of input[type=text],.of input[type=number],.of input[type=date],.of select,.of textarea{width:100%;border:1px solid var(--blue);border-radius:4px;padding:3px 6px}
+.cn{font-size:11px;font-weight:700;color:#444;padding:0 2px}
+.ci{padding:8px 14px 10px;border-top:1px solid var(--line)}.ci .n{display:flex;gap:6px;align-items:center;font-weight:600;color:var(--blue);margin-bottom:3px}
+.ci dl{display:grid;grid-template-columns:70px 1fr;margin:0;font-size:11.5px;row-gap:2px}.ci dt{color:var(--muted)}.ci dd{margin:0}
+.eb{display:flex;gap:8px;justify-content:center;padding:10px;background:#f3f3f3;border-top:1px solid var(--line)}
+.sq{width:20px;height:20px;border-radius:3px;display:inline-grid;place-items:center;color:#fff;font-size:11px}
+.acts.sf .btn{border-radius:0;margin-left:-1px}.acts.sf{gap:0}.acts.sf .btn:first-child{border-radius:4px 0 0 4px}.acts.sf .btn:last-child{border-radius:0 4px 4px 0}
+.rt .acts.sf .btn{padding:4px 9px;font-size:12px}
+.pb .path{flex:1;margin:0;padding:0}.pb select.btn{background:var(--blue);color:#fff;border-color:var(--blue);padding:6px 10px}
+.hl b{font-weight:600}.pill.p{background:#e5f5ea;color:var(--green);font-size:10px;margin-left:6px}
+.of input[type=checkbox]{margin-top:4px}
+@media(max-width:960px){.kpis{grid-template-columns:1fr 1fr}.g2,.cols,.two,.fm{grid-template-columns:1fr}.top input{display:none}.path{overflow-x:auto}.path li{min-width:95px}}
+@media print{.top,.nav,.acts{display:none}}
+.top select option{color:#181818}#ub .pill{margin-left:4px}.top #ub span{font-size:12px}
+</style>
+</head>
+<body>
+<div class="top"><div class="brand">☁ Nimbus CRM</div><input id="gs" placeholder="Search all records…" oninput="gsearch(this.value)"><button class="btn" onclick="resetDemo()">Reset demo data</button></div>
+<div class="nav" id="nav"></div>
+<div class="page" id="app"></div>
+<div class="mo" id="mo"><div class="card"><h3 id="mt"></h3><div class="fm" id="fm"></div><div class="mf"><button class="btn" onclick="closeM()">Cancel</button> <button class="btn brand" onclick="saveM()">Save</button></div></div></div>
+<div id="toast"></div>
+
+<script>
+const ST=["Prospecting","Qualification","Needs Analysis","Proposal","Negotiation","Closed Won"],LS=["New","Working","Qualified"];
+const OWN=["Priya Shah","Rahul Mehta","Dana Wright"];
+const T={
+ leads:{l:"Leads",s:"Lead",c:"#f59e0b",t:"name",cols:["name","company","status","source","owner"],f:[["name","Name"],["company","Company"],["email","Email","email"],["phone","Phone"],["status","Status",["New","Working","Qualified","Unqualified"]],["source","Lead Source",["Web","Referral","Event","Partner"]],["owner","Owner",OWN]]},
+ accounts:{l:"Accounts",s:"Account",c:"#7f8de1",t:"name",cols:["name","industry","city","owner","revenue"],f:[["name","Account Name"],["industry","Industry",["Government","Technology","Retail","Finance","Manufacturing"]],["city","City"],["phone","Phone"],["website","Website"],["revenue","Annual Revenue","number"],["owner","Owner",OWN]]},
+ contacts:{l:"Contacts",s:"Contact",c:"#ff538a",t:"name",cols:["name","account","title","email","phone"],f:[["name","Name"],["account","Account Name"],["title","Title"],["email","Email","email"],["phone","Phone"],["owner","Owner",OWN]]},
+ opportunities:{l:"Opportunities",s:"Opportunity",c:"#fc903d",t:"name",cols:["name","account","stage","close","amount","owner"],f:[["name","Opportunity Name"],["account","Account Name"],["stage","Stage",ST.concat(["Closed Lost"])],["amount","Amount","number"],["close","Close Date","date"],["prob","Probability (%)","number"],["type","Type",["New Business","Renewal","Upsell"]],["owner","Owner",OWN],["notes","Description","area"]]},
+ tasks:{l:"Tasks",s:"Task",c:"#4bc076",t:"subject",cols:["subject","related","due","priority","status"],f:[["subject","Subject"],["related","Related To"],["due","Due Date","date"],["priority","Priority",["High","Normal","Low"]],["status","Status",["Open","In Progress","Done"]],["owner","Owner",OWN]]}
+};
+const LBL=k=>({name:"Name",company:"Company",status:"Status",source:"Lead Source",owner:"Owner",industry:"Industry",city:"City",revenue:"Revenue",account:"Account",title:"Title",email:"Email",phone:"Phone",stage:"Stage",close:"Close Date",amount:"Amount",subject:"Subject",related:"Related To",due:"Due Date",priority:"Priority"}[k]||k);
+const SEED=()=>({n:100,
+leads:[{id:1,name:"Ananya Iyer",company:"BlueOrbit Tech",email:"ananya@blueorbit.io",phone:"+91 98250 11223",status:"New",source:"Web",owner:OWN[0],notes:[]},{id:2,name:"Marc Dupont",company:"Lumière Retail",email:"marc@lumiere.fr",phone:"+33 1 4455 6677",status:"Working",source:"Event",owner:OWN[1],notes:[]},{id:3,name:"Sofia Rossi",company:"Vento Finance",email:"s.rossi@vento.it",phone:"+39 02 5551 234",status:"Qualified",source:"Referral",owner:OWN[0],notes:[]},{id:4,name:"Kenji Sato",company:"Hikari Motors",email:"kenji@hikari.jp",phone:"+81 3 5555 0101",status:"New",source:"Partner",owner:OWN[2],notes:[]}],
+accounts:[{id:10,name:"Service Public De Wallonie",industry:"Government",city:"Namur",phone:"+32 81 33 00 00",website:"wallonie.be",revenue:0,owner:OWN[0],notes:[]},{id:11,name:"Acme Corp",industry:"Manufacturing",city:"Chicago",phone:"+1 312 555 0100",website:"acme.com",revenue:120000000,owner:OWN[1],notes:[]},{id:12,name:"Globex Ltd",industry:"Technology",city:"London",phone:"+44 20 7946 0000",website:"globex.co.uk",revenue:45000000,owner:OWN[0],notes:[]},{id:13,name:"Initech",industry:"Finance",city:"Austin",phone:"+1 512 555 0188",website:"initech.com",revenue:18000000,owner:OWN[2],notes:[]}],
+contacts:[{id:20,name:"Claire Martin",account:"Service Public De Wallonie",title:"Procurement Lead",email:"c.martin@wallonie.be",phone:"+32 81 33 00 01",owner:OWN[0],notes:[]},{id:21,name:"Dana Wright",account:"Acme Corp",title:"CTO",email:"dana@acme.com",phone:"+1 312 555 0111",owner:OWN[1],notes:[]},{id:22,name:"Tom Becker",account:"Acme Corp",title:"IT Manager",email:"tom@acme.com",phone:"+1 312 555 0122",owner:OWN[1],notes:[]},{id:23,name:"Olivia Hart",account:"Globex Ltd",title:"VP Operations",email:"olivia@globex.co.uk",phone:"+44 20 7946 0011",owner:OWN[0],notes:[]},{id:24,name:"Peter Gill",account:"Initech",title:"Finance Director",email:"peter@initech.com",phone:"+1 512 555 0190",owner:OWN[2],notes:[]}],
+opportunities:[{id:30,name:"MR-SO00113910-6.26-5",account:"Service Public De Wallonie",stage:"Closed Won",amount:48000,close:"2026-06-23",prob:100,type:"Renewal",owner:OWN[0],notes:["Ongoing success with the product + consolidation of licences into one renewal."]},{id:31,name:"Acme – Platform Expansion",account:"Acme Corp",stage:"Proposal",amount:72000,close:"2026-12-15",prob:60,type:"Upsell",owner:OWN[1],notes:[]},{id:32,name:"Globex – New Rollout",account:"Globex Ltd",stage:"Qualification",amount:31500,close:"2027-01-30",prob:25,type:"New Business",owner:OWN[0],notes:[]},{id:33,name:"Initech Support Renewal",account:"Initech",stage:"Negotiation",amount:19800,close:"2026-11-20",prob:80,type:"Renewal",owner:OWN[2],notes:[]},{id:34,name:"Acme – Analytics Add-on",account:"Acme Corp",stage:"Needs Analysis",amount:24000,close:"2027-02-10",prob:40,type:"Upsell",owner:OWN[1],notes:[]},{id:35,name:"Globex – Legacy Migration",account:"Globex Ltd",stage:"Closed Lost",amount:15000,close:"2026-09-30",prob:0,type:"New Business",owner:OWN[0],notes:[]}],
+tasks:[{id:40,subject:"Send revised proposal",related:"Acme – Platform Expansion",due:"2026-10-31",priority:"High",status:"Open",owner:OWN[1]},{id:41,subject:"Follow up call",related:"Marc Dupont",due:"2026-11-02",priority:"Normal",status:"In Progress",owner:OWN[1]},{id:42,subject:"Contract review with legal",related:"Initech Support Renewal",due:"2026-11-05",priority:"High",status:"Open",owner:OWN[2]},{id:43,subject:"Intro demo",related:"Ananya Iyer",due:"2026-11-04",priority:"Normal",status:"Open",owner:OWN[0]},{id:44,subject:"Quarterly business review",related:"Globex Ltd",due:"2026-10-20",priority:"Low",status:"Done",owner:OWN[0]}]});
+let DB;try{DB=JSON.parse(localStorage.getItem("nimbus"))}catch(e){}DB=DB||SEED();
+const save=()=>{try{localStorage.setItem("nimbus",JSON.stringify(DB))}catch(e){}};
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const money=n=>"$"+Number(n||0).toLocaleString("en-US");
+const fd=d=>d?new Date(d+"T00:00").toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}):"";
+function toast(m){const t=$("toast");t.textContent=m;t.style.display="block";clearTimeout(t._h);t._h=setTimeout(()=>t.style.display="none",1900)}
+function resetDemo(){if(confirm("Reset all data to the demo set?")){DB=SEED();save();location.hash="home";route();toast("Demo data restored")}}
+const pill=v=>{const c=["Closed Won","Qualified","Done"].includes(v)?"g":["Closed Lost","Unqualified","High"].includes(v)?"r":["New","In Progress","Normal"].includes(v)&&0?"y":"";return `<span class="pill ${c}">${esc(v)}</span>`};
+function cell(o,k,r){const v=r[k];
+ if(k===T[o].t)return `<a onclick="go('${o}',${r.id})">${esc(v)}</a>`;
+ if(["amount","revenue"].includes(k))return money(v);
+ if(["close","due"].includes(k))return fd(v);
+ if(["stage","status","priority"].includes(k))return pill(v);
+ if(k==="account"&&DB.accounts.find(a=>a.name===v))return `<a onclick="go('accounts',${DB.accounts.find(a=>a.name===v).id})">${esc(v)}</a>`;
+ return esc(v)}
+const go=(o,id)=>location.hash=id?`${o}/${id}`:o;
+function nav(cur){$("nav").innerHTML=[["home","Home"]].concat(Object.keys(T).map(k=>[k,T[k].l])).map(([k,l])=>`<a class="${cur===k?"on":""}" onclick="go('${k}')">${l}</a>`).join("")}
+function route(){const [o,id]=location.hash.slice(1).split("/");nav(o||"home");
+ if(!o||o==="home")home();else if(o==="search")sres();else if(T[o]&&id)record(o,+id);else if(T[o])list(o);else home();window.scrollTo(0,0)}
+addEventListener("hashchange",route);
+/* HOME */
+function bars(m,fmt){const mx=Math.max(1,...Object.values(m));return Object.entries(m).map(([k,v])=>`<div class="bar"><span>${k}</span><div class="t"><i style="width:${v/mx*100}%"></i></div><b>${fmt?fmt(v):v}</b></div>`).join("")}
+function home(){
+ const op=DB.opportunities,open=op.filter(o=>!o.stage.startsWith("Closed")),won=op.filter(o=>o.stage==="Closed Won"),lost=op.filter(o=>o.stage==="Closed Lost");
+ const sum=a=>a.reduce((s,o)=>s+Number(o.amount||0),0),wr=won.length+lost.length?Math.round(won.length/(won.length+lost.length)*100):0;
+ const ps={};ST.slice(0,5).forEach(s=>ps[s]=sum(op.filter(o=>o.stage===s)));
+ const ls={};["New","Working","Qualified","Unqualified"].forEach(s=>ls[s]=DB.leads.filter(l=>l.status===s).length);
+ const tk=DB.tasks.filter(t=>t.status!=="Done").sort((a,b)=>a.due>b.due?1:-1).slice(0,5);
+ $("app").innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div><h2 style="margin:0">Sales Home</h2><small style="color:var(--muted)">Pipeline and activity overview</small></div><button class="btn brand" onclick="openM('opportunities')">New Opportunity</button></div>
+ <div class="kpis"><div class="card kpi"><b>${money(sum(open))}</b><span>Open pipeline (${open.length} deals)</span></div><div class="card kpi" style="border-color:var(--green)"><b>${money(sum(won))}</b><span>Closed won</span></div><div class="card kpi" style="border-color:#f59e0b"><b>${DB.leads.filter(l=>l.status!=="Unqualified").length}</b><span>Active leads</span></div><div class="card kpi" style="border-color:#7f8de1"><b>${wr}%</b><span>Win rate</span></div></div>
+ <div class="g2"><div class="card"><h3>Pipeline by stage</h3><div class="bd">${bars(ps,money)}</div></div><div class="card"><h3>Leads by status</h3><div class="bd">${bars(ls)}</div></div></div>
+ <div class="g2"><div class="card"><h3>Open tasks <a onclick="go('tasks')">View all</a></h3><div class="bd">${tk.map(t=>`<div class="li"><div><a onclick="go('tasks',${t.id})">${esc(t.subject)}</a><small>${esc(t.related)}</small></div><div style="text-align:right">${fd(t.due)}<small>${t.priority}</small></div></div>`).join("")||'<div class="empty">All caught up. No open tasks.</div>'}</div></div>
+ <div class="card"><h3>Largest open deals</h3><div class="bd">${open.sort((a,b)=>b.amount-a.amount).slice(0,5).map(o=>`<div class="li"><div><a onclick="go('opportunities',${o.id})">${esc(o.name)}</a><small>${esc(o.account)}</small></div><div style="text-align:right">${money(o.amount)}<small>${o.stage}</small></div></div>`).join("")}</div></div></div>`+homeX()}
+let TOPN=5;
+function homeX(){const op=DB.opportunities,sum=a=>a.reduce((t,o)=>t+Number(o.amount||0),0),reps=[...new Set(OWN.concat(op.map(o=>o.owner),DB.leads.map(l=>l.owner)))];
+ const rows=reps.map(r=>{const m=op.filter(o=>o.owner===r),w=m.filter(o=>o.stage==="Closed Won"),l=m.filter(o=>o.stage==="Closed Lost"),a=m.filter(o=>!o.stage.startsWith("Closed"));return `<tr><td>${esc(r)}</td><td>${money(sum(w))}</td><td>${money(sum(a))}</td><td>${a.length}</td><td>${DB.leads.filter(x=>x.owner===r).length}</td><td>${w.length+l.length?Math.round(w.length/(w.length+l.length)*100)+"%":"–"}</td></tr>`}).join("");
+ const M={};op.filter(o=>o.close&&o.stage.startsWith("Closed")).forEach(o=>{const k=o.close.slice(0,7),m=M[k]=M[k]||{w:0,l:0};o.stage==="Closed Won"?m.w+=+o.amount||0:m.l+=+o.amount||0});
+ const ks=Object.keys(M).sort(),mn=k=>new Date(k+"-01T00:00").toLocaleDateString("en-GB",{month:"short",year:"2-digit"}),sales={};ks.forEach(k=>sales[mn(k)]=M[k].w);
+ const ch=ks.map(k=>{const t=M[k].w+M[k].l;return `<tr><td>${mn(k)}</td><td>${money(M[k].w)}</td><td>${money(M[k].l)}</td><td>${t?Math.round(M[k].l/t*100)+"%":"–"}</td></tr>`}).join("");
+ const ren=op.filter(o=>o.type==="Renewal"),rl=ren.filter(o=>o.stage==="Closed Lost"),rw=ren.filter(o=>o.stage==="Closed Won");
+ const W={Qualified:3,Working:2,New:1,Unqualified:-9},SW={Referral:3,Partner:2,Event:2,Web:1};
+ const tl=DB.leads.map(l=>({...l,sc:(W[l.status]||0)*10+(SW[l.source]||0)*5+Math.min(20,Math.round(sum(op.filter(o=>o.account===l.company&&!o.stage.startsWith("Closed")))/5000))})).sort((a,b)=>b.sc-a.sc).slice(0,TOPN);
+ const src={};DB.leads.forEach(l=>src[l.source]=(src[l.source]||0)+1);
+ const due=op.filter(o=>o.type==="Renewal"&&!o.stage.startsWith("Closed")).sort((a,b)=>a.close>b.close?1:-1).slice(0,5);
+ return `<div class="g2"><div class="card"><h3>Sales by rep</h3><table><thead><tr><th>Rep</th><th>Won</th><th>Open pipeline</th><th>Open deals</th><th>Leads</th><th>Win rate</th></tr></thead><tbody>${rows}</tbody></table></div>
+ <div class="card"><h3>Monthly sales (closed won)</h3><div class="bd">${ks.length?bars(sales,money):'<div class="empty">No closed deals yet.</div>'}</div></div></div>
+ <div class="g2"><div class="card"><h3>Monthly churn (closed lost)</h3><table><thead><tr><th>Month</th><th>Won</th><th>Lost</th><th>Churn %</th></tr></thead><tbody>${ch||'<tr><td colspan="4" class="empty">No data.</td></tr>'}</tbody></table><div class="bd">Renewals: ${rw.length} won · ${rl.length} lost · retention ${ren.length&&rw.length+rl.length?Math.round(rw.length/(rw.length+rl.length)*100)+"%":"–"}</div></div>
+ <div class="card"><h3>Top <select onchange="TOPN=+this.value;home()">${[3,5,10,20].map(n=>`<option ${n===TOPN?"selected":""}>${n}</option>`).join("")}</select> leads</h3><div class="bd">${tl.map(l=>`<div class="li"><div><a onclick="go('leads',${l.id})">${esc(l.name)}</a><small>${esc(l.company)} · ${l.source}</small></div><div style="text-align:right">${pill(l.status)}<small>score ${l.sc}</small></div></div>`).join("")||'<div class="empty">No leads.</div>'}</div></div></div>
+ <div class="g2"><div class="card"><h3>Leads by source</h3><div class="bd">${bars(src)}</div></div>
+ <div class="card"><h3>Renewals coming up</h3><div class="bd">${due.map(o=>`<div class="li"><div><a onclick="go('opportunities',${o.id})">${esc(o.name)}</a><small>${esc(o.account)}</small></div><div style="text-align:right">${money(o.amount)}<small>${fd(o.close)}</small></div></div>`).join("")||'<div class="empty">None open.</div>'}</div></div></div>`}
+/* LIST */
+let SORT={},FIL={};
+function list(o){const d=T[o],q=(FIL[o]||"").toLowerCase(),s=SORT[o];
+ let rows=DB[o].filter(r=>d.cols.some(k=>String(r[k]??"").toLowerCase().includes(q)));
+ if(s)rows.sort((a,b)=>(a[s.k]>b[s.k]?1:-1)*s.d);
+ $("app").innerHTML=`<div class="card"><div class="lh"><div><h2>${d.l}</h2><small>${rows.length} items</small></div><div style="display:flex;gap:8px"><input id="fi" placeholder="Filter ${d.l.toLowerCase()}…" value="${esc(FIL[o]||"")}" oninput="FIL['${o}']=this.value;list('${o}');const e=$('fi');e.focus();e.setSelectionRange(99,99)"><button class="btn brand" onclick="openM('${o}')">New ${d.s}</button></div></div>
+ <div style="overflow-x:auto"><table><thead><tr>${d.cols.map(k=>`<th onclick="SORT['${o}']={k:'${k}',d:${s&&s.k===k?-s.d:1}};list('${o}')">${LBL(k)} ${s&&s.k===k?(s.d>0?"▲":"▼"):""}</th>`).join("")}<th></th></tr></thead><tbody>${rows.map(r=>`<tr>${d.cols.map(k=>`<td>${cell(o,k,r)}</td>`).join("")}<td style="text-align:right"><a onclick="openM('${o}',${r.id})">Edit</a></td></tr>`).join("")||`<tr><td colspan="9" class="empty">Nothing found. Clear the filter or create a new ${d.s.toLowerCase()}.</td></tr>`}</tbody></table></div></div>`}
+/* RECORD */
+function rel(o,r){const A=DB.accounts,C=DB.contacts,P=DB.opportunities,K=DB.tasks,n=r.name,R={};
+ if(o==="accounts"){R.contacts=C.filter(c=>c.account===n);R.opportunities=P.filter(p=>p.account===n);R.tasks=K.filter(t=>t.related===n)}
+ else if(o==="contacts"){R.accounts=A.filter(a=>a.name===r.account);R.opportunities=P.filter(p=>p.account===r.account);R.tasks=K.filter(t=>t.related===n)}
+ else if(o==="opportunities"){R.accounts=A.filter(a=>a.name===r.account);R.contacts=C.filter(c=>c.account===r.account);R.tasks=K.filter(t=>t.related===n)}
+ else if(o==="leads")R.tasks=K.filter(t=>t.related===n);
+ return R}
+const sub=(o,r)=>o==="contacts"?r.title:o==="opportunities"?r.stage+" · "+money(r.amount):o==="tasks"?fd(r.due):o==="accounts"?r.industry:"";
+
+/* OPPORTUNITY DASHBOARD */
+{const _o=DB.opportunities&&DB.opportunities.find(x=>x.id===30);if(_o&&_o.yoy===undefined){Object.assign(_o,{flag:3,rtype:"Renewal",sdr:"N/A",oamount:48000,yoy:"1.11",fc:"Closed",mfo:"Pipeline",won:"On going success with the product + Consolidation of the licenses into one renewal, which gave customer additional discounts to secure the renewal.",rc:"None",partners:[{id:"OP-79673",account:"Pronto",type:"Distributor",level:""}]});save()}}
+let OID,OTAB="det";
+const OL=[["owner","Opportunity Owner","s",OWN],["name","Opportunity Name"],["source","Opportunity Source","s",["Web","Referral","Event","Partner"]],["account","Account Name","a"],["type","Type","s",["New Business","Renewal","Upsell"]],["revch","Revenue Channel"],["refrep","Referral Rep"],["cur","Opportunity Currency","s",["USD","EUR","GBP","INR"]],["hold","Hold Tag"],["chin","Channel Initiated","c"],["chnotes","Channel Initiated Notes"],["so","Sales Order Number"],["autobill","Auto Bill Status"],["lastact","Last Activity","d"],["pm","Potential Matches Button","c"],["acstat","Account Stats"],["y1","Year 1"],["y2","Year 2"]];
+const OR=[["rtype","Opportunity Record Type","s",["New Business","Renewal","Upsell"]],["sdr","Stage Duration Risk"],["amount","Amount","m"],["oamount","Original Amount","m"],["yoy","Original YoY"],["close","Close Date","d"],["stage","Stage","s",ST.concat(["Closed Lost"])],["prob","Probability (%)","p"],["fc","Forecast Status","s",["Pipeline","Best Case","Commit","Closed","Omitted"]],["mfo","Manager Forecast Override","s",["Pipeline","Best Case","Commit","Closed","Omitted"]],["won","Reason Won","t"],["why","Why We Won","t"],["lost","Why We Lost","t"],["rc","Risk Classification","s",["None","Low","Medium","High"]],["rl1","Risk/Churn Level 1"],["rl2","Risk/Churn Level 2"],["rl3","Risk/Churn Level 3"],["arn","At Risk Notes","t"]];
+const FD={};OL.concat(OR).forEach(f=>FD[f[0]]=f);
+const cur=()=>DB.opportunities.find(x=>x.id===OID);
+function oe(k){const f=FD[k],t=f[2],v=cur()[k]??"",ov=$("of-"+k).querySelector(".ov");
+ ov.innerHTML=t==="s"?`<select id="oi" onchange="os('${k}')"><option value=""></option>${f[3].map(x=>`<option ${x===v?"selected":""}>${x}</option>`).join("")}</select>`:t==="t"?`<textarea id="oi" rows="3" onchange="os('${k}')">${esc(v)}</textarea>`:`<input id="oi" type="${t==="d"?"date":["m","p"].includes(t)?"number":"text"}" value="${esc(v)}" onchange="os('${k}')" onkeydown="if(event.key==='Escape')oppRec(cur())">`;
+ $("oi").focus()}
+function os(k){const r=cur(),f=FD[k],x=$("oi").value;r[k]=["m","p"].includes(f[2])?Number(x):x;
+ if(k==="stage"){r.prob=x==="Closed Won"?100:x==="Closed Lost"?0:r.prob}save();oppRec(r);toast(f[1]+" updated")}
+function oc(k,v){cur()[k]=v;save();toast("Saved")}
+function otab(t){OTAB=t;oppRec(cur())}
+function fol(){const r=cur();r.follow=!r.follow;save();oppRec(r);toast(r.follow?"Following":"Unfollowed")}
+function cloneRel(id){const r=DB.opportunities.find(x=>x.id===id),n={...r,id:++DB.n,name:r.name+" (copy)",notes:[...(r.notes||[])]};DB.opportunities.unshift(n);DB.tasks.filter(t=>t.related===r.name).forEach(t=>DB.tasks.unshift({...t,id:++DB.n,related:n.name}));save();go("opportunities",n.id);toast("Cloned with related records")}
+function addPartner(){const a=prompt("Partner account name");if(!a)return;const r=cur();(r.partners=r.partners||[]).push({id:"OP-"+(10000+Math.floor(Math.random()*89999)),account:a,type:prompt("Partner type","Distributor")||"",level:""});save();oppRec(r)}
+function oppRec(r){OID=r.id;const id=r.id,d=T.opportunities,cs=DB.contacts.filter(c=>c.account===r.account),ps=r.partners||[],tk=DB.tasks.filter(t=>t.related===r.name);
+ const acc=DB.accounts.find(a=>a.name===r.account);
+ const fld=f=>{const [k,l,t]=f,v=r[k];
+  if(t==="c")return `<div class="of"><label>${l}</label><input type="checkbox" ${v?"checked":""} onchange="oc('${k}',this.checked)"></div>`;
+  const s=v===undefined||v===""||v===null?"":t==="m"?money(v):t==="p"?v+"%":t==="d"?fd(v):t==="a"&&acc?`<a onclick="go('accounts',${acc.id})">${esc(v)}</a>`:esc(v);
+  return `<div class="of" id="of-${k}"><label>${l}</label><div class="ov">${s}</div><button class="pen" title="Edit" onclick="oe('${k}')">✎</button></div>`};
+ const B=[[r.follow?"✓ Following":"＋ Follow","fol()"],["Send to Slack","toast('Sent to Slack')"],["Slack Alerts","toast('Slack alerts toggled')"],["Printable View","window.print()"],["View Opportunity in Gong","otab('gng')"],["Add Referral","toast('Referral added')"],["AWS Private Offer","toast('AWS Private Offer requested')"],["Clone with Related",`cloneRel(${id})`],["Clone",`clone('opportunities',${id})`],["Edit",`openM('opportunities',${id})`],["Potential Matches ▾","toast('No potential matches')"]];
+ const i=ST.indexOf(r.stage),lost=r.stage==="Closed Lost";
+ const path=`<div class="card pb"><ul class="path">${ST.map((s,j)=>{const L=lost&&j===ST.length-1;return `<li class="${L?"l":j<i?"d":j===i?"c":""}" onclick="setStage('opportunities',${id},'${s}')">${L?"Closed Lost":j<i?"✓ "+s:s}</li>`}).join("")}</ul><select class="btn" onchange="if(this.value)setStage('opportunities',${id},this.value)"><option value="">Change Closed Stage</option><option>Closed Won</option><option>Closed Lost</option></select></div>`;
+ const TB=[["det","Details"],["act","Activity"],["cht","Chatter"],["gng","Gong"],["jra","Jira"]];
+ const notes=(r.notes||[]).map(n=>`<div class="n">${esc(n)}</div>`).join("")||'<div class="empty">No activity yet.</div>';
+ const body=OTAB==="det"?`<div class="two"><div>${OL.map(fld).join("")}</div><div>${OR.map(fld).join("")}</div></div>`
+  :OTAB==="act"?`<div class="tl"><div class="row"><input id="nt" placeholder="Log a call, note or meeting…" onkeydown="if(event.key==='Enter')addNote('opportunities',${id})"><button class="btn brand" onclick="addNote('opportunities',${id})">Add</button></div>${notes}</div>`
+  :`<div class="empty">No ${{cht:"Chatter posts",gng:"Gong conversations",jra:"Jira issues"}[OTAB]} yet.</div>`;
+ const QL=[["Contact Roles",cs.length,"rl-cr"],["Opportunity Partners",ps.length,"rl-op"],["Tasks",tk.length,"rl-tk"],["Products",0],["Quotes",0],["Gong Conversations",0]];
+ $("app").innerHTML=`<a style="display:inline-block;margin-bottom:8px" onclick="go('opportunities')">‹ ${d.l}</a>
+ <div class="card rh"><div class="rt"><div class="ic" style="background:${d.c}">O</div><div><small>Opportunity</small><h1>${esc(r.name)}</h1></div><div class="acts sf">${B.map(([l,f])=>`<button class="btn" onclick="${f}">${l}</button>`).join("")}</div></div>
+ <div class="hl"><div><small>Account Name</small>${cell("opportunities","account",r)}</div><div><small>Close Date</small>${fd(r.close)||"&nbsp;"}</div><div><small>Amount</small>${r.amount?money(r.amount):"&nbsp;"}</div><div><small>Opportunity Owner</small>${esc(r.owner)}</div><div><small>Risk Flag</small>${esc(r.flag??"")||"&nbsp;"}</div></div></div>
+ ${path}
+ <div class="cols"><div class="card"><div class="tabs">${TB.map(([k,l])=>`<a class="${OTAB===k?"on":""}" onclick="otab('${k}')">${l}</a>`).join("")}</div>${body}</div>
+ <div class="side">
+  <div class="card"><h3>Related List Quick Links</h3><div class="ql">${QL.map(([l,n,a])=>`<div class="q"><a onclick="${a?`document.getElementById('${a}').scrollIntoView({behavior:'smooth'})`:`toast('No records yet')`}">${l} (${n})</a></div>`).join("")}</div></div>
+  <div class="card rl" id="rl-cr"><h3>Contact Roles (${cs.length}) <a onclick="openM('contacts',null,{account:'${esc(r.account).replace(/'/g,"\\'")}'})">Add</a></h3>${cs.map((c,j)=>`<div class="ci"><div class="n"><span class="sq" style="background:#ff538a">${esc(c.name[0])}</span><a onclick="go('contacts',${c.id})">${esc(c.name)}</a>${j?"":'<span class="pill p">PRIMARY</span>'}</div><dl><dt>Role:</dt><dd>${esc(c.role||"Business User")}</dd><dt>Phone:</dt><dd>${esc(c.phone)}</dd><dt>Title:</dt><dd>${esc(c.title)}</dd></dl></div>`).join("")||'<div class="empty">No contact roles.</div>'}<div class="eb"><a onclick="go('contacts')">View All</a></div></div>
+  <div class="card rl" id="rl-op"><h3>Opportunity Partners (${ps.length}) <a onclick="addPartner()">New</a></h3>${ps.map(p=>`<div class="ci"><div class="n"><span class="sq" style="background:#fc903d">P</span><a>${esc(p.id)}</a></div><dl><dt>Account:</dt><dd>${esc(p.account)}</dd><dt>Type:</dt><dd>${esc(p.type)}</dd><dt>Level:</dt><dd>${esc(p.level)}</dd></dl></div>`).join("")||'<div class="empty">No partners.</div>'}</div>
+  <div class="card rl" id="rl-tk"><h3>Tasks (${tk.length}) <a onclick="newTask('${esc(r.name).replace(/'/g,"\\'")}')">New</a></h3>${tk.map(x=>`<div class="it"><a onclick="go('tasks',${x.id})">${esc(x.subject)}</a><br><small style="color:var(--muted)">${fd(x.due)}</small></div>`).join("")||'<div class="empty">Nothing related yet.</div>'}</div>
+ </div></div>`}
+let TAB="det";
+function record(o,id){const d=T[o],r=DB[o].find(x=>x.id===id);if(!r){list(o);return}if(o==="opportunities")return oppRec(r);
+ const hl=d.f.slice(1,5).filter(f=>f[0]!=="notes").map(([k,l])=>`<div><small>${l}</small>${cell(o,k,r)||"&nbsp;"}</div>`).join("");
+ const steps=o==="opportunities"?ST:o==="leads"?LS:null,key=o==="leads"?"status":"stage";
+ let path="";if(steps){const i=steps.indexOf(r[key]),lost=r[key]==="Closed Lost"||r[key]==="Unqualified";
+  path=`<ul class="path card">${steps.map((s,j)=>`<li class="${lost&&j===steps.length-1?"l":j<i?"d":j===i?"c":""}" onclick="setStage('${o}',${id},'${s}')">${lost&&j===steps.length-1?(o==="leads"?"Unqualified":"Closed Lost"):j<i?"✓ "+s:s}</li>`).join("")}</ul>`}
+ const R=rel(o,r),qk=Object.keys(R);
+ const ql=qk.length?`<div class="card"><h3>Related List Quick Links</h3><div class="ql">${qk.map(k=>`<div class="q"><a onclick="document.getElementById('rl-${k}').scrollIntoView({behavior:'smooth'})">${T[k].l} (${R[k].length})</a><div class="pop">${R[k].slice(0,4).map(x=>`<div><a onclick="go('${k}',${x.id})">${esc(x[T[k].t])}</a><br><small>${esc(sub(k,x))}</small></div>`).join("")||"<small>No records yet</small>"}</div></div>`).join("")}</div></div>`:"";
+ const rls=qk.map(k=>`<div class="card rl" id="rl-${k}"><h3>${T[k].l} (${R[k].length}) ${k==="tasks"?`<a onclick="newTask('${esc(r[d.t]).replace(/'/g,"\\'")}')">New</a>`:""}</h3>${R[k].map(x=>`<div class="it"><a onclick="go('${k}',${x.id})">${esc(x[T[k].t])}</a><br><small style="color:var(--muted)">${esc(sub(k,x))}</small></div>`).join("")||'<div class="empty">Nothing related yet.</div>'}</div>`).join("");
+ const notes=(r.notes||[]).map(n=>`<div class="n">${esc(n)}</div>`).join("")||'<div class="empty">No activity yet. Log your first note above.</div>';
+ $("app").innerHTML=`<a style="display:inline-block;margin-bottom:8px" onclick="go('${o}')">‹ ${d.l}</a>
+ <div class="card rh"><div class="rt"><div class="ic" style="background:${d.c}">${d.s[0]}</div><div><small>${d.s}</small><h1>${esc(r[d.t])}</h1></div>
+ <div class="acts">${o==="leads"&&r.status!=="Unqualified"?`<button class="btn brand" onclick="convert(${id})">Convert</button>`:""}<button class="btn" onclick="openM('${o}',${id})">Edit</button><button class="btn" onclick="clone('${o}',${id})">Clone</button><button class="btn" onclick="window.print()">Print</button><button class="btn danger" onclick="del('${o}',${id})">Delete</button></div></div><div class="hl">${hl}</div></div>
+ ${path}
+ <div class="cols"><div class="card"><div class="tabs"><a class="${TAB==="det"?"on":""}" onclick="TAB='det';record('${o}',${id})">Details</a><a class="${TAB==="act"?"on":""}" onclick="TAB='act';record('${o}',${id})">Activity</a></div>
+ ${TAB==="det"?`<div class="two">${d.f.map(([k,l])=>`<div class="f" ${k==="notes"?'style="grid-column:1/-1"':""}><label>${l}</label>${k==="notes"?esc(r.notes&&r.notes[0]||""):cell(o,k,r)||"&nbsp;"}</div>`).join("")}</div>`:`<div class="tl"><div class="row"><input id="nt" placeholder="Log a call, note or meeting…" onkeydown="if(event.key==='Enter')addNote('${o}',${id})"><button class="btn brand" onclick="addNote('${o}',${id})">Add</button></div>${notes}</div>`}</div>
+ <div class="side">${ql}${rls}</div></div>`}
+function setStage(o,id,s){const r=DB[o].find(x=>x.id===id);if(o==="leads"){r.status=s}else{r.stage=s;r.prob=s==="Closed Won"?100:s==="Closed Lost"?0:r.prob}save();record(o,id);toast("Updated to "+s)}
+function addNote(o,id){const v=$("nt").value.trim();if(!v)return;const r=DB[o].find(x=>x.id===id);(r.notes=r.notes||[]).unshift(new Date().toLocaleDateString("en-GB")+" – "+v);save();record(o,id);toast("Activity logged")}
+function clone(o,id){const r={...DB[o].find(x=>x.id===id),id:++DB.n,notes:[]};r[T[o].t]+=" (copy)";DB[o].unshift(r);save();go(o,r.id);toast("Record cloned")}
+function del(o,id){if(!confirm("Delete this "+T[o].s.toLowerCase()+"? This cannot be undone."))return;DB[o]=DB[o].filter(x=>x.id!==id);save();go(o);toast("Deleted")}
+function convert(id){const l=DB.leads.find(x=>x.id===id);
+ if(!DB.accounts.find(a=>a.name===l.company))DB.accounts.unshift({id:++DB.n,name:l.company,industry:"Technology",city:"",phone:l.phone,website:"",revenue:0,owner:l.owner,notes:[]});
+ DB.contacts.unshift({id:++DB.n,name:l.name,account:l.company,title:"",email:l.email,phone:l.phone,owner:l.owner,notes:[]});
+ const op={id:++DB.n,name:l.company+" – New Business",account:l.company,stage:"Prospecting",amount:0,close:"",prob:10,type:"New Business",owner:l.owner,notes:[]};
+ DB.opportunities.unshift(op);l.status="Qualified";save();go("opportunities",op.id);toast("Lead converted to account, contact and opportunity")}
+/* SEARCH */
+function gsearch(v){if(!v.trim()){return}GQ=v;location.hash="search"}
+let GQ="";
+function sres(){const q=GQ.toLowerCase();let h="",n=0;
+ Object.keys(T).forEach(o=>{const m=DB[o].filter(r=>T[o].cols.some(k=>String(r[k]??"").toLowerCase().includes(q)));n+=m.length;
+  if(m.length)h+=`<div class="card" style="margin-bottom:12px"><h3>${T[o].l} (${m.length})</h3><div class="bd">${m.map(r=>`<div class="li"><a onclick="go('${o}',${r.id})">${esc(r[T[o].t])}</a><small>${esc(sub(o,r))}</small></div>`).join("")}</div></div>`});
+ $("app").innerHTML=`<h2 style="margin-top:0">Search results for “${esc(GQ)}”</h2>${h||'<div class="card empty">No matches. Try a company, contact or deal name.</div>'}`}
+/* MODAL */
+let M=null;
+function openM(o,id,pre){const d=T[o],r=id?DB[o].find(x=>x.id===id):{owner:OWN[0],stage:"Prospecting",status:o==="tasks"?"Open":"New",priority:"Normal",prob:10,type:"New Business",source:"Web",industry:"Technology",...(pre||{})};
+ M={o,id};$("mt").textContent=(id?"Edit ":"New ")+d.s;
+ $("fm").innerHTML=d.f.map(([k,l,t])=>{const w=k==="notes"?"w":"",v=k==="notes"?(r.notes&&r.notes[0]||""):r[k]??"";
+  const i=Array.isArray(t)?`<select id="m_${k}">${t.map(x=>`<option ${x===v?"selected":""}>${x}</option>`).join("")}</select>`:t==="area"?`<textarea rows="3" id="m_${k}">${esc(v)}</textarea>`:`<input id="m_${k}" type="${t||"text"}" value="${esc(v)}">`;
+  return `<div class="${w}"><label>${l}</label>${i}</div>`}).join("");$("mo").classList.add("on")}
+function closeM(){$("mo").classList.remove("on")}
+function saveM(){const {o,id}=M,d=T[o];const nm=$("m_"+d.t).value.trim();if(!nm){toast("Enter a "+LBL(d.t).toLowerCase()+" to save");return}
+ const r=id?DB[o].find(x=>x.id===id):{id:++DB.n,notes:[]};
+ d.f.forEach(([k,,t])=>{const v=$("m_"+k).value;if(k==="notes")r.notes=v?[v]:[];else r[k]=t==="number"?Number(v):v});
+ if(o==="opportunities"&&!id)r.prob=r.prob||10;
+ if(!id)DB[o].unshift(r);save();closeM();go(o,r.id);route();toast(T[o].s+" saved")}
+function newTask(rel){openM("tasks",null,{related:rel})}
+route();
+</script>
+<script>
+/* ===== PORTALS ADD-ON: Rep / Admin / CEO, teams, products, quotations ===== */
+const RANK={rep:0,admin:1,ceo:2},RN={rep:"Sales Rep",admin:"Admin",ceo:"CEO"},K5=["leads","accounts","contacts","opportunities","tasks"];
+let SES=null,SESN=null,TF="All",QF="All",QB=null;
+try{SESN=localStorage.getItem("nimbus_ses")}catch(e){}
+T.products={l:"Products",s:"Product",c:"#0ea5a4",t:"name",cols:["name","sku","category","price"],f:[["name","Product Name"],["sku","SKU"],["category","Category",["Software","Support","Services","Hardware"]],["price","List Price","number"]]};
+const _cell=cell;cell=function(o,k,r){return o==="products"&&k==="price"?money(r.price):_cell(o,k,r)};
+function ens(){
+ DB.users=DB.users||[{n:"Priya Shah",role:"rep",team:"Alpha"},{n:"Rahul Mehta",role:"rep",team:"Alpha"},{n:"Dana Wright",role:"rep",team:"Beta"},{n:"Meera Kapoor",role:"admin",team:"All"},{n:"Arjun Rao",role:"ceo",team:"All"}];
+ DB.teams=DB.teams||["Alpha","Beta"];
+ DB.products=DB.products||[{id:201,name:"Nimbus Platform – Annual",sku:"NP-100",category:"Software",price:12000},{id:202,name:"Analytics Add-on",sku:"NA-200",category:"Software",price:6000},{id:203,name:"Premium Support",sku:"PS-300",category:"Support",price:3500},{id:204,name:"Onboarding & Training",sku:"OT-400",category:"Services",price:2500},{id:205,name:"API Pack",sku:"AP-500",category:"Software",price:1800}];
+ DB.quotes=DB.quotes||[];
+ DB.cfg=DB.cfg||{repMax:2,adminMax:5,min:1000,max:100000};
+ DB.users.forEach(u=>u.role==="rep"&&!OWN.includes(u.n)&&OWN.push(u.n))}
+const sp=s=>`<span class="pill ${s==="Approved"?"g":s==="Rejected"?"r":"y"}">${s}</span>`;
+const owners=()=>{const t=SES.role==="rep"?SES.team:TF;return t==="All"?null:DB.users.filter(u=>u.role==="rep"&&u.team===t).map(u=>u.n)};
+const qScope=()=>{const ow=owners();return DB.quotes.filter(q=>!ow||ow.includes(q.owner))};
+function scoped(f){const ow=owners();if(!ow)return f();const b={};K5.forEach(k=>{b[k]=DB[k];DB[k]=DB[k].filter(r=>ow.includes(r.owner))});try{f()}finally{K5.forEach(k=>DB[k]=b[k])}}
+/* login + topbar + nav */
+function login(){$("nav").innerHTML="";$("ub").innerHTML="";
+ $("app").innerHTML=`<div class="card" style="max-width:640px;margin:40px auto"><h3>Sign in to Nimbus CRM</h3><div class="bd">${["rep","admin","ceo"].map(r=>`<p style="margin:12px 0 4px"><b>${RN[r]} portal</b></p>${DB.users.filter(u=>u.role===r).map(u=>`<button class="btn" style="margin:2px 6px 2px 0" onclick="sgn('${u.n}')">${esc(u.n)}${r==="rep"?" · Team "+esc(u.team):""}</button>`).join("")}`).join("")}<p style="color:var(--muted)">Demo sign-in: pick a user to enter their portal.</p></div></div>`}
+function sgn(n){SESN=n;try{localStorage.setItem("nimbus_ses",n)}catch(e){}TF="All";location.hash="home";route()}
+function out(){SESN=null;try{localStorage.removeItem("nimbus_ses")}catch(e){}route()}
+function topbar(){$("ub").innerHTML=`<span>${esc(SES.n)} <span class="pill y">${RN[SES.role]}${SES.role==="rep"?" · Team "+esc(SES.team):""}</span></span>${SES.role!=="rep"?`<select class="btn" onchange="TF=this.value;route()"><option value="All">All teams</option>${DB.teams.map(t=>`<option value="${t}" ${t===TF?"selected":""}>Team ${esc(t)}</option>`).join("")}</select>`:""}<button class="btn" onclick="out()">Sign out</button>`}
+function navX(cur){const me=RANK[SES.role],pn=qScope().filter(q=>q.status.startsWith("Pending")&&q.needs<=me&&me>0).length;
+ const it=[["home","Home"],["quotes","Quotes"],["qnew","+ New Quote"]];
+ if(me>0)it.push(["appr","Approvals"+(pn?" ("+pn+")":"")],["products","Products"],["teams","Teams"],["rules","Rules"]);
+ K5.forEach(k=>it.push([k,T[k].l]));
+ $("nav").innerHTML=it.map(([k,l])=>`<a class="${cur===k||(k==="appr"&&cur==="quotes"&&QF==="Pending")?"on":""}" onclick="${k==="appr"?"QF='Pending';go('quotes')":k==="quotes"?"QF='All';go('quotes')":`go('${k}')`}">${l}</a>`).join("")}
+/* home banner */
+function banner(){const me=RANK[SES.role],qs=qScope(),pend=qs.filter(q=>q.status.startsWith("Pending")),mine=pend.filter(q=>q.needs<=me&&me>0),ap=qs.filter(q=>q.status==="Approved"),sm=a=>a.reduce((s,q)=>s+q.total,0),c=DB.cfg;
+ const k=(b,s,col)=>`<div class="card kpi" style="border-color:${col}"><b>${b}</b><span>${s}</span></div>`;
+ let tb="";if(me>0){const m={};DB.teams.forEach(t=>{const ow=DB.users.filter(u=>u.team===t).map(u=>u.n);m["Team "+t]=sm(DB.quotes.filter(q=>q.status==="Approved"&&ow.includes(q.owner)))});tb=`<div class="card" style="margin-bottom:12px"><h3>Approved quote value by team</h3><div class="bd">${bars(m,money)}</div></div>`}
+ return `<div class="card" style="padding:12px 16px;margin-bottom:12px;border-left:4px solid var(--navy)"><b>${RN[SES.role]} portal</b> · ${esc(SES.n)} · ${SES.role==="rep"?"Team "+esc(SES.team)+" · discount limit "+c.repMax+"%":SES.role==="admin"?"approves discounts up to "+c.adminMax+"%":"approves everything above "+c.adminMax+"% and above "+money(c.max)}</div>
+ <div class="kpis">${k(qs.length,"Quotations","var(--blue)")}${k(pend.length,"Pending approval","#f59e0b")}${k(money(sm(ap)),"Approved value","var(--green)")}${me>0?k(mine.length,"Waiting for your approval","var(--red)"):k(qs.filter(q=>q.status==="Rejected").length,"Rejected","var(--red)")}</div>${tb}`}
+/* quotes */
+function qlist(){const me=RANK[SES.role],rows=qScope().filter(q=>QF==="All"||(QF==="Pending"?q.status.startsWith("Pending"):q.status===QF)).sort((a,b)=>b.id-a.id);
+ $("app").innerHTML=`<div class="card"><div class="lh"><div><h2>Quotations</h2><small>${rows.length} items</small></div><div style="display:flex;gap:8px"><select onchange="QF=this.value;qlist()">${["All","Pending","Approved","Rejected"].map(s=>`<option ${s===QF?"selected":""}>${s}</option>`).join("")}</select><button class="btn brand" onclick="go('qnew')">New Quotation</button></div></div><div style="overflow-x:auto"><table><thead><tr><th>Quote</th><th>Account</th><th>Owner</th><th>Team</th><th>Discount</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(q=>`<tr><td><a onclick="go('quotes',${q.id})">${q.no}</a></td><td>${esc(q.account)}</td><td>${esc(q.owner)}</td><td>${esc(q.team)}</td><td>${q.disc}%</td><td>${money(q.total)}</td><td>${sp(q.status)}</td><td>${q.status.startsWith("Pending")&&me>=q.needs?`<a onclick="qact(${q.id},'Approved')">Approve</a> · <a onclick="qact(${q.id},'Rejected')">Reject</a>`:""}</td></tr>`).join("")||`<tr><td colspan="8" class="empty">No quotations found.</td></tr>`}</tbody></table></div></div>`}
+function qact(id,s){const q=DB.quotes.find(x=>x.id===id);if(RANK[SES.role]<q.needs)return toast("You are not allowed to approve this quote");q.status=s;q.log.push(new Date().toLocaleDateString("en-GB")+" – "+s+" by "+SES.n+" ("+RN[SES.role]+")");save();route();toast("Quote "+s.toLowerCase())}
+function qview(id){const q=DB.quotes.find(x=>x.id===id);if(!q)return qlist();const me=RANK[SES.role],ok=q.status.startsWith("Pending")&&me>=q.needs;
+ $("app").innerHTML=`<a style="display:inline-block;margin-bottom:8px" onclick="go('quotes')">‹ Quotations</a><div class="card"><div class="lh"><div><h2>Quotation ${q.no}</h2><small>${sp(q.status)} · ${esc(q.owner)} · Team ${esc(q.team)}</small></div><div class="acts">${ok?`<button class="btn brand" onclick="qact(${id},'Approved')">Approve</button><button class="btn danger" onclick="qact(${id},'Rejected')">Reject</button>`:""}<button class="btn" onclick="window.print()">Print / Save PDF</button></div></div>
+ <div class="bd"><h3 style="border:0;padding:0 0 8px">Nimbus CRM · Quotation</h3><div class="hl" style="margin:0 0 14px"><div><small>Customer</small><b>${esc(q.account)}</b></div><div><small>Opportunity</small>${esc(q.opp||"–")}</div><div><small>Date</small>${esc(q.date)}</div><div><small>Valid until</small>${fd(q.valid)}</div></div>
+ <table><thead><tr><th>Product</th><th>SKU</th><th>Unit price</th><th>Qty</th><th>Amount</th></tr></thead><tbody>${q.lines.map(l=>`<tr><td>${esc(l.name)}</td><td>${esc(l.sku)}</td><td>${money(l.price)}</td><td>${l.qty}</td><td>${money(l.price*l.qty)}</td></tr>`).join("")}</tbody></table>
+ <div style="text-align:right;padding:12px 0;line-height:1.8">Subtotal ${money(q.sub)}<br>Discount (${q.disc}%) −${money(q.sub-q.total)}<br><b style="font-size:18px">Total ${money(q.total)}</b></div>${q.note?`<p>${esc(q.note)}</p>`:""}
+ <small style="color:var(--muted)">Approval trail</small>${q.log.map(x=>`<div class="n" style="margin:4px 0;padding-left:10px;border-left:2px solid var(--blue)">${esc(x)}</div>`).join("")}</div></div>`}
+const need=(d,t)=>{const c=DB.cfg;return t>c.max||d>c.adminMax?2:d>c.repMax?1:0};
+function qnew(){QB=QB||{acc:"",opp:"",disc:0,note:"",valid:new Date(Date.now()+30*864e5).toISOString().slice(0,10),lines:[{p:DB.products[0].id,q:1}]};qdraw()}
+function qdraw(){const ow=owners(),ac=DB.accounts.filter(a=>!ow||ow.includes(a.owner)),op=DB.opportunities.filter(o=>o.account===QB.acc);
+ $("app").innerHTML=`<a style="display:inline-block;margin-bottom:8px" onclick="QB=null;go('quotes')">‹ Quotations</a><div class="card"><div class="lh"><h2>New Quotation</h2></div><div class="fm">
+ <div><label>Customer account</label><select id="qa" onchange="qs();QB.opp='';qdraw()"><option value="">Select…</option>${ac.map(a=>`<option ${a.name===QB.acc?"selected":""}>${esc(a.name)}</option>`).join("")}</select></div>
+ <div><label>Opportunity (optional)</label><select id="qo" onchange="qs()"><option value="">None</option>${op.map(o=>`<option ${o.name===QB.opp?"selected":""}>${esc(o.name)}</option>`).join("")}</select></div>
+ <div><label>Valid until</label><input id="qv" type="date" value="${QB.valid}" onchange="qs()"></div><div><label>Discount %</label><input id="qd" type="number" min="0" max="100" step="0.5" value="${QB.disc}" oninput="qt()"></div>
+ <div class="w"><table><thead><tr><th>Product</th><th>Unit price</th><th>Qty</th><th>Amount</th><th></th></tr></thead><tbody>${QB.lines.map((l,i)=>`<tr><td><select id="ls${i}" onchange="qt()">${DB.products.map(p=>`<option value="${p.id}" ${p.id===l.p?"selected":""}>${esc(p.name)} (${esc(p.sku)})</option>`).join("")}</select></td><td id="lpr${i}"></td><td><input id="lq${i}" type="number" min="1" value="${l.q}" style="width:70px" oninput="qt()"></td><td id="ltt${i}"></td><td><a onclick="qs();QB.lines.splice(${i},1);qdraw()">Remove</a></td></tr>`).join("")}</tbody></table><button class="btn" style="margin-top:8px" onclick="qs();QB.lines.push({p:DB.products[0].id,q:1});qdraw()">+ Add product</button></div>
+ <div class="w"><label>Notes / terms</label><textarea id="qn" rows="2" oninput="qs()">${esc(QB.note)}</textarea></div></div><div class="bd" id="qsum"></div><div class="mf"><button class="btn brand" onclick="qsave()">Submit quotation</button></div></div>`;qt()}
+function qs(){QB.acc=$("qa").value;QB.opp=$("qo").value;QB.valid=$("qv").value;QB.disc=+$("qd").value||0;QB.note=$("qn").value;QB.lines.forEach((l,i)=>{l.p=+$("ls"+i).value;l.q=Math.max(1,+$("lq"+i).value||1)})}
+function qt(){qs();let sub=0;QB.lines.forEach((l,i)=>{const p=DB.products.find(x=>x.id===l.p),t=p.price*l.q;sub+=t;$("lpr"+i).textContent=money(p.price);$("ltt"+i).textContent=money(t)});
+ const d=Math.max(0,Math.min(100,QB.disc)),tot=Math.round(sub*(1-d/100)*100)/100,c=DB.cfg,l=need(d,tot),me=RANK[SES.role];
+ const msg=tot<c.min?`<span style="color:var(--red)">Total is below the minimum quote amount of ${money(c.min)}. Cannot submit.</span>`:l<=me?`<span style="color:var(--green)">Within your limit. Auto-approved on submit.</span>`:`<span style="color:#a05a00">Needs ${l===1?"Admin":"CEO"} approval${tot>c.max?" (total above "+money(c.max)+")":""}.</span>`;
+ $("qsum").innerHTML=`<div style="text-align:right;line-height:1.8">Subtotal ${money(sub)} · Discount −${money(sub-tot)}<br><b style="font-size:18px">Total ${money(tot)}</b><br>${msg}</div>`;return{sub,d,tot,l}}
+function qsave(){const r=qt(),c=DB.cfg,me=RANK[SES.role];
+ if(!QB.acc)return toast("Select a customer account");if(r.tot<c.min)return toast("Total is below the minimum of "+money(c.min));if(!r.sub)return toast("Add at least one product");
+ const ap=r.l<=me,id=++DB.n,rt=SES.role==="rep"?SES.team:(DB.users.find(u=>u.n===(DB.opportunities.find(o=>o.name===QB.opp)||{}).owner)||SES).team;
+ DB.quotes.unshift({id,no:"Q-"+(1000+DB.quotes.length+1),account:QB.acc,opp:QB.opp,owner:SES.n,team:rt,disc:r.d,sub:r.sub,total:r.tot,needs:r.l,status:ap?"Approved":r.l===1?"Pending Admin":"Pending CEO",date:new Date().toLocaleDateString("en-GB"),valid:QB.valid,note:QB.note,
+  lines:QB.lines.map(l=>{const p=DB.products.find(x=>x.id===l.p);return{name:p.name,sku:p.sku,price:p.price,qty:l.q}}),log:[new Date().toLocaleDateString("en-GB")+" – Created by "+SES.n+" ("+RN[SES.role]+")"+(ap?" · auto-approved":" · sent for "+(r.l===1?"Admin":"CEO")+" approval")]});
+ QB=null;save();go("quotes",id);toast(ap?"Quotation approved":"Sent for approval")}
+/* products, teams, rules */
+function plist(){$("app").innerHTML=`<div class="card"><div class="lh"><div><h2>Products</h2><small>${DB.products.length} items. Reps pick from this catalogue when quoting.</small></div><button class="btn brand" onclick="openM('products')">New Product</button></div><div style="overflow-x:auto"><table><thead><tr><th>Product</th><th>SKU</th><th>Category</th><th>List price</th><th></th></tr></thead><tbody>${DB.products.map(p=>`<tr><td><a onclick="go('products',${p.id})">${esc(p.name)}</a></td><td>${esc(p.sku)}</td><td>${esc(p.category)}</td><td>${money(p.price)}</td><td style="text-align:right"><a onclick="openM('products',${p.id})">Edit</a></td></tr>`).join("")}</tbody></table></div></div>`}
+function teams(){const sm=(a,f)=>a.reduce((s,x)=>s+(+f(x)||0),0);
+ const tr=DB.teams.map(t=>{const ow=DB.users.filter(u=>u.team===t&&u.role==="rep").map(u=>u.n),op=DB.opportunities.filter(o=>ow.includes(o.owner)),qq=DB.quotes.filter(q=>ow.includes(q.owner));return `<tr><td>Team ${esc(t)}</td><td>${ow.length}</td><td>${money(sm(op.filter(o=>o.stage==="Closed Won"),o=>o.amount))}</td><td>${money(sm(op.filter(o=>!o.stage.startsWith("Closed")),o=>o.amount))}</td><td>${money(sm(qq.filter(q=>q.status==="Approved"),q=>q.total))}</td><td>${qq.filter(q=>q.status.startsWith("Pending")).length}</td></tr>`}).join("");
+ $("app").innerHTML=`<div class="card" style="margin-bottom:12px"><div class="lh"><h2>Teams</h2><button class="btn" onclick="addTeam()">Add team</button></div><table><thead><tr><th>Team</th><th>Reps</th><th>Won</th><th>Open pipeline</th><th>Approved quotes</th><th>Pending quotes</th></tr></thead><tbody>${tr}</tbody></table></div>
+ <div class="card"><div class="lh"><h2>Users</h2><button class="btn" onclick="addUser()">Add user</button></div><table><thead><tr><th>Name</th><th>Role</th><th>Team</th></tr></thead><tbody>${DB.users.map((u,i)=>`<tr><td>${esc(u.n)}</td><td>${RN[u.role]}</td><td>${u.role==="rep"?`<select onchange="DB.users[${i}].team=this.value;save();route();toast('Team updated')">${DB.teams.map(t=>`<option ${t===u.team?"selected":""}>${esc(t)}</option>`).join("")}</select>`:"All teams"}</td></tr>`).join("")}</tbody></table></div>`}
+function addTeam(){const t=(prompt("Team name")||"").trim();if(!t||DB.teams.includes(t))return;DB.teams.push(t);save();teams()}
+function addUser(){const n=(prompt("Full name")||"").trim();if(!n)return;const r=(prompt("Role: rep, admin or ceo","rep")||"rep").toLowerCase();if(!RANK.hasOwnProperty(r))return toast("Role must be rep, admin or ceo");const t=r==="rep"?(prompt("Team ("+DB.teams.join(", ")+")",DB.teams[0])||DB.teams[0]):"All";DB.users.push({n,role:r,team:t});ens();save();teams()}
+function rules(){const c=DB.cfg,d=SES.role!=="ceo"?"disabled":"",f=(id,l,v,s)=>`<div><label>${l}</label><input id="${id}" type="number" step="${s}" value="${v}" ${d}></div>`;
+ $("app").innerHTML=`<div class="card"><div class="lh"><div><h2>Discount and amount rules</h2><small>${d?"View only. Only the CEO can change these limits.":"Changes apply to all new quotations."}</small></div></div><div class="fm">${f("c1","Rep max discount (%)",c.repMax,.5)}${f("c2","Admin max discount (%). Above this needs CEO",c.adminMax,.5)}${f("c3","Minimum quote amount ($). Below this is blocked",c.min,100)}${f("c4","Maximum quote amount ($). Above this needs CEO",c.max,1000)}</div>
+ <div class="bd">Rep: 0 to ${c.repMax}% auto-approved · Admin: above ${c.repMax}% up to ${c.adminMax}% · CEO: above ${c.adminMax}% · Any quote above ${money(c.max)} needs CEO · Quotes below ${money(c.min)} cannot be submitted.</div>${d?"":`<div class="mf"><button class="btn brand" onclick="saveRules()">Save rules</button></div>`}</div>`}
+function saveRules(){const v=i=>+$(i).value,a=v("c1"),b=v("c2"),m=v("c3"),x=v("c4");if(a<0||b<a||m<0||x<=m)return toast("Check values: rep ≤ admin limit, min < max");DB.cfg={repMax:a,adminMax:b,min:m,max:x};save();rules();toast("Rules saved")}
+/* router */
+removeEventListener("hashchange",route);
+route=function(){ens();SES=DB.users.find(u=>u.n===SESN)||null;if(!SES)return login();
+ const [o,id]=location.hash.slice(1).split("/"),me=RANK[SES.role];navX(o||"home");topbar();
+ if(me===0&&["products","teams","rules"].includes(o))return go("home");
+ if(o==="quotes")id?qview(+id):qlist();else if(o==="qnew")qnew();
+ else if(o==="products"&&!id)plist();else if(o==="teams")teams();else if(o==="rules")rules();
+ else if(!o||o==="home")scoped(()=>{home();$("app").insertAdjacentHTML("afterbegin",banner())});
+ else if(o==="search")scoped(sres);else if(T[o]&&id)scoped(()=>record(o,+id));else if(T[o])scoped(()=>list(o));else go("home");
+ window.scrollTo(0,0)};
+addEventListener("hashchange",route);
+document.querySelector(".brand").insertAdjacentHTML("afterend",'<div id="ub" style="display:flex;gap:8px;align-items:center;margin-left:8px"></div>');
+route();
+</script>
+</body>
+</html>
