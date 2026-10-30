@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<defs>
+<linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f59a55"/><stop offset=".5" stop-color="#e87722"/><stop offset="1" stop-color="#d45f1a"/></linearGradient>
+<linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+<linearGradient id="c" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#ffe3cc"/></linearGradient>
+</defs>
+<rect x="2" y="2" width="60" height="60" rx="16" fill="url(#g)"/>
+<rect x="2" y="2" width="60" height="30" rx="16" fill="url(#s)"/>
+<path d="M21 45a9 9 0 0 1-1.6-17.85A12.5 12.5 0 0 1 43.6 24.4 10.4 10.4 0 0 1 43 45z" fill="url(#c)"/>
+<path d="M25 40.5l6-6 4 4 7-8" fill="none" stroke="#d45f1a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="2.75" y="2.75" width="58.5" height="58.5" rx="15.3" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="1.5"/>
+</svg>
