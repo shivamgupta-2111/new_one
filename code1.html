@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Sales Cloud - Stark Ind - Q3 Security Platform</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:wght,GRAD,XOPQ,XTRA,YOPQ,YTAS,YTDE,YTFI,YTLC,YTUC@100..1000,0,96,468,79,750,-203,738,514,712&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "tertiary-container": "#4775ba",
+            "surface-bright": "#fffeac",
+            "primary-container": "#0176d3",
+            "error-container": "#ffdad6",
+            "primary-fixed-dim": "#a4c9ff",
+            "tertiary": "#2a5c9f",
+            "surface-dim": "#e0e06d",
+            "secondary": "#115eae",
+            "on-tertiary": "#ffffff",
+            "error": "#ba1a1a",
+            "outline-variant": "#c0c7d4",
+            "surface-tint": "#005fac",
+            "surface-container-high": "#eeee7a",
+            "tertiary-fixed": "#d6e3ff",
+            "primary": "#005da9",
+            "on-secondary": "#ffffff",
+            "on-tertiary-fixed": "#001b3c",
+            "surface": "#fffeac",
+            "on-secondary-fixed": "#001c3b",
+            "secondary-container": "#70aafe",
+            "on-tertiary-fixed-variant": "#064688",
+            "on-surface": "#1d1d00",
+            "on-tertiary-container": "#fefcff",
+            "inverse-surface": "#323200",
+            "on-error-container": "#93000a",
+            "surface-container": "#f4f47f",
+            "surface-container-low": "#faf984",
+            "secondary-fixed-dim": "#a7c8ff",
+            "on-primary-fixed-variant": "#004884",
+            "on-secondary-fixed-variant": "#004788",
+            "on-primary-fixed": "#001c39",
+            "on-primary": "#ffffff",
+            "on-surface-variant": "#414752",
+            "surface-variant": "#e9e875",
+            "inverse-primary": "#a4c9ff",
+            "outline": "#717784",
+            "surface-container-lowest": "#ffffff",
+            "on-error": "#ffffff",
+            "on-background": "#1d1d00",
+            "primary-fixed": "#d4e3ff",
+            "on-primary-container": "#fefcff",
+            "inverse-on-surface": "#f7f782",
+            "secondary-fixed": "#d5e3ff",
+            "on-secondary-container": "#003d77",
+            "tertiary-fixed-dim": "#a8c8ff",
+            "background": "#fffeac",
+            "surface-container-highest": "#e9e875"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "spacing": {
+            "space-md": "0.75rem",
+            "space-xs": "0.25rem",
+            "gutter": "0.75rem",
+            "space-sm": "0.5rem",
+            "space-xl": "1.5rem",
+            "margin": "1rem",
+            "space-xxs": "0.125rem",
+            "space-lg": "1rem"
+          },
+          "fontFamily": {
+            "label-md": ["Roboto Flex"],
+            "headline-md": ["Roboto Flex"],
+            "label-xs": ["Roboto Flex"],
+            "headline-xl": ["Roboto Flex"],
+            "body-md": ["Roboto Flex"],
+            "headline-sm": ["Roboto Flex"],
+            "body-lg": ["Roboto Flex"],
+            "label-sm": ["Roboto Flex"],
+            "body-sm": ["Roboto Flex"],
+            "headline-lg": ["Roboto Flex"]
+          },
+          "fontSize": {
+            "label-md": ["12px", { "lineHeight": "16px", "fontWeight": "600" }],
+            "headline-md": ["16px", { "lineHeight": "24px", "fontWeight": "600" }],
+            "label-xs": ["10px", { "lineHeight": "12px", "letterSpacing": "0.05em", "fontWeight": "700" }],
+            "headline-xl": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700" }],
+            "body-md": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+            "headline-sm": ["14px", { "lineHeight": "20px", "fontWeight": "600" }],
+            "body-lg": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+            "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.03em", "fontWeight": "700" }],
+            "body-sm": ["12px", { "lineHeight": "16px", "fontWeight": "400" }],
+            "headline-lg": ["20px", { "lineHeight": "28px", "fontWeight": "700" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+      font-size: 18px;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: #f1f3f5;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #c0c7d4;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body class="bg-surface-container-lowest text-on-surface-variant font-body-md text-body-md antialiased h-screen overflow-hidden flex flex-col">
+<!-- ==================== BACKGROUND OPPORTUNITY RECORD VIEW (SLDS BLURRED BACKDROP) ==================== -->
+<div class="flex-1 flex flex-col filter blur-[2px] opacity-75 pointer-events-none select-none overflow-hidden">
+<!-- TopNavBar (Shared Component JSON Source) -->
+<header class="bg-surface-container-lowest text-primary docked full-width top-0 border-b border-outline-variant shadow-sm w-full px-space-md py-space-xs flex items-center justify-between z-10">
+<div class="flex items-center space-x-space-md">
+<!-- App Launcher Waffle -->
+<button class="p-space-xxs rounded hover:bg-surface-container-low transition-colors duration-150 text-on-surface-variant">
+<span class="material-symbols-outlined" data-icon="apps">apps</span>
+</button>
+<!-- Product Brand Name -->
+<div class="flex items-center space-x-space-xs">
+<span class="text-headline-md font-headline-md text-primary font-bold tracking-tight">Sales Cloud</span>
+</div>
+<!-- Search bar on left -->
+<div class="relative w-80">
+<div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-outline">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</div>
+<input class="w-full pl-8 pr-3 py-1 bg-surface-container-lowest border border-outline-variant rounded-lg text-body-sm text-on-surface-variant focus:outline-none" placeholder="Search Salesforce..." readonly="" type="text" value="Stark Ind - Q3 Security Platform"/>
+</div>
+</div>
+<!-- Navigation Links -->
+<nav class="hidden lg:flex items-center space-x-space-lg text-label-md font-label-md">
+<a class="text-on-surface-variant font-medium pb-2 hover:bg-surface-container-low transition-colors duration-150" href="#">Home</a>
+<a class="text-on-surface-variant font-medium pb-2 hover:bg-surface-container-low transition-colors duration-150" href="#">Leads</a>
+<a class="text-on-surface-variant font-medium pb-2 hover:bg-surface-container-low transition-colors duration-150" href="#">Accounts</a>
+<a class="text-on-surface-variant font-medium pb-2 hover:bg-surface-container-low transition-colors duration-150" href="#">Contacts</a>
+<a class="border-b-2 border-primary text-primary font-bold pb-2" href="#">Opportunities</a>
+<a class="text-on-surface-variant font-medium pb-2 hover:bg-surface-container-low transition-colors duration-150" href="#">Reports</a>
+</nav>
+<!-- Trailing Action Cluster -->
+<div class="flex items-center space-x-space-sm">
+<button class="px-space-md py-1 bg-primary text-on-primary rounded font-label-md text-label-md shadow-sm">New</button>
+<div class="flex items-center space-x-1 text-outline">
+<span class="p-1 rounded hover:bg-surface-container-low material-symbols-outlined" data-icon="star">star</span>
+<span class="p-1 rounded hover:bg-surface-container-low material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="p-1 rounded hover:bg-surface-container-low material-symbols-outlined" data-icon="settings">settings</span>
+<span class="p-1 rounded hover:bg-surface-container-low material-symbols-outlined" data-icon="help">help</span>
+</div>
+<div class="w-7 h-7 rounded-full bg-primary-container text-on-primary flex items-center justify-center font-bold text-label-sm">
+          TS
+        </div>
+</div>
+</header>
+<!-- Opportunity Highlights Panel -->
+<div class="bg-surface-container-lowest border-b border-outline-variant p-space-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center space-x-3">
+<div class="w-10 h-10 rounded bg-tertiary-container flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined" data-icon="monetization_on">monetization_on</span>
+</div>
+<div>
+<div class="text-label-xs font-label-xs text-outline uppercase tracking-wider">Opportunity</div>
+<h1 class="text-headline-xl font-headline-xl text-primary font-bold">Stark Ind - Q3 Security Platform</h1>
+</div>
+</div>
+<div class="flex space-x-2">
+<button class="px-3 py-1 bg-surface-container-lowest border border-outline-variant text-primary rounded font-label-md text-label-md">Edit</button>
+<button class="px-3 py-1 bg-primary text-on-primary rounded font-label-md text-label-md">Generate Quote</button>
+</div>
+</div>
+<!-- Quick Metrics Strip -->
+<div class="grid grid-cols-5 gap-4 mt-4 pt-3 border-t border-outline-variant">
+<div>
+<div class="text-label-xs text-outline uppercase">Amount</div>
+<div class="text-headline-sm font-headline-sm text-on-surface-variant font-bold">$520,000.00</div>
+</div>
+<div>
+<div class="text-label-xs text-outline uppercase">Account Name</div>
+<div class="text-body-md text-primary font-semibold">Stark Industries</div>
+</div>
+<div>
+<div class="text-label-xs text-outline uppercase">Close Date</div>
+<div class="text-body-md text-on-surface-variant">11/30/2024</div>
+</div>
+<div>
+<div class="text-label-xs text-outline uppercase">Stage</div>
+<div class="text-body-md text-on-surface-variant font-semibold">Proposal/Price Quote</div>
+</div>
+<div>
+<div class="text-label-xs text-outline uppercase">Opportunity Owner</div>
+<div class="text-body-md text-primary font-semibold">Tony Stark</div>
+</div>
+</div>
+</div>
+<!-- Opportunity Stage Chevron Path -->
+<div class="bg-surface-container-lowest border-b border-outline-variant p-space-sm flex items-center space-x-1 overflow-x-hidden">
+<div class="flex-1 bg-tertiary text-on-primary py-1.5 px-3 rounded-l text-center font-label-sm text-label-sm">Qualification ✓</div>
+<div class="flex-1 bg-tertiary text-on-primary py-1.5 px-3 text-center font-label-sm text-label-sm">Needs Analysis ✓</div>
+<div class="flex-1 bg-primary-container text-on-primary py-1.5 px-3 text-center font-label-sm text-label-sm font-bold shadow-sm">Proposal/Price Quote</div>
+<div class="flex-1 bg-surface-container-low text-on-surface-variant py-1.5 px-3 text-center font-label-sm text-label-sm">Negotiation/Review</div>
+<div class="flex-1 bg-surface-container-low text-on-surface-variant py-1.5 px-3 rounded-r text-center font-label-sm text-label-sm">Closed</div>
+</div>
+<!-- Main Dummy Content Columns -->
+<div class="p-space-md grid grid-cols-12 gap-space-gutter bg-surface-container-low flex-1">
+<div class="col-span-8 space-y-space-md">
+<div class="bg-surface-container-lowest p-4 rounded border border-outline-variant shadow-sm h-64"></div>
+<div class="bg-surface-container-lowest p-4 rounded border border-outline-variant shadow-sm h-64"></div>
+</div>
+<div class="col-span-4 space-y-space-md">
+<div class="bg-surface-container-lowest p-4 rounded border border-outline-variant shadow-sm h-48"></div>
+<div class="bg-surface-container-lowest p-4 rounded border border-outline-variant shadow-sm h-64"></div>
+</div>
+</div>
+</div>
+<!-- ==================== AUTHENTIC SLDS MODAL LAYER (CPQ / CREATE QUOTE) ==================== -->
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-inverse-surface/60 backdrop-blur-sm p-4 md:p-6 animate-fade-in">
+<!-- Modal Container -->
+<div class="bg-surface-container-lowest w-full max-w-5xl rounded-lg shadow-2xl border border-outline-variant flex flex-col max-h-[942px] overflow-hidden">
+<!-- MODAL HEADER -->
+<div class="px-space-lg py-space-sm border-b border-outline-variant bg-surface-container-lowest flex flex-col space-y-2">
+<div class="flex items-center justify-between">
+<div class="flex items-center space-x-space-sm">
+<!-- SLDS Quote Icon Badge -->
+<div class="w-8 h-8 rounded bg-primary-container flex items-center justify-center text-on-primary shadow-sm">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+</div>
+<div>
+<h2 class="text-headline-md font-headline-md text-on-surface font-bold leading-tight">Generate Quote — Stark Ind - Q3 Security Platform</h2>
+<p class="text-label-sm font-label-sm text-outline">
+                Primary Opportunity: <span class="text-primary font-semibold">Stark Ind - Q3 Security Platform</span>  |  
+                Account: <span class="text-primary font-semibold">Stark Industries</span>  |  
+                Stage: <span class="font-semibold text-on-surface-variant">Proposal/Price Quote</span>
+</p>
+</div>
+</div>
+<!-- Close Button (X) -->
+<button class="p-1 rounded text-outline hover:text-on-surface hover:bg-surface-container-low transition-colors duration-150">
+<span class="material-symbols-outlined" data-icon="close">close</span>
+</button>
+</div>
+<!-- SLDS Wizard / Progress Stepper -->
+<div class="pt-2">
+<div class="grid grid-cols-4 gap-1 text-center font-label-xs text-label-xs">
+<!-- Step 1 (Active) -->
+<div class="flex flex-col items-center">
+<div class="w-full h-1 bg-primary rounded-full mb-1"></div>
+<span class="text-primary font-bold">1. Quote Details &amp; Pricing</span>
+</div>
+<!-- Step 2 -->
+<div class="flex flex-col items-center opacity-70">
+<div class="w-full h-1 bg-outline-variant rounded-full mb-1"></div>
+<span class="text-outline">2. Line Items &amp; Discounts</span>
+</div>
+<!-- Step 3 -->
+<div class="flex flex-col items-center opacity-70">
+<div class="w-full h-1 bg-outline-variant rounded-full mb-1"></div>
+<span class="text-outline">3. Terms &amp; Approvals</span>
+</div>
+<!-- Step 4 -->
+<div class="flex flex-col items-center opacity-70">
+<div class="w-full h-1 bg-outline-variant rounded-full mb-1"></div>
+<span class="text-outline">4. Preview &amp; Send</span>
+</div>
+</div>
+</div>
+</div>
+<!-- MODAL BODY (SCROLLABLE) -->
+<div class="flex-1 overflow-y-auto custom-scroll p-space-lg space-y-space-lg bg-surface-container-lowest">
+<!-- SECTION 1: QUOTE INFORMATION FORM GRID -->
+<div class="border border-outline-variant rounded p-space-md bg-surface-container-lowest">
+<div class="flex items-center space-x-2 pb-2 mb-3 border-b border-outline-variant">
+<span class="material-symbols-outlined text-primary" data-icon="badge">badge</span>
+<h3 class="text-headline-sm font-headline-sm text-on-surface font-bold">Quote Information</h3>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-x-space-lg gap-y-space-sm">
+<!-- Quote Name (Required) -->
+<div>
+<label class="block text-label-md font-label-md text-on-surface-variant mb-1">
+                Quote Name <span class="text-error font-bold">*</span>
+</label>
+<input class="w-full h-8 px-2 border border-outline-variant rounded text-body-md focus:border-primary focus:ring-1 focus:ring-primary text-on-surface" type="text" value="Q-00429 - Stark Ind Security Suite Q3"/>
+</div>
+<!-- Primary Quote Checkbox -->
+<div class="flex items-center pt-5">
+<label class="relative flex items-center space-x-2 cursor-pointer">
+<input checked="" class="h-4 w-4 text-primary rounded border-outline-variant focus:ring-primary" type="checkbox"/>
+<span class="text-label-md font-label-md text-on-surface-variant font-semibold">Primary Quote (Syncs to Opportunity)</span>
+</label>
+</div>
+<!-- Expiration Date -->
+<div>
+<label class="block text-label-md font-label-md text-on-surface-variant mb-1">Expiration Date</label>
+<div class="relative">
+<input class="w-full h-8 px-2 pr-8 border border-outline-variant rounded text-body-md focus:border-primary focus:ring-1 focus:ring-primary" type="text" value="11/15/2024"/>
+<span class="absolute right-2 top-1.5 text-outline material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
+</div>
+</div>
+<!-- Status Picklist -->
+<div>
+<label class="block text-label-md font-label-md text-on-surface-variant mb-1">Status</label>
+<select class="w-full h-8 px-2 border border-outline-variant rounded text-body-md focus:border-primary focus:ring-1 focus:ring-primary bg-surface-container-lowest">
+<option selected="">Draft</option>
+<option>In Review</option>
+<option>Approved</option>
+<option>Presented</option>
+<option>Accepted</option>
+</select>
+</div>
+<!-- Prepared For -->
+<div>
+<label class="block text-label-md font-label-md text-on-surface-variant mb-1">Prepared For</label>
+<input class="w-full h-8 px-2 border border-outline-variant rounded text-body-md focus:border-primary focus:ring-1 focus:ring-primary" type="text" value="Pepper Potts (Chief Operations)"/>
+</div>
+<!-- Sales Rep / Owner -->
+<div>
+<label class="block text-label-md font-label-md text-on-surface-variant mb-1">Sales Rep / Owner</label>
+<input class="w-full h-8 px-2 border border-outline-variant rounded text-body-md bg-surface-container-low text-on-surface-variant" readonly="" type="text" value="Tony Stark"/>
+</div>
+<!-- Payment Terms -->
+<div>
+<label class="block text-label-md font-label-md text-on-surface-variant mb-1">Payment Terms</label>
+<select class="w-full h-8 px-2 border border-outline-variant rounded text-body-md focus:border-primary focus:ring-1 focus:ring-primary bg-surface-container-lowest">
+<option selected="">Net 30</option>
+<option>Net 45</option>
+<option>Net 60</option>
+<option>Due On Receipt</option>
+</select>
+</div>
+<!-- Billing / Shipping Address -->
+<div>
+<label class="block text-label-md font-label-md text-on-surface-variant mb-1">Billing / Shipping Address</label>
+<input class="w-full h-8 px-2 border border-outline-variant rounded text-body-md focus:border-primary focus:ring-1 focus:ring-primary" type="text" value="Stark Tower, 200 Park Ave, New York, NY 10166"/>
+</div>
+</div>
+</div>
+<!-- SECTION 2: LINE ITEMS & PRODUCT BUNDLING (CPQ DATA TABLE) -->
+<div class="border border-outline-variant rounded bg-surface-container-lowest">
+<!-- Toolbar -->
+<div class="p-space-sm border-b border-outline-variant flex flex-wrap items-center justify-between gap-2 bg-surface-container-lowest">
+<div class="flex items-center space-x-2">
+<span class="material-symbols-outlined text-primary" data-icon="inventory_2">inventory_2</span>
+<h3 class="text-headline-sm font-headline-sm text-on-surface font-bold">Line Items &amp; Product Bundling</h3>
+<span class="px-2 py-0.5 rounded-full bg-surface-container text-label-xs font-label-xs text-on-surface-variant">3 Items</span>
+</div>
+<div class="flex items-center space-x-2">
+<button class="px-space-md py-1 border border-outline-variant text-primary rounded font-label-md text-label-md flex items-center space-x-1 hover:bg-surface-container-low">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+<span>Add Products</span>
+</button>
+<button class="px-space-md py-1 border border-outline-variant text-primary rounded font-label-md text-label-md flex items-center space-x-1 hover:bg-surface-container-low">
+<span class="material-symbols-outlined" data-icon="percent">percent</span>
+<span>Apply Tiered Discount</span>
+</button>
+<button class="px-space-md py-1 border border-primary text-primary font-bold rounded font-label-md text-label-md flex items-center space-x-1 hover:bg-surface-container-low">
+<span class="material-symbols-outlined" data-icon="sync">sync</span>
+<span>Calculate Pricing</span>
+</button>
+</div>
+</div>
+<!-- Interactive Table -->
+<div class="overflow-x-auto">
+<table class="w-full text-left text-body-sm font-body-sm border-collapse">
+<thead>
+<tr class="bg-surface-container-low text-on-surface-variant text-label-xs font-label-xs uppercase tracking-wider border-b border-outline-variant">
+<th class="py-2.5 px-3">Product Name</th>
+<th class="py-2.5 px-2">Code</th>
+<th class="py-2.5 px-2 text-right">List Price</th>
+<th class="py-2.5 px-2 text-center w-16">Qty</th>
+<th class="py-2.5 px-2 text-right w-24">Discount %</th>
+<th class="py-2.5 px-3 text-right">Total Price</th>
+<th class="py-2.5 px-2 text-center w-12">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="py-2.5 px-3">
+<div class="font-bold text-primary">24/7 Platinum Global Support</div>
+<div class="text-label-xs text-outline">Service Tier: Platinum Enterprise SLA</div>
+</td>
+<td class="py-2.5 px-2 font-mono text-outline">SVC-902</td>
+<td class="py-2.5 px-2 text-right font-medium">$120,000.00</td>
+<td class="py-2.5 px-2 text-center">
+<input class="w-12 h-7 text-center border border-outline-variant rounded p-0 text-body-sm" type="number" value="1"/>
+</td>
+<td class="py-2.5 px-2 text-right">
+<span class="text-on-surface-variant font-medium">0%</span>
+</td>
+<td class="py-2.5 px-3 text-right font-bold text-on-surface">$120,000.00</td>
+<td class="py-2.5 px-2 text-center text-outline">
+<button class="hover:text-error p-1">
+<span class="material-symbols-outlined" data-icon="delete">delete</span>
+</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="py-2.5 px-3">
+<div class="font-bold text-primary">Zero Trust Threat Intelligence Platform - Enterprise Hub</div>
+<div class="text-label-xs text-outline">Software License: Perpetual Multi-Tenant Node</div>
+</td>
+<td class="py-2.5 px-2 font-mono text-outline">SEC-880</td>
+<td class="py-2.5 px-2 text-right font-medium">$250,000.00</td>
+<td class="py-2.5 px-2 text-center">
+<input class="w-12 h-7 text-center border border-outline-variant rounded p-0 text-body-sm" type="number" value="1"/>
+</td>
+<td class="py-2.5 px-2 text-right">
+<span class="inline-flex items-center px-1.5 py-0.5 rounded bg-surface-container text-on-surface text-label-xs font-bold">5% (-$12,500)</span>
+</td>
+<td class="py-2.5 px-3 text-right font-bold text-on-surface">$237,500.00</td>
+<td class="py-2.5 px-2 text-center text-outline">
+<button class="hover:text-error p-1">
+<span class="material-symbols-outlined" data-icon="delete">delete</span>
+</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="py-2.5 px-3">
+<div class="font-bold text-primary">Regional Hardware Security Appliance Nodes</div>
+<div class="text-label-xs text-outline">Hardware: Gen-V Rackmount Chassis</div>
+</td>
+<td class="py-2.5 px-2 font-mono text-outline">HW-410</td>
+<td class="py-2.5 px-2 text-right font-medium">$45,000.00</td>
+<td class="py-2.5 px-2 text-center">
+<input class="w-12 h-7 text-center border border-outline-variant rounded p-0 text-body-sm" type="number" value="4"/>
+</td>
+<td class="py-2.5 px-2 text-right">
+<span class="inline-flex items-center px-1.5 py-0.5 rounded bg-surface-container text-on-surface text-label-xs font-bold">10% (-$18,000)</span>
+</td>
+<td class="py-2.5 px-3 text-right font-bold text-on-surface">$162,000.00</td>
+<td class="py-2.5 px-2 text-center text-outline">
+<button class="hover:text-error p-1">
+<span class="material-symbols-outlined" data-icon="delete">delete</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- SECTION 3 & SECTION 4 DUAL CARDS -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-space-gutter">
+<!-- SECTION 4: EINSTEIN DISCOUNT GUIDANCE & AI CALLOUT -->
+<div class="md:col-span-7 bg-tertiary-fixed/30 border border-secondary-container rounded p-space-md flex items-start space-x-3">
+<div class="w-9 h-9 rounded-full bg-secondary text-on-primary flex items-center justify-center shrink-0 shadow-sm">
+<span class="material-symbols-outlined" data-icon="psychology">psychology</span>
+</div>
+<div>
+<div class="flex items-center space-x-2">
+<span class="text-label-md font-label-md font-bold text-secondary">Einstein Discount &amp; Pricing Guidance</span>
+<span class="px-1.5 py-0.5 text-label-xs font-label-xs bg-secondary text-on-secondary rounded font-bold">AI Insight</span>
+</div>
+<p class="text-body-sm font-body-sm text-on-surface-variant mt-1 leading-snug">
+<strong class="text-on-surface">Approval Not Required:</strong> Total discount (5.5%) is within Tony Stark's 10% delegation authority threshold. Fast-track approval is enabled.
+              </p>
+<div class="mt-2 text-label-xs font-label-xs text-outline flex items-center space-x-4">
+<span>Max Rep Threshold: <strong>10.0%</strong></span>
+<span>Applied Blended Rate: <strong>5.54%</strong></span>
+<span class="text-secondary font-bold">Margin Protection: Verified (64.2%)</span>
+</div>
+</div>
+</div>
+<!-- SECTION 3: SUMMARY TOTALS & PRICING BREAKDOWN -->
+<div class="md:col-span-5 bg-surface-container-low/50 border border-outline-variant rounded p-space-md flex flex-col justify-between">
+<div class="space-y-1.5 text-body-sm">
+<div class="flex justify-between text-on-surface-variant">
+<span>Subtotal (List):</span>
+<span class="font-medium">$550,000.00</span>
+</div>
+<div class="flex justify-between text-secondary">
+<span>Total Additional Discounts:</span>
+<span class="font-medium">-$30,500.00</span>
+</div>
+<div class="flex justify-between text-outline">
+<span>Estimated Tax / Surcharge:</span>
+<span>$0.00</span>
+</div>
+<div class="pt-2 border-t border-outline-variant flex justify-between items-baseline">
+<span class="text-headline-sm font-headline-sm font-bold text-on-surface">Grand Total:</span>
+<span class="text-headline-lg font-headline-lg font-bold text-primary">$519,500.00</span>
+</div>
+</div>
+<div class="mt-2 text-right">
+<span class="text-label-xs font-label-xs text-outline">All figures formatted in USD ($)</span>
+</div>
+</div>
+</div>
+</div>
+<!-- MODAL FOOTER -->
+<div class="px-space-lg py-space-sm bg-surface-container-low border-t border-outline-variant flex items-center justify-between">
+<!-- Left: Draft Action -->
+<div>
+<button class="px-space-md py-1.5 bg-surface-container-lowest border border-outline-variant text-primary rounded font-label-md text-label-md hover:bg-surface-container-lowest transition-colors shadow-sm">
+            Save as Draft
+          </button>
+</div>
+<!-- Right: Stepper Navigation & Primary Save -->
+<div class="flex items-center space-x-space-sm">
+<button class="px-space-md py-1.5 bg-surface-container-lowest border border-outline-variant text-on-surface-variant rounded font-label-md text-label-md hover:bg-surface-container-low transition-colors">
+            Cancel
+          </button>
+<button class="px-space-md py-1.5 bg-surface-container-low text-outline border border-outline-variant rounded font-label-md text-label-md cursor-not-allowed" disabled="">
+            Back
+          </button>
+<button class="px-space-lg py-1.5 bg-primary-container text-on-primary font-bold rounded font-label-md text-label-md hover:bg-primary transition-colors shadow-sm flex items-center space-x-1">
+<span>Save &amp; Generate PDF Quote</span>
+<span class="material-symbols-outlined" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- SLDS Bottom Fixed Utility Bar -->
+<footer class="fixed bottom-0 left-0 right-0 h-9 bg-surface-container-lowest border-t border-outline-variant flex items-center justify-between px-space-md z-40 text-label-xs font-label-xs text-on-surface-variant">
+<div class="flex items-center space-x-4">
+<button class="flex items-center space-x-1 hover:text-primary">
+<span class="material-symbols-outlined" data-icon="chat">chat</span>
+<span>Chatter (2)</span>
+</button>
+<button class="flex items-center space-x-1 hover:text-primary">
+<span class="material-symbols-outlined" data-icon="history">history</span>
+<span>Recent Records</span>
+</button>
+<button class="flex items-center space-x-1 hover:text-primary">
+<span class="material-symbols-outlined" data-icon="note_alt">note_alt</span>
+<span>Notes</span>
+</button>
+</div>
+<div class="flex items-center space-x-2 text-outline">
+<span class="inline-block w-2 h-2 rounded-full bg-tertiary"></span>
+<span>Salesforce CPQ Engine v24.2 • Connected</span>
+</div>
+</footer>
+</body></html>
