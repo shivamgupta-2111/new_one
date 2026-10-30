@@ -1,0 +1,1 @@
+# Opportunities components\n\nOpportunity detail panels, partners, contact roles and social accounts.\n

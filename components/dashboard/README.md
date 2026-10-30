@@ -1,0 +1,1 @@
+# Dashboard components\n\nReusable KPI cards, revenue charts, churn and pipeline widgets.\n
