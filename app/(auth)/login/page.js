@@ -1,4 +1,4 @@
-import CrmShell from "../../../../components/layout/CrmShell";
+import CrmShell from '@/components/layout/CrmShell';
 
 export default function PortalPage() {
   return <CrmShell />;

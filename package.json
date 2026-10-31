@@ -5,11 +5,17 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "next": "14.2.24",
     "react": "18.3.1",
     "react-dom": "18.3.1"
-  }
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3"
+  },
+  "description": "Sales Cloud CRM prototype built with Next.js (App Router)"
 }

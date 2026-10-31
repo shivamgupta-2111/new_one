@@ -1,1 +1,0 @@
-# Layout components\n\nShared CRM shell, header, navigation and page layout.\n

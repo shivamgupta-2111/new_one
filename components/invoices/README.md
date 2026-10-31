@@ -1,1 +1,0 @@
-# Invoices components\n\nInvoice preview, invoice history and client submission controls.\n

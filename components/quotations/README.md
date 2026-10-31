@@ -1,1 +1,0 @@
-# Quotations components\n\nQuotation editor, line items, pricing summary and quotation history.\n
