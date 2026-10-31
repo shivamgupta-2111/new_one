@@ -1,2 +1,0 @@
-const COLORS = { Prospecting: 'bg-slate-100 text-slate-700', Qualification: 'bg-blue-50 text-blue-700', 'Needs Analysis': 'bg-indigo-50 text-indigo-700', Proposal: 'bg-violet-50 text-violet-700', Negotiation: 'bg-amber-50 text-amber-700', 'Closed Won': 'bg-emerald-50 text-emerald-700', 'Closed Lost': 'bg-red-50 text-red-700' };
-export default function StagePill({ stage }) { return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${COLORS[stage] || 'bg-slate-100 text-slate-700'}`}>{stage}</span>; }
