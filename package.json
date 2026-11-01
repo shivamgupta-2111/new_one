@@ -1,5 +1,5 @@
 {
-  "name": "sales-cloud-next",
+  "name": "ceph-crm-next",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -19,5 +19,5 @@
   "devDependencies": {
     "prettier": "^3.3.3"
   },
-  "description": "Sales Cloud CRM prototype built with Next.js (App Router)"
+  "description": "Ceph CRM CRM prototype built with Next.js (App Router)"
 }

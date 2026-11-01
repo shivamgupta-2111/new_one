@@ -947,7 +947,7 @@ try {
   render();
 } catch (e) {}
 
-// Sales Cloud extensions: portals, price controls, approvals, invoice history.
+// Ceph CRM extensions: portals, price controls, approvals, invoice history.
 const ROLE_CFG = {
   rep: { label: 'Rep portal', owner: 'AL', limit: 2, name: 'Alex Lee' },
   admin: { label: 'Admin portal', owner: 'SC', limit: 5, name: 'Sara Chen' },
@@ -1780,7 +1780,7 @@ function showLogin() {
   if (!app) return;
   app.className = 'min-h-screen grid place-items-center p-4';
   app.innerHTML = `<div class="card w-full max-w-md p-6">
- <div class="flex items-center gap-2 mb-5"><span class="ms" style="color:var(--pr);font-size:34px">cloud</span><div><b class="text-xl">Sales Cloud</b><div class="mut text-xs">Sign in to your workspace</div></div></div>
+ <div class="flex items-center gap-2 mb-5"><span class="ms" style="color:var(--pr);font-size:34px">cloud</span><div><b class="text-xl">Ceph CRM</b><div class="mut text-xs">Sign in to your workspace</div></div></div>
  <h1 class="text-xl font-bold mb-1">Welcome back</h1><p class="mut mb-4">Enter your account details to continue.</p>
  <form class="space-y-3" onsubmit="loginUser(event)">
  <label class="block">Username<input class="inp mt-1" name="username" autocomplete="username" required></label>
@@ -1952,7 +1952,7 @@ addEventListener('storage', (e) => {
     )
       render();
   } catch (err) {
-    console.warn('Could not sync Sales Cloud tab', err);
+    console.warn('Could not sync Ceph CRM tab', err);
   }
 });
 // ---------------------------------------------------------------------------
@@ -2376,7 +2376,7 @@ V.settings = () => {
   }));
   return `<div class="mb-4"><div class="mut">Workspace</div><h1 class="text-2xl font-bold">Settings</h1><p class="mut mt-1">Manage your workspace preferences, team assignments and data.</p></div>
   <div class="grid lg:grid-cols-3 gap-3 items-start">
-   <section class="card p-4 lg:col-span-2"><div class="flex items-center gap-2 mb-1"><span class="ms" style="color:var(--pr)">palette</span><h2 class="font-bold text-lg">Appearance</h2></div><p class="mut mb-3">Choose how Sales Cloud looks on this device.</p><div class="grid sm:grid-cols-3 gap-2">${[
+   <section class="card p-4 lg:col-span-2"><div class="flex items-center gap-2 mb-1"><span class="ms" style="color:var(--pr)">palette</span><h2 class="font-bold text-lg">Appearance</h2></div><p class="mut mb-3">Choose how Ceph CRM looks on this device.</p><div class="grid sm:grid-cols-3 gap-2">${[
      ['system', 'System', 'brightness_auto'],
      ['light', 'Light', 'light_mode'],
      ['dark', 'Dark', 'dark_mode'],
@@ -2974,7 +2974,7 @@ function ensureTeams() {
     }
     if (!u.teamId && !u.teamLocked) u.teamId = teamId;
     if (u.target == null) u.target = DEFAULT_TARGET;
-    if (!u.email) u.email = `${username === 'rep' ? 'alex' : username}@salescloud.demo`;
+    if (!u.email) u.email = `${username === 'rep' ? 'alex' : username}@cephcrm.demo`;
   });
   if (!S.teamDealsSeeded) {
     let id = Math.max(0, ...S.opps.map((o) => o.id));
@@ -3138,7 +3138,7 @@ const SETTINGS_PANELS = {
   profile() {
     const u = currentUser();
     const team = teamById(u.teamId);
-    return `<form onsubmit="saveProfile(event)">${secHead('account_circle', 'Profile', 'Your details as other people in Sales Cloud see them.')}<div class="grid sm:grid-cols-2 gap-3">${settingsField('Full name *', `<input class="inp" name="name" value="${E(u.name || '')}" required>`)}${settingsField('Job title', `<input class="inp" name="title" value="${E(u.title || '')}" placeholder="e.g. Senior Account Executive">`)}${settingsField('Email *', `<input class="inp" name="email" type="email" value="${E(u.email || '')}" required>`)}${settingsField('Phone', `<input class="inp" name="phone" type="tel" value="${E(u.phone || '')}" placeholder="+91 98765 43210">`)}${settingsField('Username', `<input class="inp" value="${E(u.username || '')}" disabled>`)}${settingsField('Role', `<input class="inp" value="${E((u.role || S.role).toUpperCase())}" disabled>`)}${u.role === 'rep' ? settingsField('Team', `<input class="inp" value="${E(team ? team.name : 'Unassigned')}" disabled>`) : ''}${settingsField('Owner code', `<input class="inp" value="${E(u.ownerCode || '')}" disabled>`)}</div><div class="flex justify-end mt-4"><button class="btn btn-p">Save profile</button></div></form>`;
+    return `<form onsubmit="saveProfile(event)">${secHead('account_circle', 'Profile', 'Your details as other people in Ceph CRM see them.')}<div class="grid sm:grid-cols-2 gap-3">${settingsField('Full name *', `<input class="inp" name="name" value="${E(u.name || '')}" required>`)}${settingsField('Job title', `<input class="inp" name="title" value="${E(u.title || '')}" placeholder="e.g. Senior Account Executive">`)}${settingsField('Email *', `<input class="inp" name="email" type="email" value="${E(u.email || '')}" required>`)}${settingsField('Phone', `<input class="inp" name="phone" type="tel" value="${E(u.phone || '')}" placeholder="+91 98765 43210">`)}${settingsField('Username', `<input class="inp" value="${E(u.username || '')}" disabled>`)}${settingsField('Role', `<input class="inp" value="${E((u.role || S.role).toUpperCase())}" disabled>`)}${u.role === 'rep' ? settingsField('Team', `<input class="inp" value="${E(team ? team.name : 'Unassigned')}" disabled>`) : ''}${settingsField('Owner code', `<input class="inp" value="${E(u.ownerCode || '')}" disabled>`)}</div><div class="flex justify-end mt-4"><button class="btn btn-p">Save profile</button></div></form>`;
   },
   security() {
     return `<form onsubmit="changePassword(event)" autocomplete="off">${secHead('lock', 'Password & security', 'Use at least 6 characters. You will stay signed in on this device.')}<div class="grid sm:grid-cols-2 gap-3">${settingsField('Current password *', '<input class="inp" name="current" type="password" required>')}<span></span>${settingsField('New password *', '<input class="inp" name="next" type="password" minlength="6" required>')}${settingsField('Confirm new password *', '<input class="inp" name="confirm" type="password" minlength="6" required>')}</div><div class="flex justify-end mt-4"><button class="btn btn-p">Update password</button></div><p class="mut text-xs mt-3">Prototype note: passwords are stored in this browser only. Production needs server-side authentication.</p></form>`;
@@ -3146,7 +3146,7 @@ const SETTINGS_PANELS = {
   appearance() {
     const theme = getTheme();
     const view = prefsOf().defaultView;
-    return `${secHead('palette', 'Appearance & view', 'Choose how Sales Cloud looks and opens on this device.')}<div class="grid sm:grid-cols-3 gap-2">${[
+    return `${secHead('palette', 'Appearance & view', 'Choose how Ceph CRM looks and opens on this device.')}<div class="grid sm:grid-cols-3 gap-2">${[
       ['system', 'System', 'brightness_auto'],
       ['light', 'Light', 'light_mode'],
       ['dark', 'Dark', 'dark_mode'],
@@ -3335,6 +3335,63 @@ function setLeaderboardDefault(metric) {
   save();
   toast('Leaderboard default saved');
 }
+
+// ---------------------------------------------------------------------------
+// Opportunity tabs: every opportunity you open stays in a tab bar under the menu,
+// so you can switch between several records without losing your place.
+// ---------------------------------------------------------------------------
+const tabIsActive = (id) =>
+  ['#opp-detail', '#quote'].includes(location.hash) && String(S.cur) === String(id);
+
+function drawOppTabs() {
+  const header = document.querySelector('header');
+  if (!header) return;
+  let bar = document.getElementById('rec-tabs');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'rec-tabs';
+    bar.className = 'rec-tabs';
+    header.appendChild(bar);
+  }
+  S.openTabs = S.openTabs || [];
+  // Opening an opportunity (from anywhere) adds it to the tab bar.
+  if (
+    location.hash === '#opp-detail' &&
+    S.cur &&
+    S.opps.some((o) => o.id == S.cur) &&
+    !S.openTabs.includes(S.cur)
+  ) {
+    S.openTabs.push(S.cur);
+    save();
+  }
+  const allowed = new Set(visibleOpps().map((o) => o.id));
+  const tabs = S.openTabs.filter((id) => allowed.has(id));
+  bar.style.display = S.authUser && tabs.length ? 'flex' : 'none';
+  bar.innerHTML = tabs
+    .map((id) => {
+      const o = S.opps.find((x) => x.id == id);
+      const name = o.name.length > 26 ? o.name.slice(0, 25) + '…' : o.name;
+      return `<div class="rec-tab ${tabIsActive(id) ? 'on' : ''}" title="${E(o.name)}" onclick="nav('opp-detail',${id})"><span class="ms">handshake</span><span class="rec-tab-name">${E(name)}</span><button class="rec-tab-x" aria-label="Close tab" onclick="closeOppTab(${id},event)"><span class="ms">close</span></button></div>`;
+    })
+    .join('');
+}
+function closeOppTab(id, ev) {
+  if (ev) ev.stopPropagation();
+  const i = S.openTabs.indexOf(id);
+  if (i < 0) return;
+  const wasActive = tabIsActive(id);
+  S.openTabs.splice(i, 1);
+  save();
+  if (!wasActive) return drawOppTabs();
+  const next = S.openTabs[i] ?? S.openTabs[i - 1];
+  next ? nav('opp-detail', next) : nav('opps');
+}
+const renderWithoutTabs = render;
+render = function () {
+  renderWithoutTabs.apply(this, arguments);
+  drawOppTabs();
+};
+addEventListener('hashchange', () => drawOppTabs());
 
 save();
 render();

@@ -5,8 +5,8 @@ import './globals.css';
 import Script from 'next/script';
 
 export const metadata = {
-  title: 'Sales Cloud – Pipeline',
-  description: 'Sales Cloud pipeline and opportunity management prototype.',
+  title: 'Ceph CRM – Pipeline',
+  description: 'Ceph CRM pipeline and opportunity management prototype.',
 };
 
 export default function RootLayout({ children }) {

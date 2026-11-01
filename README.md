@@ -1,4 +1,4 @@
-# Sales Cloud
+# Ceph CRM
 
 A Next.js (App Router) CRM prototype with role-based portals and a quotation → approval → invoice workflow.
 

@@ -1003,3 +1003,60 @@ header.card .btn-p {
   background: color-mix(in srgb, var(--err) 14%, transparent);
   color: var(--err);
 }
+
+/* Opportunity tabs */
+.rec-tabs {
+  display: none;
+  gap: 2px;
+  align-items: flex-end;
+  padding: 4px 12px 0;
+  overflow-x: auto;
+  background: var(--hov);
+  border-top: 1px solid var(--bd);
+}
+.rec-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 240px;
+  padding: 6px 6px 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--mut);
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+}
+.rec-tab:hover {
+  background: color-mix(in srgb, var(--card) 60%, transparent);
+}
+.rec-tab.on {
+  background: var(--card);
+  color: var(--pr);
+  border-color: var(--bd);
+  box-shadow: inset 0 2px 0 var(--pr);
+}
+.rec-tab .ms {
+  font-size: 16px;
+}
+.rec-tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rec-tab-x {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.rec-tab-x:hover {
+  background: var(--hov);
+  color: var(--err);
+}
