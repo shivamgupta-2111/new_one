@@ -1918,7 +1918,8 @@ V.users = () => {
     `<p class="mut mt-3">Admins can create Rep accounts. CEOs can create Admin and Rep accounts.</p>`
   );
 };
-function openUserForm() {
+// teamId is optional: pass it to open the form already set to "Rep" on that team.
+function openUserForm(teamId = '') {
   const role = S.role,
     allowed = role === 'ceo' ? ['admin', 'rep'] : role === 'admin' ? ['rep'] : [];
   if (!allowed.length) return toast('You do not have permission to create accounts');
@@ -1927,7 +1928,8 @@ function openUserForm() {
  <label class="block">Full name<input class="inp mt-1" name="name" required></label>
  <label class="block">Username<input class="inp mt-1" name="username" required></label>
  <label class="block">Temporary password<input class="inp mt-1" name="password" type="password" minlength="8" required></label>
- <label class="block">Portal role<select class="inp mt-1" name="role">${allowed.map((r) => `<option value="${r}">${r === 'admin' ? 'Admin' : 'Rep'}</option>`).join('')}</select></label>
+ <label class="block">Portal role<select class="inp mt-1" name="role">${(teamId ? ['rep'] : allowed).map((r) => `<option value="${r}">${r === 'admin' ? 'Admin' : 'Rep'}</option>`).join('')}</select></label>
+ <label class="block">Team (reps only)<select class="inp mt-1" name="teamId"><option value="">Unassigned</option>${S.teams.map((t) => `<option value="${t.id}" ${t.id === teamId ? 'selected' : ''}>${E(t.name)}</option>`).join('')}</select></label>
  <div class="mut text-xs">${role === 'ceo' ? 'CEO can create Admin and Rep accounts.' : 'Admin can create Rep accounts only.'}</div>
  <div class="flex justify-end gap-2"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">Create account</button></div></form></div>`;
 }
@@ -1938,9 +1940,10 @@ function createUser(e) {
   if (!allowed.includes(v.role)) return toast('Not authorised to create this role');
   if (S.users.some((u) => u.username.toLowerCase() === v.username.trim().toLowerCase()))
     return toast('Username already exists');
-  const id = 'u-' + Date.now(),
-    ownerCode = 'U' + (S.users.length + 1);
-  S.users.push({
+  const id = 'u-' + Date.now();
+  let ownerCode = 'U' + (S.users.length + 1);
+  while (S.users.some((u) => u.ownerCode === ownerCode)) ownerCode += 'x';
+  const user = {
     id,
     name: v.name.trim(),
     username: v.username.trim(),
@@ -1948,7 +1951,13 @@ function createUser(e) {
     role: v.role,
     ownerCode,
     active: true,
-  });
+  };
+  if (v.role === 'rep') {
+    user.teamId = v.teamId || null;
+    user.teamLocked = true;
+    user.target = DEFAULT_TARGET;
+  }
+  S.users.push(user);
   OWN[ownerCode] = v.name.trim();
   $('#modal').innerHTML = '';
   save();
@@ -2087,7 +2096,8 @@ addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closePanels();
 });
 
-function notificationItems() {
+// Everything that could be notified about, before anything is dismissed.
+function allNotificationItems() {
   const items = [],
     mine = visibleOpps().filter((o) => o.stage < 5 && !o.lost);
   mine
@@ -2148,18 +2158,50 @@ function notificationItems() {
     });
   return items;
 }
+// Dismissed notifications are remembered per person, keyed by their text.
+// A changed text (for example a new count) counts as a new notification.
+function dismissedNotes() {
+  S.dismissed = S.dismissed || {};
+  const id = S.authUser || 'anon';
+  return (S.dismissed[id] = S.dismissed[id] || []);
+}
+function notificationItems() {
+  const gone = new Set(dismissedNotes());
+  return allNotificationItems().filter((n) => !gone.has(n.text));
+}
+function refreshNotifications() {
+  closePanels();
+  toggleNotifications();
+  updateHeader();
+}
+function dismissNotification(index) {
+  const item = notificationItems()[index];
+  if (!item) return;
+  dismissedNotes().push(item.text);
+  save();
+  refreshNotifications();
+}
+// Keeps only entries that are still current, so the list never grows forever.
+function clearNotifications() {
+  S.dismissed = S.dismissed || {};
+  S.dismissed[S.authUser || 'anon'] = allNotificationItems().map((n) => n.text);
+  save();
+  refreshNotifications();
+  toast('Notifications cleared');
+}
 function toggleNotifications() {
   const items = notificationItems();
-  openPanel(
-    'bell',
-    `<div class="p-3 font-bold" style="border-bottom:1px solid var(--bd)">Notifications <span class="chip">${items.length}</span></div>` +
-      (items
-        .map(
-          (n) =>
-            `<div class="flex gap-3 p-3 cursor-pointer" style="border-bottom:1px solid var(--bd)" onmouseover="this.style.background='var(--hov)'" onmouseout="this.style.background=''" onclick="closePanels();${n.go}"><span class="ms" style="color:var(--pr)">${n.icon}</span><div><div class="font-semibold">${E(n.text)}</div><small class="mut">${n.sub}</small></div></div>`
-        )
-        .join('') || '<p class="mut p-4">You are all caught up.</p>')
-  );
+  const clearAll = items.length
+    ? `<button class="btn" style="padding:2px 10px;font-size:12px" onclick="clearNotifications()"><span class="ms" style="font-size:16px">done_all</span>Clear all</button>`
+    : '';
+  const head = `<div class="p-3 font-bold flex items-center gap-2" style="border-bottom:1px solid var(--bd)">Notifications <span class="chip">${items.length}</span><span class="flex-1"></span>${clearAll}</div>`;
+  const rows = items
+    .map(
+      (n, i) =>
+        `<div class="note-row flex gap-3 p-3 cursor-pointer" style="border-bottom:1px solid var(--bd)" onmouseover="this.style.background='var(--hov)'" onmouseout="this.style.background=''" onclick="closePanels();${n.go}"><span class="ms" style="color:var(--pr)">${n.icon}</span><div class="flex-1"><div class="font-semibold">${E(n.text)}</div><small class="mut">${n.sub}</small></div><button class="note-x" title="Dismiss" aria-label="Dismiss notification" onclick="event.stopPropagation();dismissNotification(${i})"><span class="ms" style="font-size:16px">close</span></button></div>`
+    )
+    .join('');
+  openPanel('bell', head + (rows || '<p class="mut p-4">You are all caught up.</p>'));
 }
 function toggleUserMenu() {
   const u = currentUser();
@@ -3032,7 +3074,6 @@ function quoteStatusCard(o) {
 // ===========================================================================
 // Teams, leaderboard and role-based settings
 // ===========================================================================
-const TEAM_SIZE = 5;
 const DEFAULT_TARGET = 700000;
 
 // Demo roster: Team Alpha and Team Beta, five reps each (login: first name / rep123).
@@ -3175,7 +3216,7 @@ function teamBoardCard(team, metric, meCode) {
       return `<tr style="${me ? 'background:var(--hov)' : ''}"><td>${rankBadge(r.rank)}</td><td><div class="flex items-center gap-2"><span class="w-7 h-7 rounded-full grid place-items-center text-xs font-bold" style="background:var(--hov);color:var(--pr)">${E(personInitials(r.user.name))}</span><b>${E(r.user.name)}</b>${me ? '<span class="chip">You</span>' : ''}</div></td><td class="text-right"><b>${M(r.won)}</b></td><td class="text-right">${r.deals}</td><td class="text-right">${M(r.pipeline)}</td><td><div class="flex items-center gap-2">${progressBar(r.attain)}<span class="text-xs">${Math.round(r.attain)}%</span></div></td></tr>`;
     })
     .join('');
-  return `<div class="card p-4"><div class="flex justify-between items-start gap-2 flex-wrap"><div><b class="text-lg">${E(team.name)}</b><div class="mut text-xs">${ranked.length} of ${TEAM_SIZE} reps · ranked by ${LB_METRICS[metric].toLowerCase()}</div></div><div class="text-right"><b>${M(totalWon)}</b><div class="mut text-xs">of ${M(totalTarget)} team target (${totalTarget ? Math.round((totalWon / totalTarget) * 100) : 0}%)</div></div></div>${table(['#', 'Rep', 'Won', 'Deals', 'Open pipeline', 'Target'], rows || '<tr><td colspan="6" class="mut">No reps in this team yet.</td></tr>')}</div>`;
+  return `<div class="card p-4"><div class="flex justify-between items-start gap-2 flex-wrap"><div><b class="text-lg">${E(team.name)}</b><div class="mut text-xs">${ranked.length} rep${ranked.length === 1 ? '' : 's'} · ranked by ${LB_METRICS[metric].toLowerCase()}</div></div><div class="text-right"><b>${M(totalWon)}</b><div class="mut text-xs">of ${M(totalTarget)} team target (${totalTarget ? Math.round((totalWon / totalTarget) * 100) : 0}%)</div></div></div>${table(['#', 'Rep', 'Won', 'Deals', 'Open pipeline', 'Target'], rows || '<tr><td colspan="6" class="mut">No reps in this team yet.</td></tr>')}</div>`;
 }
 
 function leaderboardSection() {
@@ -3192,7 +3233,7 @@ function leaderboardSection() {
     const me = S.users.find((u) => u.role === 'rep' && u.ownerCode === meCode);
     const team = me && teamById(me.teamId);
     if (!team)
-      return `<div class="card p-4 mb-3"><b>Team leaderboard</b><p class="mut mt-1">You have not been assigned to a team yet. Ask your admin to add you to Team Alpha or Team Beta.</p></div>`;
+      return `<div class="card p-4 mb-3"><b>Team leaderboard</b><p class="mut mt-1">You have not been assigned to a team yet. Ask your admin to add you to a team.</p></div>`;
     const inTeam = rankReps(teamReps(team.id), metric);
     const company = rankReps(
       S.users.filter((u) => u.role === 'rep' && u.active !== false && u.teamId),
@@ -3338,7 +3379,19 @@ const SETTINGS_PANELS = {
           (t) => `<option value="${t.id}" ${t.id === sel ? 'selected' : ''}>${E(t.name)}</option>`
         )
         .join('');
-    return `${secHead('groups', 'Teams & targets', `Rename teams, move reps between teams (max ${TEAM_SIZE} per team) and set each rep’s sales target.`)}<div class="grid sm:grid-cols-2 gap-3 mb-4">${S.teams.map((t) => `<div class="card p-3"><div class="mut text-xs">Team name · ${teamReps(t.id).length} of ${TEAM_SIZE} reps</div><input class="inp mt-1" value="${E(t.name)}" onchange="renameTeam('${t.id}',this.value)"></div>`).join('')}</div>${table(['Rep', 'Team', 'Target (₹)', 'Won so far'], reps.map((u) => `<tr><td><b>${E(u.name)}</b><div class="mut text-xs">${E(u.ownerCode)}</div></td><td><select class="inp" style="width:auto" onchange="setRepTeam('${u.id}',this.value)">${teamOptions(u.teamId)}</select></td><td><input class="inp" type="number" min="0" step="10000" style="width:140px" value="${u.target || 0}" onchange="setRepTarget('${u.id}',this.value)"></td><td>${M(repStats(u).won)}</td></tr>`).join(''))}`;
+    const teamCards = S.teams
+      .map(
+        (t) =>
+          `<div class="card p-3"><div class="mut text-xs">Team name · ${teamReps(t.id).length} rep${teamReps(t.id).length === 1 ? '' : 's'}</div><input class="inp mt-1" value="${E(t.name)}" onchange="renameTeam('${t.id}',this.value)"><button class="btn mt-2" onclick="openUserForm('${t.id}')"><span class="ms">person_add</span>Add rep</button></div>`
+      )
+      .join('');
+    const repRows = reps
+      .map(
+        (u) =>
+          `<tr><td><b>${E(u.name)}</b><div class="mut text-xs">${E(u.ownerCode)}</div></td><td><select class="inp" style="width:auto" onchange="setRepTeam('${u.id}',this.value)">${teamOptions(u.teamId)}</select></td><td><input class="inp" type="number" min="0" step="10000" style="width:140px" value="${u.target || 0}" onchange="setRepTarget('${u.id}',this.value)"></td><td>${M(repStats(u).won)}</td></tr>`
+      )
+      .join('');
+    return `${secHead('groups', 'Teams & targets', 'Create teams, add reps, move reps between teams and set each rep’s sales target.')}<form class="flex gap-2 flex-wrap mb-3" onsubmit="createTeam(event)"><input class="inp" style="flex:1 1 220px;max-width:340px" name="name" placeholder="New team name" maxlength="40" required><button class="btn btn-p"><span class="ms">group_add</span>Create team</button><button type="button" class="btn" onclick="openUserForm()"><span class="ms">person_add</span>Add rep</button></form><div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-4">${teamCards}</div>${table(['Rep', 'Team', 'Target (₹)', 'Won so far'], repRows)}`;
   },
   quotes() {
     const d = quoteDefaultsSetting();
@@ -3416,6 +3469,25 @@ function setDefaultView(view) {
   save();
   toast('Default view saved');
 }
+function createTeam(e) {
+  e.preventDefault();
+  if (!['admin', 'ceo'].includes(S.role)) return toast('Only Admin and CEO can create teams');
+  const name = String(new FormData(e.target).get('name') || '').trim();
+  if (!name) return;
+  if (S.teams.some((t) => t.name.toLowerCase() === name.toLowerCase()))
+    return toast('A team with that name already exists');
+  const slug =
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '') || 'team';
+  let id = slug;
+  for (let n = 2; S.teams.some((t) => t.id === id); n++) id = `${slug}-${n}`;
+  S.teams.push({ id, name });
+  save();
+  toast(`${name} created`);
+  render();
+}
 function renameTeam(id, name) {
   const t = teamById(id);
   if (!t || !['admin', 'ceo'].includes(S.role)) return;
@@ -3428,10 +3500,6 @@ function renameTeam(id, name) {
 function setRepTeam(userId, teamId) {
   const u = S.users.find((x) => x.id === userId);
   if (!u || !['admin', 'ceo'].includes(S.role)) return;
-  if (teamId && u.teamId !== teamId && teamReps(teamId).length >= TEAM_SIZE) {
-    toast(`${teamById(teamId).name} already has ${TEAM_SIZE} reps`);
-    return render();
-  }
   u.teamId = teamId || null;
   u.teamLocked = true;
   save();
@@ -3469,10 +3537,23 @@ function setLeaderboardDefault(metric) {
 // so you can switch between several records without losing your place.
 // ---------------------------------------------------------------------------
 
-// Open-record tabs bar and the first render.
+// Open-record tabs: rename (double-click, pencil or F2), Alt+1..9 to switch, and the first render.
 
 const tabIsActive = (id) =>
   ['#opp-detail', '#quote'].includes(location.hash) && String(S.cur) === String(id);
+
+// Tabs the signed-in person is allowed to see, in bar order.
+function visibleTabIds() {
+  S.openTabs = S.openTabs || [];
+  const allowed = new Set(visibleOpps().map((o) => o.id));
+  return S.openTabs.filter((id) => allowed.has(id));
+}
+
+// A tab shows its custom name if one was set, otherwise the opportunity name.
+function tabLabel(id) {
+  const o = S.opps.find((x) => x.id == id);
+  return (S.tabNames && S.tabNames[id]) || (o ? o.name : '');
+}
 
 function drawOppTabs() {
   const header = document.querySelector('header');
@@ -3495,28 +3576,94 @@ function drawOppTabs() {
     S.openTabs.push(S.cur);
     save();
   }
-  const allowed = new Set(visibleOpps().map((o) => o.id));
-  const tabs = S.openTabs.filter((id) => allowed.has(id));
+  const tabs = visibleTabIds();
   bar.style.display = S.authUser && tabs.length ? 'flex' : 'none';
   bar.innerHTML = tabs
-    .map((id) => {
-      const o = S.opps.find((x) => x.id == id);
-      const name = o.name.length > 26 ? o.name.slice(0, 25) + '…' : o.name;
-      return `<div class="rec-tab ${tabIsActive(id) ? 'on' : ''}" title="${E(o.name)}" onclick="nav('opp-detail',${id})"><span class="ms">handshake</span><span class="rec-tab-name">${E(name)}</span><button class="rec-tab-x" aria-label="Close tab" onclick="closeOppTab(${id},event)"><span class="ms">close</span></button></div>`;
+    .map((id, i) => {
+      const label = tabLabel(id);
+      const hint = i < 9 ? ` (Alt+${i + 1})` : '';
+      const key = i < 9 ? `<kbd>${i + 1}</kbd>` : '';
+      return `<div class="rec-tab ${tabIsActive(id) ? 'on' : ''}" data-id="${id}" title="${E(label)}${hint}" onclick="nav('opp-detail',${id})" ondblclick="renameOppTab(${id},event)"><span class="ms">handshake</span>${key}<span class="rec-tab-name">${E(label)}</span><button class="rec-tab-x" aria-label="Rename tab" title="Rename tab" onclick="renameOppTab(${id},event)"><span class="ms" style="font-size:14px">edit</span></button><button class="rec-tab-x" aria-label="Close tab" onclick="closeOppTab(${id},event)"><span class="ms">close</span></button></div>`;
     })
     .join('');
 }
+
+function setTabName(id, name) {
+  S.tabNames = S.tabNames || {};
+  const clean = name.trim().slice(0, 40);
+  const o = S.opps.find((x) => x.id == id);
+  // Empty or same as the opportunity name means "go back to the default".
+  if (!clean || (o && clean === o.name)) delete S.tabNames[id];
+  else S.tabNames[id] = clean;
+  save();
+}
+
+// Swap the tab label for a text box. Enter or click away saves, Esc cancels.
+function renameOppTab(id, ev) {
+  if (ev) {
+    ev.stopPropagation();
+    ev.preventDefault();
+  }
+  const tab = document.querySelector(`.rec-tab[data-id="${id}"]`);
+  const nameEl = tab && tab.querySelector('.rec-tab-name');
+  if (!nameEl) return;
+  const input = document.createElement('input');
+  input.className = 'inp rec-tab-edit';
+  input.value = tabLabel(id);
+  input.maxLength = 40;
+  input.setAttribute('aria-label', 'Tab name');
+  let finished = false;
+  const finish = (keep) => {
+    if (finished) return;
+    finished = true;
+    if (keep) setTabName(id, input.value);
+    drawOppTabs();
+  };
+  input.onclick = (e) => e.stopPropagation();
+  input.ondblclick = (e) => e.stopPropagation();
+  input.onkeydown = (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') finish(true);
+    else if (e.key === 'Escape') finish(false);
+  };
+  input.onblur = () => finish(true);
+  nameEl.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
 function closeOppTab(id, ev) {
   if (ev) ev.stopPropagation();
   const i = S.openTabs.indexOf(id);
   if (i < 0) return;
   const wasActive = tabIsActive(id);
   S.openTabs.splice(i, 1);
+  if (S.tabNames) delete S.tabNames[id];
   save();
   if (!wasActive) return drawOppTabs();
   const next = S.openTabs[i] ?? S.openTabs[i - 1];
   next ? nav('opp-detail', next) : nav('opps');
 }
+
+// Alt+1 ... Alt+9 jump to the nth open tab. F2 renames the tab you are on.
+addEventListener('keydown', (e) => {
+  if (!S.authUser) return;
+  if (e.key === 'F2' && !e.altKey && !e.ctrlKey && !e.metaKey) {
+    const active = visibleTabIds().find(tabIsActive);
+    if (active == null || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    e.preventDefault();
+    return renameOppTab(active);
+  }
+  if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  // e.code, not e.key: on a Mac Option+digit types a symbol instead of the digit.
+  const m = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
+  if (!m) return;
+  const id = visibleTabIds()[Number(m[1]) - 1];
+  if (id == null) return;
+  e.preventDefault();
+  nav('opp-detail', id);
+});
+
 const renderWithoutTabs = render;
 render = function () {
   renderWithoutTabs.apply(this, arguments);

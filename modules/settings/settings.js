@@ -113,7 +113,19 @@ const SETTINGS_PANELS = {
           (t) => `<option value="${t.id}" ${t.id === sel ? 'selected' : ''}>${E(t.name)}</option>`
         )
         .join('');
-    return `${secHead('groups', 'Teams & targets', `Rename teams, move reps between teams (max ${TEAM_SIZE} per team) and set each rep’s sales target.`)}<div class="grid sm:grid-cols-2 gap-3 mb-4">${S.teams.map((t) => `<div class="card p-3"><div class="mut text-xs">Team name · ${teamReps(t.id).length} of ${TEAM_SIZE} reps</div><input class="inp mt-1" value="${E(t.name)}" onchange="renameTeam('${t.id}',this.value)"></div>`).join('')}</div>${table(['Rep', 'Team', 'Target (₹)', 'Won so far'], reps.map((u) => `<tr><td><b>${E(u.name)}</b><div class="mut text-xs">${E(u.ownerCode)}</div></td><td><select class="inp" style="width:auto" onchange="setRepTeam('${u.id}',this.value)">${teamOptions(u.teamId)}</select></td><td><input class="inp" type="number" min="0" step="10000" style="width:140px" value="${u.target || 0}" onchange="setRepTarget('${u.id}',this.value)"></td><td>${M(repStats(u).won)}</td></tr>`).join(''))}`;
+    const teamCards = S.teams
+      .map(
+        (t) =>
+          `<div class="card p-3"><div class="mut text-xs">Team name · ${teamReps(t.id).length} rep${teamReps(t.id).length === 1 ? '' : 's'}</div><input class="inp mt-1" value="${E(t.name)}" onchange="renameTeam('${t.id}',this.value)"><button class="btn mt-2" onclick="openUserForm('${t.id}')"><span class="ms">person_add</span>Add rep</button></div>`
+      )
+      .join('');
+    const repRows = reps
+      .map(
+        (u) =>
+          `<tr><td><b>${E(u.name)}</b><div class="mut text-xs">${E(u.ownerCode)}</div></td><td><select class="inp" style="width:auto" onchange="setRepTeam('${u.id}',this.value)">${teamOptions(u.teamId)}</select></td><td><input class="inp" type="number" min="0" step="10000" style="width:140px" value="${u.target || 0}" onchange="setRepTarget('${u.id}',this.value)"></td><td>${M(repStats(u).won)}</td></tr>`
+      )
+      .join('');
+    return `${secHead('groups', 'Teams & targets', 'Create teams, add reps, move reps between teams and set each rep’s sales target.')}<form class="flex gap-2 flex-wrap mb-3" onsubmit="createTeam(event)"><input class="inp" style="flex:1 1 220px;max-width:340px" name="name" placeholder="New team name" maxlength="40" required><button class="btn btn-p"><span class="ms">group_add</span>Create team</button><button type="button" class="btn" onclick="openUserForm()"><span class="ms">person_add</span>Add rep</button></form><div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-4">${teamCards}</div>${table(['Rep', 'Team', 'Target (₹)', 'Won so far'], repRows)}`;
   },
   quotes() {
     const d = quoteDefaultsSetting();
@@ -191,6 +203,25 @@ function setDefaultView(view) {
   save();
   toast('Default view saved');
 }
+function createTeam(e) {
+  e.preventDefault();
+  if (!['admin', 'ceo'].includes(S.role)) return toast('Only Admin and CEO can create teams');
+  const name = String(new FormData(e.target).get('name') || '').trim();
+  if (!name) return;
+  if (S.teams.some((t) => t.name.toLowerCase() === name.toLowerCase()))
+    return toast('A team with that name already exists');
+  const slug =
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '') || 'team';
+  let id = slug;
+  for (let n = 2; S.teams.some((t) => t.id === id); n++) id = `${slug}-${n}`;
+  S.teams.push({ id, name });
+  save();
+  toast(`${name} created`);
+  render();
+}
 function renameTeam(id, name) {
   const t = teamById(id);
   if (!t || !['admin', 'ceo'].includes(S.role)) return;
@@ -203,10 +234,6 @@ function renameTeam(id, name) {
 function setRepTeam(userId, teamId) {
   const u = S.users.find((x) => x.id === userId);
   if (!u || !['admin', 'ceo'].includes(S.role)) return;
-  if (teamId && u.teamId !== teamId && teamReps(teamId).length >= TEAM_SIZE) {
-    toast(`${teamById(teamId).name} already has ${TEAM_SIZE} reps`);
-    return render();
-  }
   u.teamId = teamId || null;
   u.teamLocked = true;
   save();

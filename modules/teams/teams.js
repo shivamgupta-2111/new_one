@@ -3,7 +3,6 @@
 // ===========================================================================
 // Teams, leaderboard and role-based settings
 // ===========================================================================
-const TEAM_SIZE = 5;
 const DEFAULT_TARGET = 700000;
 
 // Demo roster: Team Alpha and Team Beta, five reps each (login: first name / rep123).
@@ -146,7 +145,7 @@ function teamBoardCard(team, metric, meCode) {
       return `<tr style="${me ? 'background:var(--hov)' : ''}"><td>${rankBadge(r.rank)}</td><td><div class="flex items-center gap-2"><span class="w-7 h-7 rounded-full grid place-items-center text-xs font-bold" style="background:var(--hov);color:var(--pr)">${E(personInitials(r.user.name))}</span><b>${E(r.user.name)}</b>${me ? '<span class="chip">You</span>' : ''}</div></td><td class="text-right"><b>${M(r.won)}</b></td><td class="text-right">${r.deals}</td><td class="text-right">${M(r.pipeline)}</td><td><div class="flex items-center gap-2">${progressBar(r.attain)}<span class="text-xs">${Math.round(r.attain)}%</span></div></td></tr>`;
     })
     .join('');
-  return `<div class="card p-4"><div class="flex justify-between items-start gap-2 flex-wrap"><div><b class="text-lg">${E(team.name)}</b><div class="mut text-xs">${ranked.length} of ${TEAM_SIZE} reps · ranked by ${LB_METRICS[metric].toLowerCase()}</div></div><div class="text-right"><b>${M(totalWon)}</b><div class="mut text-xs">of ${M(totalTarget)} team target (${totalTarget ? Math.round((totalWon / totalTarget) * 100) : 0}%)</div></div></div>${table(['#', 'Rep', 'Won', 'Deals', 'Open pipeline', 'Target'], rows || '<tr><td colspan="6" class="mut">No reps in this team yet.</td></tr>')}</div>`;
+  return `<div class="card p-4"><div class="flex justify-between items-start gap-2 flex-wrap"><div><b class="text-lg">${E(team.name)}</b><div class="mut text-xs">${ranked.length} rep${ranked.length === 1 ? '' : 's'} · ranked by ${LB_METRICS[metric].toLowerCase()}</div></div><div class="text-right"><b>${M(totalWon)}</b><div class="mut text-xs">of ${M(totalTarget)} team target (${totalTarget ? Math.round((totalWon / totalTarget) * 100) : 0}%)</div></div></div>${table(['#', 'Rep', 'Won', 'Deals', 'Open pipeline', 'Target'], rows || '<tr><td colspan="6" class="mut">No reps in this team yet.</td></tr>')}</div>`;
 }
 
 function leaderboardSection() {
@@ -163,7 +162,7 @@ function leaderboardSection() {
     const me = S.users.find((u) => u.role === 'rep' && u.ownerCode === meCode);
     const team = me && teamById(me.teamId);
     if (!team)
-      return `<div class="card p-4 mb-3"><b>Team leaderboard</b><p class="mut mt-1">You have not been assigned to a team yet. Ask your admin to add you to Team Alpha or Team Beta.</p></div>`;
+      return `<div class="card p-4 mb-3"><b>Team leaderboard</b><p class="mut mt-1">You have not been assigned to a team yet. Ask your admin to add you to a team.</p></div>`;
     const inTeam = rankReps(teamReps(team.id), metric);
     const company = rankReps(
       S.users.filter((u) => u.role === 'rep' && u.active !== false && u.teamId),

@@ -42,7 +42,8 @@ addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closePanels();
 });
 
-function notificationItems() {
+// Everything that could be notified about, before anything is dismissed.
+function allNotificationItems() {
   const items = [],
     mine = visibleOpps().filter((o) => o.stage < 5 && !o.lost);
   mine
@@ -103,18 +104,50 @@ function notificationItems() {
     });
   return items;
 }
+// Dismissed notifications are remembered per person, keyed by their text.
+// A changed text (for example a new count) counts as a new notification.
+function dismissedNotes() {
+  S.dismissed = S.dismissed || {};
+  const id = S.authUser || 'anon';
+  return (S.dismissed[id] = S.dismissed[id] || []);
+}
+function notificationItems() {
+  const gone = new Set(dismissedNotes());
+  return allNotificationItems().filter((n) => !gone.has(n.text));
+}
+function refreshNotifications() {
+  closePanels();
+  toggleNotifications();
+  updateHeader();
+}
+function dismissNotification(index) {
+  const item = notificationItems()[index];
+  if (!item) return;
+  dismissedNotes().push(item.text);
+  save();
+  refreshNotifications();
+}
+// Keeps only entries that are still current, so the list never grows forever.
+function clearNotifications() {
+  S.dismissed = S.dismissed || {};
+  S.dismissed[S.authUser || 'anon'] = allNotificationItems().map((n) => n.text);
+  save();
+  refreshNotifications();
+  toast('Notifications cleared');
+}
 function toggleNotifications() {
   const items = notificationItems();
-  openPanel(
-    'bell',
-    `<div class="p-3 font-bold" style="border-bottom:1px solid var(--bd)">Notifications <span class="chip">${items.length}</span></div>` +
-      (items
-        .map(
-          (n) =>
-            `<div class="flex gap-3 p-3 cursor-pointer" style="border-bottom:1px solid var(--bd)" onmouseover="this.style.background='var(--hov)'" onmouseout="this.style.background=''" onclick="closePanels();${n.go}"><span class="ms" style="color:var(--pr)">${n.icon}</span><div><div class="font-semibold">${E(n.text)}</div><small class="mut">${n.sub}</small></div></div>`
-        )
-        .join('') || '<p class="mut p-4">You are all caught up.</p>')
-  );
+  const clearAll = items.length
+    ? `<button class="btn" style="padding:2px 10px;font-size:12px" onclick="clearNotifications()"><span class="ms" style="font-size:16px">done_all</span>Clear all</button>`
+    : '';
+  const head = `<div class="p-3 font-bold flex items-center gap-2" style="border-bottom:1px solid var(--bd)">Notifications <span class="chip">${items.length}</span><span class="flex-1"></span>${clearAll}</div>`;
+  const rows = items
+    .map(
+      (n, i) =>
+        `<div class="note-row flex gap-3 p-3 cursor-pointer" style="border-bottom:1px solid var(--bd)" onmouseover="this.style.background='var(--hov)'" onmouseout="this.style.background=''" onclick="closePanels();${n.go}"><span class="ms" style="color:var(--pr)">${n.icon}</span><div class="flex-1"><div class="font-semibold">${E(n.text)}</div><small class="mut">${n.sub}</small></div><button class="note-x" title="Dismiss" aria-label="Dismiss notification" onclick="event.stopPropagation();dismissNotification(${i})"><span class="ms" style="font-size:16px">close</span></button></div>`
+    )
+    .join('');
+  openPanel('bell', head + (rows || '<p class="mut p-4">You are all caught up.</p>'));
 }
 function toggleUserMenu() {
   const u = currentUser();

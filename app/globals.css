@@ -1060,3 +1060,258 @@ header.card .btn-p {
   background: var(--hov);
   color: var(--err);
 }
+
+/* ==========================================================================
+   Responsive layer
+   Breakpoints: <=1023 tablet, <=767 large phone, <=639 phone, <=380 small phone
+   ========================================================================== */
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+img,
+svg,
+video {
+  max-width: 100%;
+}
+.grid > *,
+.flex > * {
+  min-width: 0;
+}
+main#app {
+  padding-left: max(12px, env(safe-area-inset-left, 0px));
+  padding-right: max(12px, env(safe-area-inset-right, 0px));
+}
+
+/* Header: search drops to its own row on phones */
+#hdr-row {
+  flex-wrap: wrap;
+}
+.hdr-panel {
+  max-height: 70vh;
+  max-height: 70dvh;
+}
+#toast {
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  bottom: max(24px, env(safe-area-inset-bottom, 0px));
+}
+#toast .card {
+  overflow-wrap: anywhere;
+}
+#nav,
+.rec-tabs {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+#nav::-webkit-scrollbar,
+.rec-tabs::-webkit-scrollbar {
+  display: none;
+}
+.rec-tab {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.rec-tab-name {
+  max-width: 150px;
+}
+.rec-tab kbd {
+  font: inherit;
+  font-size: 10px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--hov);
+  color: var(--mut);
+}
+.rec-tab-edit {
+  width: 140px;
+  padding: 1px 6px;
+  font-size: 12px;
+}
+
+/* Notification panel actions */
+.note-row {
+  position: relative;
+}
+.note-x {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--mut);
+  cursor: pointer;
+}
+.note-x:hover {
+  background: var(--hov);
+  color: var(--err);
+}
+
+@media (max-width: 1023px) {
+  .hdr-search {
+    flex-basis: 320px;
+  }
+  .qt-bottom {
+    grid-template-columns: 1fr;
+  }
+  .qt-guide {
+    border-right: 0;
+    border-bottom: 1px solid var(--bd);
+  }
+}
+
+@media (max-width: 767px) {
+  body {
+    font-size: 14px;
+  }
+  .card table {
+    min-width: 620px;
+  }
+  .qt-table {
+    min-width: 560px;
+  }
+  .qt-section,
+  .qt-wrap {
+    max-width: 100%;
+  }
+  .qt-section > .qt-body,
+  .qt-section > div:has(> .qt-table) {
+    overflow-x: auto;
+  }
+  .qt-steps {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .qt-step {
+    flex: 0 0 auto;
+    min-width: 140px;
+  }
+  .qt-head {
+    flex-wrap: wrap;
+  }
+  .kcol.w-72 {
+    width: 78vw;
+    scroll-snap-align: start;
+  }
+  .step {
+    min-width: 110px;
+    flex: 0 0 auto;
+  }
+  th,
+  td {
+    padding: 8px 10px;
+  }
+}
+
+@media (max-width: 639px) {
+  /* Row 1: launcher, brand, actions. Row 2: full-width search. */
+  .hdr-search {
+    order: 3;
+    flex: 1 1 100%;
+  }
+  #hdr-row {
+    gap: 8px;
+    padding-bottom: 8px;
+  }
+  /* 16px inputs stop iOS Safari zooming the page on focus */
+  .inp,
+  select.inp,
+  textarea.inp {
+    font-size: 16px;
+  }
+  .btn,
+  .hdr-ic,
+  .inp {
+    min-height: 40px;
+  }
+  .hdr-ic {
+    width: 40px;
+    height: 40px;
+  }
+  #nav a {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+  /* Modals become near-full-screen sheets */
+  #modal > .fixed {
+    padding: 8px;
+    align-items: end;
+  }
+  #modal .card {
+    max-height: 92vh;
+    max-height: 92dvh;
+    overflow-y: auto;
+    padding: 16px;
+    width: 100%;
+    max-width: 100%;
+  }
+  #modal .flex.justify-end {
+    flex-wrap: wrap;
+  }
+  #modal .flex.justify-end .btn {
+    flex: 1 1 120px;
+    justify-content: center;
+  }
+  .hdr-panel {
+    left: 8px !important;
+    right: 8px !important;
+    width: auto !important;
+  }
+  .qt-grid {
+    grid-template-columns: 1fr;
+  }
+  .qt-head h1 {
+    font-size: 15px;
+  }
+  .text-2xl {
+    font-size: 1.35rem;
+  }
+  .rec-tab-name {
+    max-width: 110px;
+  }
+  .rec-tab kbd {
+    display: none;
+  }
+  .rec-tab-x {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+@media (max-width: 380px) {
+  main#app {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  .hdr-brand-name {
+    display: none;
+  }
+  .btn {
+    padding: 6px 10px;
+  }
+}
+
+/* Touch devices: no hover lift, bigger targets, no keyboard hint */
+@media (hover: none) and (pointer: coarse) {
+  .kc:hover,
+  .btn:hover {
+    transform: none;
+  }
+  .hdr-kbd {
+    display: none;
+  }
+  .rec-tab kbd {
+    display: none;
+  }
+}
+@media print {
+  .rec-tabs,
+  #nav {
+    display: none !important;
+  }
+}
