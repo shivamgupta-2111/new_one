@@ -1,3 +1,5 @@
+// Shared constants and small helpers: storage key, date/currency/escape formatters, owner and rep lookups.
+
 const KEY = 'sc-proto-v2',
   $ = (s) => document.querySelector(s);
 const D = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
@@ -68,6 +70,9 @@ const ago = (t) => {
 };
 const days = (s) => Math.round((new Date(s + 'T00:00') - new Date(D(0) + 'T00:00')) / 864e5);
 const clone = (x) => JSON.parse(JSON.stringify(x));
+
+// Demo seed data used the first time the app loads (or after "Reset demo").
+
 function seed() {
   const R = [
     ['Acme Corp - 500 Enterprise Licenses', 'Acme Corporation', 120000, 0, 16, 'AL', ''],
@@ -186,6 +191,9 @@ function seed() {
     },
   };
 }
+
+// App state S: load/save, current record, toast, hash navigation and table helper.
+
 function load() {
   try {
     return JSON.parse(localStorage.getItem(KEY));
@@ -226,6 +234,9 @@ const chipC = (o) => (o.stage == 5 ? 'ok' : days(o.close) <= 3 ? 'wr' : '');
 function table(h, rows) {
   return `<div class="card overflow-x-auto"><table><thead><tr>${h.map((x) => `<th>${x}</th>`).join('')}</tr></thead><tbody>${rows || `<tr><td colspan="9" class="mut">Nothing here yet. Use New to add the first record.</td></tr>`}</tbody></table></div>`;
 }
+
+// Home dashboard, pipeline board and stage drag/drop.
+
 const V = {};
 V.home = () => {
   const op = S.opps.filter((o) => o.stage < 5),
@@ -302,6 +313,9 @@ function setStage(o, i) {
   toast(i == 5 ? 'Deal closed won. Congratulations!' : E(o.name) + ' moved to ' + ST[i]);
   render();
 }
+
+// Opportunity field definitions, risk scoring, inline field saves and cloning.
+
 const LEFT = [
   ['owner', 'Opportunity owner', 's'],
   ['name', 'Opportunity name', 't'],
@@ -435,6 +449,9 @@ const tab = (t) => {
   S.tab = t;
   render();
 };
+
+// Opportunity file attachments (IndexedDB): upload, download, remove.
+
 // Opportunity attachments are stored in IndexedDB so file contents do not
 // consume localStorage space. Metadata remains attached to the opportunity.
 const ATTACHMENT_DB = 'sales-cloud-attachments';
@@ -552,6 +569,8 @@ async function removeOppFile(id) {
   }
 }
 
+// Opportunity detail page, follow toggle, stage change and activity log.
+
 V['opp-detail'] = () => {
   const o = cur();
   if (!o) return V.opps();
@@ -643,6 +662,9 @@ function logAct(e) {
   save();
   render();
 }
+
+// Leads list and lead-to-opportunity conversion.
+
 V.leads = () =>
   `<div class="flex items-center mb-3"><h1 class="text-xl font-bold flex-1">Leads</h1><button class="btn btn-p" onclick="modal('lead')"><span class="ms">add</span>New lead</button></div>` +
   table(
@@ -680,6 +702,9 @@ function convert(i) {
   toast(E(l[0]) + ' converted to an opportunity');
   nav('opp-detail');
 }
+
+// Accounts list.
+
 V.accounts = () => {
   const A = [...new Set(S.opps.map((o) => o.account))];
   return (
@@ -693,6 +718,9 @@ V.accounts = () => {
     )
   );
 };
+
+// Base contacts list.
+
 V.contacts = () =>
   `<h1 class="text-xl font-bold mb-3">Contacts</h1>` +
   table(
@@ -704,6 +732,9 @@ V.contacts = () =>
       )
       .join('')
   );
+
+// Base quotation list, totals and the first quote editor.
+
 V.quotes = () =>
   `<h1 class="text-xl font-bold mb-3">Quotes</h1>` +
   table(
@@ -785,6 +816,9 @@ function saveQ(gen) {
  <div class="my-4">${table(['Item', 'Qty', 'Total'], q.items.map((i) => `<tr><td>${E(i.n)}</td><td>${i.q}</td><td>${M(i.p * i.q * (1 - i.d / 100))}</td></tr>`).join(''))}</div><div class="text-right text-lg font-bold">Total ${M(c.tot)}</div>
  <div class="flex gap-2 justify-end mt-4"><button class="btn" onclick="window.print()">Print or save PDF</button><button class="btn btn-p" onclick="$('#modal').innerHTML='';toast('Quote ${q.no} sent to ${E(o.account)}');nav('opp-detail')">Send to customer</button></div></div></div>`;
 }
+
+// Base modal forms and their submit handler.
+
 function modal(k) {
   const o = cur(),
     F = {
@@ -917,6 +951,9 @@ function sub(e, k) {
     render();
   }
 }
+
+// Router: renders the view for the current hash.
+
 function render() {
   let v = location.hash.slice(1) || 'home';
   if (!V[v]) v = 'home';
@@ -946,6 +983,8 @@ addEventListener('hashchange', render);
 try {
   render();
 } catch (e) {}
+
+// Role config, visibility rules and portal switching.
 
 // Ceph CRM extensions: portals, price controls, approvals, invoice history.
 const ROLE_CFG = {
@@ -1008,6 +1047,9 @@ function setRole(r) {
   render();
   toast(roleNow().label + ' active');
 }
+
+// Invoice creation from an approved quotation.
+
 function newInvoice(q) {
   if (q.invoiceId && S.invoices.some((i) => i.id === q.invoiceId))
     return S.invoices.find((i) => i.id === q.invoiceId);
@@ -1035,6 +1077,9 @@ function newInvoice(q) {
   q.invoiceId = inv.id;
   return inv;
 }
+
+// Approval routing for a quote, storing and opening quote records.
+
 function quoteRoute(q) {
   const pct = quoteDiscount(q),
     floor = belowProductFloor(q).length > 0;
@@ -1086,6 +1131,9 @@ function openQuoteRecord(no) {
   S.qd = clone(q);
   nav('quote');
 }
+
+// Open an invoice, submit a quote for approval, send invoice to client.
+
 function openInvoice(id) {
   const inv = S.invoices.find((x) => x.id === id);
   if (!inv) return toast('Invoice not found');
@@ -1146,6 +1194,9 @@ function sendInvoice(id) {
   toast('Invoice submitted to client');
   render();
 }
+
+// Product form and save (min <= list <= max price rule).
+
 function openProductForm(code = '') {
   if (S.role === 'rep') return toast('Only Admin and CEO can manage products');
   const p = S.products.find((x) => x.code === code) || {};
@@ -1176,6 +1227,9 @@ function saveProduct(e, oldCode) {
   toast('Product saved');
   render();
 }
+
+// Portal-aware home, opportunity board and quotes views.
+
 V.home = () => {
   const all = visibleOpps(),
     open = all.filter((o) => o.stage < 5 && !o.lost),
@@ -1235,6 +1289,9 @@ V.quotes = () => {
     )
   );
 };
+
+// 4-step quote builder: pricing, line items, terms and preview.
+
 // ---------------------------------------------------------------------------
 // Quote builder (4-step layout: details & pricing → line items → terms → preview)
 // ---------------------------------------------------------------------------
@@ -1386,6 +1443,9 @@ function saveQuoteDraft() {
   toast('Draft saved');
   nav('opp-detail');
 }
+
+// Approvals queue view.
+
 V.approvals = () => {
   if (S.role === 'rep') return '<p class="mut">Approvals are managed by Admin and CEO.</p>';
   const list = S.quotes.filter((q) =>
@@ -1413,6 +1473,9 @@ V.approvals = () => {
     )
   );
 };
+
+// Product catalogue view.
+
 V.products = () =>
   S.role === 'rep'
     ? '<p class="mut">Product catalogue is managed by Admin and CEO.</p>'
@@ -1426,6 +1489,9 @@ V.products = () =>
           )
           .join('')
       );
+
+// Invoice list and invoice detail views.
+
 V.invoices = () => {
   const list = S.invoices.filter(
     (i) => S.role !== 'rep' || visibleOpps().some((o) => o.id == i.opp)
@@ -1448,6 +1514,9 @@ V['invoice-detail'] = () => {
   if (!i) return V.invoices();
   return `<div class="mut cursor-pointer mb-2" onclick="nav('invoices')">‹ Back to invoices</div><div class="card p-5"><h1 class="text-xl font-bold">Invoice ${i.invoiceNo}</h1><p class="mut">Generated from quotation ${i.quoteNo}</p><div class="mt-4"><b>${E(i.account)}</b><div class="mut">${E(i.opportunity)}</div></div>${table(['Product', 'Code', 'Qty', 'Unit price', 'Discount', 'Total'], i.items.map((x) => `<tr><td>${E(x.n)}</td><td>${E(x.c)}</td><td>${x.q}</td><td>${M(x.p)}</td><td>${x.d}%</td><td>${M(x.p * x.q * (1 - x.d / 100))}</td></tr>`).join(''))}<div class="text-right text-lg font-bold mt-3">Invoice total: ${M(i.total)}</div><div class="flex justify-end gap-2 mt-4"><button class="btn" onclick="window.print()">Print / Save PDF</button>${i.status !== 'Submitted to client' ? `<button class="btn btn-p" onclick="sendInvoice('${i.id}')">Submit to client</button>` : '<span class="chip ok">Submitted to client</span>'}</div></div>`;
 };
+
+// Portal picker added to the header.
+
 // Preserve the prototype's opportunity detail UI and add clickable quote/invoice history.
 // Add portal picker without changing the existing header layout.
 const rolePicker = document.createElement('select');
@@ -1464,6 +1533,9 @@ if (headerActions) {
   const avatar = headerActions.querySelector('span[title="Alex Lee"]');
   if (avatar) avatar.parentNode.insertBefore(rolePicker, avatar);
 }
+
+// Contacts with mobile number: list, form and edit.
+
 // Extend contact creation and display with mobile number.
 V.contacts = () =>
   `<div class="flex items-center mb-3"><h1 class="text-xl font-bold flex-1">Contacts</h1><button class="btn btn-p" onclick="openContactForm()">New contact</button></div>` +
@@ -1519,6 +1591,8 @@ function saveContactMobile(e, name) {
     render();
   }
 }
+
+// New opportunity and contact-role popups, priorities and extended save.
 
 // New-opportunity and add-contact-role popups (replaces the base `modal` for these two keys).
 const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
@@ -1679,6 +1753,9 @@ function saveOppContact(e) {
   toast('Contact added');
   render();
 }
+
+// Portal-specific navigation and record access.
+
 // Portal-specific navigation and record access.
 const originalNav = nav;
 nav = function (v, id) {
@@ -1741,6 +1818,8 @@ S.quotes.forEach((q) => {
   if (q.status === 'Approved' && !q.invoiceId) newInvoice(q);
 });
 addEventListener('hashchange', render);
+
+// Users seed, login screen, sign in and sign out.
 
 // Authentication and role-based account administration (prototype/localStorage implementation).
 S.users = S.users || [
@@ -1820,6 +1899,9 @@ function logoutUser() {
   location.hash = '';
   render();
 }
+
+// User list and create-user form.
+
 V.users = () => {
   const u = S.users.filter((x) => x.active !== false);
   return (
@@ -1873,6 +1955,9 @@ function createUser(e) {
   toast(v.role.toUpperCase() + ' account created');
   render();
 }
+
+// Render wrapper that gates pages behind login and portal.
+
 const priorRenderWithPortals = render;
 render = function () {
   if (!S.authUser) {
@@ -1930,6 +2015,8 @@ render = function () {
   if (sw) sw.style.display = 'none';
 };
 
+// Cross-tab sync through the storage event.
+
 // Cross-tab sync: quotations, approvals, invoices and CRM records are shared; login stays tab-specific.
 addEventListener('storage', (e) => {
   if (e.key !== KEY || !e.newValue) return;
@@ -1955,6 +2042,9 @@ addEventListener('storage', (e) => {
     console.warn('Could not sync Ceph CRM tab', err);
   }
 });
+
+// Header dropdowns: notifications, user menu and header refresh.
+
 // ---------------------------------------------------------------------------
 // Action completion: notifications, user menu, Slack share, leads, contacts,
 // user administration and invoice payment. Prototype/localStorage implementation.
@@ -2093,6 +2183,8 @@ function updateHeader() {
   }
 }
 
+// Slack share (logged on the opportunity timeline).
+
 // Slack share (records the share on the timeline)
 function shareToSlack() {
   const o = cur();
@@ -2102,6 +2194,8 @@ function shareToSlack() {
   toast('Shared to #deals in Slack');
   render();
 }
+
+// Lead status change and delete.
 
 // Leads
 const LEAD_STATUS = ['New', 'Working', 'Qualified', 'Unqualified'];
@@ -2130,6 +2224,8 @@ function deleteLead(i) {
   toast('Lead deleted');
   render();
 }
+
+// Contact edit and delete.
 
 // Contacts: edit and delete
 V.contacts = () =>
@@ -2187,6 +2283,8 @@ function deleteContact(i) {
   render();
 }
 
+// Activate / deactivate users and reset passwords.
+
 // User administration: activate / deactivate and reset password
 const manageableRoles = () =>
   S.role === 'ceo' ? ['admin', 'rep'] : S.role === 'admin' ? ['rep'] : [];
@@ -2229,6 +2327,8 @@ function saveResetPassword(e, id) {
   toast('Password reset for ' + u.name);
 }
 
+// Invoice terms block and mark-as-paid.
+
 // Invoices: record payment after the invoice has been submitted
 const baseInvoiceDetail = V['invoice-detail'];
 function invoiceTermsBlock(i) {
@@ -2267,6 +2367,8 @@ function markInvoicePaid(id) {
   toast('Invoice marked as paid');
   render();
 }
+
+// App launcher and favourites.
 
 // Header: app launcher, favourites, settings, help, theme and keyboard shortcut
 const APP_ICONS = {
@@ -2341,6 +2443,8 @@ function toggleFavorites() {
         '<p class="mut p-4">No favorites yet. Choose <b>Follow</b> on an opportunity to add it here.</p>')
   );
 }
+
+// Theme (System / Light / Dark), settings and help panels.
 
 // Theme (System / Light / Dark), stored per browser
 const getTheme = () => {
@@ -2435,6 +2539,8 @@ addEventListener('keydown', (e) => {
   }
 });
 
+// Render wrapper that refreshes the header after each render.
+
 const renderBeforeActions = render;
 render = function () {
   renderBeforeActions();
@@ -2447,6 +2553,8 @@ save();
 try {
   render();
 } catch (e) {}
+
+// Opportunity owner assignment and linked documents.
 
 // Opportunity ownership and document references shown consistently in every portal.
 function opportunityDocuments(o) {
@@ -2560,6 +2668,9 @@ V.opps = () => {
     ).join('')}</div>`
   );
 };
+
+// Role-filtered quotations and invoices lists.
+
 const previousQuotesView = V.quotes;
 V.quotes = () => {
   const list = S.quotes.filter((q) => S.role !== 'rep' || visibleOpps().some((o) => o.id == q.opp));
@@ -2610,6 +2721,9 @@ V.invoices = () => {
     )
   );
 };
+
+// Contacts page with designation, email and primary-contact flag.
+
 // Contacts page: designation, email, contact number and primary-contact flag (c[5]).
 V.contacts = () =>
   `<div class="flex items-center mb-3"><h1 class="text-xl font-bold flex-1">Contacts</h1><button class="btn btn-p" onclick="openContactForm()">New contact</button></div>` +
@@ -2688,6 +2802,8 @@ function saveContactEdit(e, i) {
   render();
 }
 
+// "Others" dropdowns used in popups and quote page.
+
 // ---------------------------------------------------------------------------
 // "Others" dropdowns, approval notes, terms & conditions and approval history
 // ---------------------------------------------------------------------------
@@ -2738,6 +2854,8 @@ const canReview = (q) =>
 function addQuoteHistory(q, action, note) {
   (q.history = q.history || []).push({ t: Date.now(), by: roleNow().name, action, note });
 }
+
+// Approval banner, notes, approve / reject and approval history.
 
 // Banner at the top of the quote that says where approval stands.
 function approvalBanner(q, inv) {
@@ -2867,6 +2985,8 @@ function finishApproval(e, no, mode) {
   render();
 }
 
+// Quotation status shown on the opportunity page.
+
 // Quotation status on the opportunity page (header item + side card).
 function quoteStatusInfo(q) {
   const s = q.status;
@@ -2906,6 +3026,8 @@ function quoteStatusCard(o) {
     .join('');
   return `<div class="card p-4"><div class="flex justify-between items-center"><b>Quotation status (${list.length})</b><button class="btn" onclick="openQuote(${o.id})">New quote</button></div>${rows || '<p class="mut mt-2">No quotation yet. Use Generate quote to start one.</p>'}</div>`;
 }
+
+// Teams, rep stats, leaderboard and targets.
 
 // ===========================================================================
 // Teams, leaderboard and role-based settings
@@ -3088,6 +3210,9 @@ function leaderboardSection() {
   }
   return `<div class="mb-3"><div class="flex items-center gap-2 flex-wrap mb-2"><span class="ms" style="color:var(--pr)">emoji_events</span><h2 class="text-lg font-bold">Team leaderboard</h2><span class="flex-1"></span>${toggles}</div><p class="mut mb-2">${intro}</p>${body}</div>`;
 }
+
+// Leaderboard section injected into the home page.
+
 const homeWithoutBoard = V.home;
 V.home = () =>
   homeWithoutBoard().replace(
@@ -3097,6 +3222,9 @@ V.home = () =>
   );
 
 // ---------- quote defaults come from Settings ----------
+
+// Settings page: sections, profile, password, notifications, team admin.
+
 const quoteDefaultsSetting = () => S.settings.quote || { terms: 'Net 30', validityDays: 14 };
 
 // ---------- settings ----------
@@ -3340,6 +3468,9 @@ function setLeaderboardDefault(metric) {
 // Opportunity tabs: every opportunity you open stays in a tab bar under the menu,
 // so you can switch between several records without losing your place.
 // ---------------------------------------------------------------------------
+
+// Open-record tabs bar and the first render.
+
 const tabIsActive = (id) =>
   ['#opp-detail', '#quote'].includes(location.hash) && String(S.cur) === String(id);
 

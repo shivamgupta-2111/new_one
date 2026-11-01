@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "build:runtime": "node scripts/build-runtime.js",
+    "predev": "npm run build:runtime",
     "dev": "next dev",
+    "prebuild": "npm run build:runtime",
     "build": "next build",
     "start": "next start",
     "format": "prettier --write .",

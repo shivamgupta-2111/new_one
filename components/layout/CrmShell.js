@@ -1,4 +1,5 @@
 import Script from 'next/script';
+import Overlays from '@/components/shared/Overlays';
 
 const prototypeShell = String.raw`<header class="sticky z-30 card" style="top:env(safe-area-inset-top,0px);border-radius:0;border-width:0 0 1px">
  <div id="hdr-row" class="flex items-center gap-3 px-3 py-2">
@@ -19,13 +20,13 @@ const prototypeShell = String.raw`<header class="sticky z-30 card" style="top:en
  </div>
  <nav id="nav" class="flex gap-1 px-3 overflow-x-auto"></nav>
 </header>
-<main id="app" class="p-3 md:p-4 max-w-[1500px] mx-auto"></main>
-<div id="modal"></div><div id="toast" class="fixed left-1/2 -translate-x-1/2 bottom-6 z-50"></div>`;
+<main id="app" class="p-3 md:p-4 max-w-[1500px] mx-auto"></main>`;
 
 export default function CrmShell() {
   return (
     <>
       <div dangerouslySetInnerHTML={{ __html: prototypeShell }} />
+      <Overlays />
       <Script src="/ceph-crm.js" strategy="afterInteractive" />
     </>
   );
