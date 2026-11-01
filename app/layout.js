@@ -1,3 +1,6 @@
+// Fonts are bundled with the app (no Google Fonts request), so icons always load.
+import '@fontsource-variable/material-symbols-outlined';
+import '@fontsource-variable/roboto-flex';
 import './globals.css';
 import Script from 'next/script';
 
