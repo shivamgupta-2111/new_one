@@ -58,10 +58,10 @@ components/     UI components (layout shell and per-domain folders)
 modules/        Domain modules: auth, users, leads, accounts, contacts,
                 opportunities, products, quotations, approvals, invoices
 lib/            Shared utilities (currency, permissions, database adapter)
-public/         Browser runtime (sales-cloud.js)
+public/         Browser runtime (ceph-crm.js)
 ```
 
-The CRM runtime lives in `public/sales-cloud.js` and is being migrated into the domain modules incrementally. Each module's README describes its intended ownership.
+The CRM runtime lives in `public/ceph-crm.js` and is being migrated into the domain modules incrementally. Each module's README describes its intended ownership.
 
 ## Production readiness
 

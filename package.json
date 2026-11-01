@@ -1,5 +1,5 @@
 {
-  "name": "ceph-crm-next",
+  "name": "ceph-crm",
   "version": "1.0.0",
   "private": true,
   "scripts": {

@@ -26,7 +26,7 @@ export default function CrmShell() {
   return (
     <>
       <div dangerouslySetInnerHTML={{ __html: prototypeShell }} />
-      <Script src="/sales-cloud.js" strategy="afterInteractive" />
+      <Script src="/ceph-crm.js" strategy="afterInteractive" />
     </>
   );
 }
