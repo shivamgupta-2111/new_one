@@ -4,12 +4,18 @@
 function quoteStatusInfo(q) {
   const s = q.status;
   if (s === 'Approved') return { tone: 'ok', text: 'Approved' };
+  if (s === 'Sent to client') return { tone: 'ok', text: 'Approved · Sent to client' };
   if (s === 'Paid') return { tone: 'ok', text: 'Paid' };
   if (s === 'Rejected') return { tone: 'er', text: 'Rejected' };
+  if (s === 'Expired') return { tone: 'er', text: 'Expired' };
   if (s === 'Pending CEO Approval') return { tone: 'wr', text: 'Under approval · CEO' };
   if (s === 'Pending Admin Approval') return { tone: 'wr', text: 'Under approval · Admin' };
   return { tone: '', text: q.label && q.label !== 'Draft' ? `Draft · ${q.label}` : 'Draft' };
 }
+const quoteStatusChip = (q) => {
+  const i = quoteStatusInfo(q);
+  return `<span class="chip ${i.tone}">${i.text}</span>`;
+};
 const quotesOf = (o) => S.quotes.filter((q) => q.opp == o.id);
 function quoteHeaderStatus(o) {
   const list = quotesOf(o);
@@ -25,16 +31,20 @@ function quoteStatusCard(o) {
     .reverse()
     .map((q) => {
       const i = quoteStatusInfo(q);
-      const detail =
-        q.status === 'Approved' || q.status === 'Paid'
-          ? `Approved by ${E(q.approvedBy || '')} · ${whenText(q.approvedAt)}`
+      const approved = ['Approved', 'Sent to client', 'Paid'].includes(q.status),
+        detail = approved
+          ? (q.approvedBy
+              ? `Approved by ${E(q.approvedBy)} · ${whenText(q.approvedAt)}`
+              : 'Approved') + (q.approvedNotes ? ` — ${E(q.approvedNotes)}` : '')
           : q.status === 'Rejected'
-            ? `Rejected by ${E(q.rejectedBy || '')} · ${whenText(q.rejectedAt)}`
+            ? `Rejected by ${E(q.rejectedBy || '')} · ${whenText(q.rejectedAt)}` +
+              (q.rejectedNotes ? ` — ${E(q.rejectedNotes)}` : '')
             : q.status.startsWith('Pending')
-              ? `Awaiting ${E(q.nextApprover || 'approver')}`
+              ? `Awaiting ${E(q.nextApprover || 'approver')}` +
+                (q.createdBy ? ` · submitted by ${E(q.createdBy)}` : '')
               : 'Not submitted for approval';
       const inv = q.invoiceId && S.invoices.find((x) => x.id === q.invoiceId);
-      return `<div class="py-2 border-b cursor-pointer" style="border-color:var(--bd)" onclick="openQuoteRecord('${E(q.no)}')"><div class="flex justify-between items-center gap-2"><b>${E(q.no)}</b><span class="chip ${i.tone}">${i.text}</span></div><div class="mut text-xs">${detail}${inv ? ` · ${E(inv.invoiceNo)}` : ''}</div></div>`;
+      return `<div class="py-2 border-b cursor-pointer" style="border-color:var(--bd)" onclick="openQuoteRecord('${E(q.no)}')"><div class="flex justify-between items-center gap-2"><b>${E(q.no)}</b><span class="chip ${i.tone}">${i.text}</span></div><div class="mut text-xs">${detail}${inv && canSeeInvoices() ? ` · ${E(inv.invoiceNo)}` : ''}</div></div>`;
     })
     .join('');
   return `<div class="card p-4"><div class="flex justify-between items-center"><b>Quotation status (${list.length})</b><button class="btn" onclick="openQuote(${o.id})">New quote</button></div>${rows || '<p class="mut mt-2">No quotation yet. Use Generate quote to start one.</p>'}</div>`;

@@ -11,7 +11,7 @@ const prefsOf = () => {
   };
   return S.prefs[id];
 };
-const SETTINGS_SECTIONS = () => {
+let SETTINGS_SECTIONS = () => {
   const base = [
     ['profile', 'Profile', 'account_circle'],
     ['security', 'Password & security', 'lock'],
@@ -23,7 +23,8 @@ const SETTINGS_SECTIONS = () => {
     base.push(
       ['teams', 'Teams & targets', 'groups'],
       ['quotes', 'Quote defaults', 'request_quote'],
-      ['limits', 'Approval limits', 'approval']
+      ['limits', 'Approval limits', 'approval'],
+      ['terms', 'Terms & conditions', 'gavel']
     );
   if (S.role === 'ceo') base.push(['workspace', 'Workspace & data', 'tune']);
   return base;

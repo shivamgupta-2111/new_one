@@ -38,7 +38,7 @@ function quoteLineRows(q, locked, withActions) {
       const net = i.p * (1 - i.d / 100);
       const saved = (i.p * i.q * i.d) / 100;
       const discountCell = withActions
-        ? `<input class="inp qt-num" type="number" min="0" max="100" step="0.1" value="${i.d}" ${locked || !canGiveDiscount() ? 'disabled' : ''} title="${canGiveDiscount() ? '' : 'Only Admin and CEO can give discounts'}" aria-label="Discount percent" onchange="changeQuoteItem(${k},'d',this.value)"><span class="qt-sub">${i.d ? `−${M(saved)}` : ''}</span>`
+        ? `<input class="inp qt-num" type="number" min="0" max="100" step="0.1" value="${i.d}" ${locked ? 'disabled' : ''} title="${canGiveDiscount() ? '' : 'Your discount goes to Admin / CEO for approval'}" aria-label="Discount percent" onchange="changeQuoteItem(${k},'d',this.value)"><span class="qt-sub">${i.d ? `−${M(saved)}` : ''}</span>`
         : `${i.d}%`;
       const qtyCell = withActions
         ? `<input class="inp qt-num" type="number" min="1" value="${i.q}" ${locked ? 'disabled' : ''} aria-label="Quantity" onchange="changeQuoteItem(${k},'q',this.value)">`
@@ -46,13 +46,17 @@ function quoteLineRows(q, locked, withActions) {
       const removeCell = withActions
         ? `<td class="qt-r">${locked ? '' : `<button class="qt-del" title="Remove" aria-label="Remove line" onclick="removeQuoteItem(${k})"><span class="ms">delete</span></button>`}</td>`
         : '';
-      return `<tr><td><b class="qt-link">${E(i.n)}</b></td><td class="qt-code">${E(i.c)}</td><td class="qt-r">${M(i.p)}</td><td class="qt-r">${qtyCell}</td><td class="qt-r">${discountCell}</td><td class="qt-r"><b>${M(net * i.q)}</b></td>${removeCell}</tr>`;
+      return `<tr><td><b class="qt-link">${E(i.n)}</b></td><td class="qt-code">${E(i.c)}</td><td class="qt-r">${M(withActions || q.showDiscount ? i.p : net)}</td><td class="qt-r">${qtyCell}</td>${withActions || q.showDiscount ? `<td class="qt-r">${discountCell}</td>` : ''}<td class="qt-r"><b>${M(net * i.q)}</b></td>${removeCell}</tr>`;
     })
     .join('');
 }
 
 function quoteLinesCard(q, locked, withActions) {
-  const head = ['Product Name', 'Code', 'List Price', 'Qty', 'Discount %', 'Total Price']
+  const head = (
+    withActions || q.showDiscount
+      ? ['Product Name', 'Code', 'List Price', 'Qty', 'Discount %', 'Total Price']
+      : ['Product Name', 'Code', 'Unit Price', 'Qty', 'Total Price']
+  )
     .map((h, n) => `<th class="${n > 1 ? 'qt-r' : ''}">${h}</th>`)
     .concat(withActions ? ['<th class="qt-r">Actions</th>'] : [])
     .join('');
@@ -67,22 +71,8 @@ function quoteLinesCard(q, locked, withActions) {
   return `<section class="qt-section"><div class="qt-section-head"><span class="ms">inventory_2</span><b>Line Items &amp; Product Bundling</b><span class="chip ok">${q.items.length} ${q.items.length === 1 ? 'Item' : 'Items'}</span><span class="flex-1"></span>${tools}</div><div class="overflow-x-auto"><table class="qt-table"><thead><tr>${head}</tr></thead><tbody>${quoteLineRows(q, locked, withActions)}</tbody></table></div></section>`;
 }
 
-function quoteSummaryRow(q, o, floor, route) {
-  const subtotal = q.items.reduce((a, i) => a + i.p * i.q, 0);
-  const discount = subtotal - quoteTotal(q);
-  const limit = ROLE_DISCOUNT_LIMIT[S.role];
-  const needsApproval = route.status !== 'Approved';
-  const headline = floor.length
-    ? 'CEO approval required'
-    : needsApproval
-      ? 'Approval Required'
-      : 'Approval Not Required';
-  const detail = floor.length
-    ? 'At least one product is priced below its minimum selling price, so CEO approval is mandatory.'
-    : needsApproval
-      ? `Blended discount of ${quoteDiscount(q).toFixed(1)}% will be routed to ${E(route.approver)} for approval.`
-      : `Total discount (${quoteDiscount(q).toFixed(1)}%) is within ${E(roleNow().name)}'s delegation authority.`;
-  return `<div class="qt-bottom"><div class="qt-guide"><span class="qt-guide-icon"><span class="ms">auto_awesome</span></span><div><div class="qt-guide-title">Discount &amp; Pricing Guidance <span class="qt-badge">Insight</span></div><p><b>${headline}:</b> ${detail}</p><div class="qt-guide-stats"><span>Your limit: <b>${limit === null ? 'Unlimited' : limit.toFixed(1) + '%'}</b></span><span>Applied Blended Rate: <b>${quoteDiscount(q).toFixed(2)}%</b></span><span class="${floor.length ? 'qt-bad' : 'qt-good'}">Margin Protection: <b>${floor.length ? 'Below product minimum' : 'Verified'}</b></span></div></div></div><div class="qt-totals"><div class="qt-total-row"><span class="mut">Subtotal (List)</span><span>${M(subtotal)}</span></div><div class="qt-total-row"><span class="qt-link">Total Additional Discounts</span><span class="qt-link">${discount ? '−' : ''}${M(discount)}</span></div><div class="qt-total-row"><span class="mut">Estimated Tax / Surcharge</span><span>${M(0)}</span></div><div class="qt-total-row qt-grand"><b>Grand Total</b><b>${M(quoteTotal(q))}</b></div><small class="mut qt-r" style="display:block">All figures formatted in INR (₹)</small></div></div>`;
+function quoteSummaryRow(q) {
+  return `<div class="qt-bottom"><div class="qt-totals"><div class="qt-total-row qt-grand"><b>Grand Total</b><b>${M(quoteTotal(q))}</b></div><small class="mut qt-r" style="display:block">All figures formatted in INR (₹)</small></div></div>`;
 }
 
 V.quote = () => {
@@ -99,17 +89,19 @@ V.quote = () => {
     // keep the autofilled addresses on the quote so they are saved with it
     if (q.address === undefined) q.address = d.address;
     if (q.shipping === undefined) q.shipping = d.shipping;
+    if (q.toEmail === undefined) q.toEmail = d.toEmail;
+    if (q.toPhone === undefined) q.toPhone = d.toPhone;
   }
   const dis = locked ? 'disabled' : '';
 
   const field = (label, control, required) =>
     `<label class="qt-field"><span>${label}${required ? ' <i class="qt-req">*</i>' : ''}</span>${control}</label>`;
 
-  const infoCard = `<section class="qt-section"><div class="qt-section-head"><span class="ms">badge</span><b>Quote Information</b></div><div class="qt-grid">${field('Quote Name', `<input class="inp" value="${E(d.name)}" ${dis} onchange="S.qd.name=this.value">`, true)}<label class="qt-check"><input type="checkbox" ${d.primary ? 'checked' : ''} ${dis} onchange="S.qd.primary=this.checked"> Primary Quote (Syncs to Opportunity)</label>${field('Expiration Date', `<input type="date" class="inp" value="${q.exp}" ${dis} onchange="S.qd.exp=this.value">`)}${field('Status', q.status === 'Draft' ? quoteOtherSelect('label', QUOTE_STATUS_CHOICES, q.label || 'Draft', false) : `<select class="inp" disabled><option>${E(q.status)}</option></select>`)}${field('Prepared For', `<input class="inp" value="${E(d.preparedFor)}" ${dis} onchange="S.qd.preparedFor=this.value">`)}${field('Sales Rep / Owner', `<input class="inp" value="${E(ownerLabel(o.owner))}" disabled>`)}${field('Payment Terms', quoteOtherSelect('terms', PAYMENT_TERMS, q.terms, locked))}${field('Billing Address', `<input class="inp" value="${E(d.address)}" placeholder="Street, city, state, PIN" ${dis} onchange="S.qd.address=this.value">`)}${field('Shipping Address', `<input class="inp" value="${E(d.shipping)}" placeholder="Street, city, state, PIN" ${dis} onchange="S.qd.shipping=this.value">`)}</div></section>`;
+  const infoCard = `<section class="qt-section"><div class="qt-section-head"><span class="ms">badge</span><b>Quote Information</b></div><div class="qt-grid">${field('Quote Name', `<input class="inp" value="${E(d.name)}" ${dis} onchange="S.qd.name=this.value">`, true)}<label class="qt-check"><input type="checkbox" ${d.primary ? 'checked' : ''} ${dis} onchange="S.qd.primary=this.checked"> Primary Quote (Syncs to Opportunity)</label>${field('Expiration Date', `<input type="date" class="inp" value="${q.exp}" ${dis} onchange="S.qd.exp=this.value">`)}${field('Status', q.status === 'Draft' ? quoteOtherSelect('label', QUOTE_STATUS_CHOICES, q.label || 'Draft', false) : `<select class="inp" disabled><option>${E(q.status)}</option></select>`)}${contactsOfAccount(o.account).length ? field('Customer Contact', `<select class="inp" ${dis} onchange="pickQuoteContact(this.value)"><option value="">Choose a contact…</option>${contactOptions(o.account, String(d.preparedFor).replace(/\s*\(.*\)\s*$/, ''))}</select>`) : ''}${field('Prepared For', `<input class="inp" value="${E(d.preparedFor)}" ${dis} onchange="S.qd.preparedFor=this.value">`)}${field('Send To (Email)', `<input class="inp" type="email" value="${E(d.toEmail)}" placeholder="customer@company.com" ${dis} onchange="S.qd.toEmail=this.value">`)}${field('WhatsApp Number', `<input class="inp" type="tel" value="${E(d.toPhone)}" placeholder="+91 98765 43210" ${dis} onchange="S.qd.toPhone=this.value">`)}${field('Sales Rep / Owner', `<input class="inp" value="${E(ownerLabel(o.owner))}" disabled>`)}${field('Billing Address', `<input class="inp" value="${E(d.address)}" placeholder="Street, city, state, PIN" ${dis} onchange="S.qd.address=this.value">`)}${field('Shipping Address', `<input class="inp" value="${E(d.shipping)}" placeholder="Street, city, state, PIN" ${dis} onchange="S.qd.shipping=this.value">`)}</div></section>`;
 
   const approvalCard = approvalSection(q, floor, locked);
 
-  const previewCard = `<section class="qt-section"><div class="qt-section-head"><span class="ms">visibility</span><b>Preview</b></div><div class="qt-body"><p><b>${E(d.name)}</b></p><p class="mut">Prepared for ${E(d.preparedFor || '—')} · Expires ${fd(q.exp)} · ${E(q.terms)}</p>${d.address ? `<p class="mut">Billing: ${E(d.address)}</p>` : ''}${d.shipping ? `<p class="mut">Shipping: ${E(d.shipping)}</p>` : ''}<p style="margin-top:8px"><b>Terms &amp; conditions</b></p><p style="white-space:pre-wrap">${q.tnc ? E(q.tnc) : '<span class="mut">None added.</span>'}</p></div></section>`;
+  const previewCard = `<section class="qt-section"><div class="qt-section-head"><span class="ms">visibility</span><b>Preview</b></div><div class="qt-body"><p><b>${E(d.name)}</b></p><p class="mut">Prepared for ${E(d.preparedFor || '—')} · Expires ${fd(q.exp)}</p>${d.address ? `<p class="mut">Billing: ${E(d.address)}</p>` : ''}${d.shipping ? `<p class="mut">Shipping: ${E(d.shipping)}</p>` : ''}<p style="margin-top:8px"><b>Terms &amp; conditions</b></p><p style="white-space:pre-wrap">${E(effectiveTnc(q))}</p></div></section>`;
 
   const body =
     step === 1

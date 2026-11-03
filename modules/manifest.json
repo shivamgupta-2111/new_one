@@ -51,7 +51,13 @@
   "modules/quotations/discount-policy.js",
   "modules/approvals/popups.js",
   "modules/accounts/account-info.js",
+  "modules/quotations/quote-flow.js",
+  "modules/quotations/send-quote.js",
+  "modules/products/price-book.js",
+  "modules/invoices/billing.js",
   "modules/opportunities/permissions.js",
+  "modules/opportunities/record-page.js",
+  "modules/opportunities/files-upload.js",
   "modules/teams/rep-detail.js",
   "modules/opportunities/tabs.js"
 ]

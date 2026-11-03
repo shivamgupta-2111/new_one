@@ -1,5 +1,17 @@
 // Opportunity field definitions, risk scoring, inline field saves and cloning.
 
+const CHURN_REASONS = [
+  'Budget cuts',
+  'Going with a competitor',
+  'Champion left',
+  'Product fit',
+  'Pricing',
+  'Low usage',
+  'Contract terms',
+  'Merger / acquisition',
+  'Support issues',
+  'Other',
+];
 const LEFT = [
   ['owner', 'Opportunity owner', 's'],
   ['name', 'Opportunity name', 't'],
@@ -37,6 +49,8 @@ const RIGHT = [
   ['lost', 'Why we lost', 'ta'],
   ['risk', 'Risk classification', 's', ['None', 'Low', 'Medium', 'High']],
   ['churn', 'Risk/churn level', 's', ['Level 1', 'Level 2', 'Level 3']],
+  ['churnWhy', 'Churn reasons', 'ms', CHURN_REASONS],
+  ['churnNotes', 'Churn notes', 'ta'],
   ['notes', 'At-risk notes', 'ta'],
   ['desc', 'Description', 'ta'],
 ];
@@ -86,8 +100,15 @@ const fld = (o, [k, l, t, op]) => {
     ed = S.ed == k && t != 'ro' && t != 'b';
   let b;
   if (t == 'b')
-    b = `<input type="checkbox" ${v ? 'checked' : ''} onchange="sf('${k}',this.checked)">`;
-  else if (ed) {
+    b = `<input class="sf-cb" type="checkbox" aria-label="${E(l)}" ${v ? 'checked' : ''} onchange="sf('${k}',this.checked)">`;
+  else if (t == 'ms') {
+    const picked = Array.isArray(v) ? v : [];
+    b = ed
+      ? `<div class="sf-ms">${op.map((x) => `<label class="flex items-center gap-2 py-0.5"><input type="checkbox" value="${E(x)}" ${picked.includes(x) ? 'checked' : ''}> ${E(x)}</label>`).join('')}<div class="flex gap-2 mt-2"><button type="button" class="btn btn-p" onclick="saveMs('${k}',this)">Save</button><button type="button" class="btn" onclick="S.ed=null;render()">Cancel</button></div></div>`
+      : picked.length
+        ? `<div class="flex flex-wrap gap-1">${picked.map((x) => `<span class="chip wr">${E(x)}</span>`).join('')}</div>`
+        : '–';
+  } else if (ed) {
     const a = `data-ed onchange="sf('${k}',this.value)" onblur="S.ed=null;render()"`;
     b =
       t == 's'
@@ -96,13 +117,26 @@ const fld = (o, [k, l, t, op]) => {
           ? `<textarea class="inp" rows="3" ${a}>${E(v)}</textarea>`
           : `<input class="inp" type="${t == 'n' ? 'number' : t == 'd' ? 'date' : 'text'}" value="${E(v)}" ${a}>`;
   } else
-    b = `<div class="font-semibold break-words">${t == 'n' ? M(v) : t == 'd' ? fd(v) : k == 'amount' ? M(v) : k == 'owner' ? repLink(v) : k == 'account' ? acctSpan(v) + acctEditBtn(v) : E(v) || '–'}</div>`;
-  return `<div class="py-2 border-b flex justify-between gap-2" style="border-color:var(--bd)"><div class="min-w-0 flex-1"><div class="mut text-[11px]">${l}</div>${b}</div>${t == 'ro' || t == 'b' ? '' : `<span class="ms mut" style="font-size:16px;cursor:pointer" title="Edit" onclick="S.ed='${k}';render()">edit</span>`}</div>`;
+    b = `<div style="white-space:pre-wrap">${t == 'n' ? (v === '' || v == null ? '–' : M(v)) : t == 'd' ? (v ? fd(v) : '–') : k == 'amount' ? M(v) : k == 'owner' ? repLink(v) : k == 'account' ? acctSpan(v) + acctEditBtn(v) : E(v) || '–'}</div>`;
+  const pen =
+    t == 'ro' || t == 'b'
+      ? ''
+      : `<span class="ms" title="Edit ${E(l)}" onclick="S.ed='${k}';render()">edit</span>`;
+  return sfRow(l, b, pen);
 };
+// One label / value row of the record page.
+const sfRow = (label, valueHtml, penHtml = '') =>
+  `<div class="sf-row"><div class="sf-l">${label}</div><div class="sf-v">${valueHtml}</div><div class="sf-pen">${penHtml}</div></div>`;
+function saveMs(k, btn) {
+  const vals = [...btn.closest('.sf-ms').querySelectorAll('input:checked')].map((i) => i.value);
+  sf(k, vals);
+}
 function sf(k, v) {
-  const o = cur();
+  const o = cur(),
+    before = gv(o, k);
+  if (String(before) !== String(v)) recordFieldChange(o, k, before, v);
   if (['owner', 'name', 'close', 'next'].includes(k)) o[k] = v;
-  else (o.f = o.f || {})[k] = k == 'orig' ? +v : v;
+  else (o.f = o.f || {})[k] = k == 'orig' || NUM_KEYS.has(k) ? +v : v;
   S.ed = null;
   save();
   toast('Saved');

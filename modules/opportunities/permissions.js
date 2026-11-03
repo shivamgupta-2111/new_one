@@ -116,3 +116,12 @@ addEventListener('hashchange', () => {
   hideInvoiceUi();
   showNextPopup();
 });
+
+// Activity text mentions invoice numbers; people who cannot see invoices only see "invoice".
+function hideInvoiceRefs(text) {
+  return canSeeInvoices()
+    ? text
+    : String(text)
+        .replace(/invoice\s+INV-[\w-]+/gi, 'invoice')
+        .replace(/INV-[\w-]+/g, 'invoice');
+}

@@ -28,11 +28,13 @@ ceph-crm/
 │  ├─ accounts/                  accounts, account-info
 │  ├─ contacts/                  contacts, mobile, primary, edit
 │  ├─ opportunities/             board, fields, detail, attachments, modals,
-│  │                             new-opportunity, portal-views, ownership, slack, tabs, permissions
-│  ├─ products/                  products, catalogue-view
-│  ├─ quotations/                quote-base, records, builder, list-view, status, discount-policy
+│  │                             new-opportunity, portal-views, ownership, slack, tabs, permissions, record-page, files-upload
+│  ├─ products/                  products, catalogue-view, price-book (tiers, bundles, min/max)
+│  ├─ quotations/                quote-base, records, builder, list-view, status, discount-policy, quote-flow,
+│  │                             send-quote (email/WhatsApp, customer link #cq/, tracking, expiry)
 │  ├─ approvals/                 approvals-view, approval-flow, others-select, popups
-│  ├─ invoices/                  create, submit-and-send, views, payment
+│  ├─ invoices/                  create, submit-and-send, views, payment,
+│  │                             billing (payments, GST invoice, overdue, Close Won prompt)
 │  ├─ header/                    panels, launcher, render-hook
 │  ├─ settings/                  settings, theme
 │  └─ teams/                     teams, home-board, rep-detail

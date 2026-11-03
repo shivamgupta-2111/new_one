@@ -57,6 +57,9 @@ function showNextPopup() {
   if (!p) return;
   p.seen = { ...(p.seen || {}), [S.authUser]: true }; // showing it counts as seen, so it never repeats
   save();
+  if (String(p.kind).startsWith('tnc')) return showTncPopup(p);
+  if (String(p.kind).startsWith('cq-')) return showCqPopup(p);
+  if (String(p.kind).startsWith('bill-')) return showBillPopup(p);
   const q = quoteOf(p.no),
     o = q && S.opps.find((x) => x.id == q.opp);
   if (!q) return showNextPopup();

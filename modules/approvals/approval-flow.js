@@ -7,7 +7,7 @@ function approvalBanner(q, inv) {
       .filter(Boolean)
       .map((l) => `<div>${l}</div>`)
       .join('')}</div></div>`;
-  if (q.status === 'Approved' || q.status === 'Paid')
+  if (['Approved', 'Sent to client', 'Paid'].includes(q.status))
     return box('ok', 'verified', 'Approval granted', [
       `Approved by <b>${E(q.approvedBy || '')}</b> on ${whenText(q.approvedAt)}`,
       q.approvedNotes ? `Approval notes: ${E(q.approvedNotes)}` : '',
@@ -41,7 +41,7 @@ function approvalSection(q, floor, locked) {
     .join('');
   return `<section class="qt-section"><div class="qt-section-head"><span class="ms">approval</span><b>Approval Authority</b></div><div class="qt-body"><p>Reps cannot give discounts · Admin up to <b>${adminDiscountLimit()}%</b> (set by the CEO) · CEO any discount. Any line priced below the product minimum always needs CEO approval.</p><p class="mut" style="margin-top:6px">${floor.length ? `Lines below minimum: ${floor.map((i) => E(i.c)).join(', ')}` : 'No lines are below their product minimum.'}</p></div></section>
 <section class="qt-section"><div class="qt-section-head"><span class="ms">edit_note</span><b>Notes for approval <i class="qt-req">*</i></b></div><div class="qt-body"><textarea class="inp" rows="3" ${locked ? 'disabled' : ''} placeholder="Explain the discount or pricing so the approver can decide. Required before submitting." oninput="S.qd.notes=this.value">${E(q.notes || '')}</textarea></div></section>
-<section class="qt-section"><div class="qt-section-head"><span class="ms">gavel</span><b>Terms &amp; conditions</b>${canEditTnc ? '' : '<span class="mut text-xs">Added by Admin / CEO</span>'}</div><div class="qt-body">${canEditTnc ? `<textarea class="inp" rows="4" placeholder="e.g. Pricing valid until the expiry date. Payment as per the terms above." oninput="S.qd.tnc=this.value">${E(q.tnc || '')}</textarea>` : `<p style="white-space:pre-wrap">${q.tnc ? E(q.tnc) : '<span class="mut">None added yet.</span>'}</p>`}</div></section>${history ? `<section class="qt-section"><div class="qt-section-head"><span class="ms">history</span><b>Approval history</b></div><div class="qt-body">${history}</div></section>` : ''}`;
+${tncSection(q, locked)}${history ? `<section class="qt-section"><div class="qt-section-head"><span class="ms">history</span><b>Approval history</b></div><div class="qt-body">${history}</div></section>` : ''}`;
 }
 
 // Approve / reject now ask for notes (required) and, on approval, terms & conditions.
@@ -76,7 +76,7 @@ function openApprovalDialog(q, mode) {
     `<div class="p-3 rounded text-xs" style="background:var(--hov)"><b>Notes from ${E(q.createdBy || 'the rep')}:</b> ${E(q.notes || '—')}<br><span class="mut">Discount ${quoteDiscount(q).toFixed(2)}% · Total ${M(quoteTotal(q))}</span></div>` +
     `<label class="block">${approve ? 'Approval notes' : 'Reason for rejection'} *<textarea class="inp" name="notes" rows="3" required placeholder="${approve ? 'Why is this approved?' : 'What needs to change?'}"></textarea></label>` +
     (approve
-      ? `<label class="block">Terms &amp; conditions <span class="mut text-xs">(optional)</span><textarea class="inp" name="tnc" rows="4" placeholder="Conditions that apply to this approval">${E(q.tnc || '')}</textarea></label>`
+      ? `<label class="block">Terms &amp; conditions <span class="mut text-xs">(optional)</span><textarea class="inp" name="tnc" rows="4" placeholder="Conditions that apply to this approval">${E(effectiveTnc(q))}</textarea></label>`
       : '') +
     `<div class="flex justify-end gap-2"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">${approve ? 'Approve' : 'Reject'}</button></div></form></div>`;
   $('#modal textarea').focus();
@@ -110,7 +110,10 @@ function finishApproval(e, no, mode) {
   q.approvedBy = roleNow().name;
   q.approvedAt = Date.now();
   q.approvedNotes = notes;
-  q.tnc = (v.tnc || '').trim();
+  {
+    const t = (v.tnc || '').trim();
+    q.tnc = t && t !== standardTnc().trim() ? t : undefined;
+  }
   q.nextApprover = null;
   addQuoteHistory(q, 'Approved', notes + (q.tnc ? ` — Terms: ${q.tnc}` : ''));
   const inv = newInvoice(q);

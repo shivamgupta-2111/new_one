@@ -1347,3 +1347,382 @@ main#app {
   font-size: 13px;
   pointer-events: none;
 }
+
+/* Opportunity record page (Salesforce-style) */
+.sf-sec {
+  border: 1px solid var(--bd);
+  border-radius: 8px;
+  background: var(--card);
+  overflow: hidden;
+}
+.sf-sec > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--hov);
+  font-weight: 600;
+  font-size: 13px;
+}
+.sf-sec > summary::-webkit-details-marker {
+  display: none;
+}
+.sf-sec:not([open]) > summary .sf-chev {
+  transform: rotate(-90deg);
+}
+.sf-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 32px;
+  padding: 2px 14px 8px;
+}
+@media (max-width: 900px) {
+  .sf-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.sf-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 38%) minmax(0, 1fr) 22px;
+  gap: 8px;
+  align-items: start;
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--bd);
+  font-size: 13px;
+}
+.sf-l {
+  color: var(--mut);
+}
+.sf-v {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sf-pen .ms {
+  font-size: 16px;
+  color: var(--mut);
+  cursor: pointer;
+}
+.sf-pen .ms:hover {
+  color: var(--pr);
+}
+.sf-cb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1.5px dashed var(--mut);
+  border-radius: 3px;
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  vertical-align: middle;
+}
+.sf-cb:checked {
+  border: 1.5px solid var(--pr);
+  background: var(--pr);
+}
+.sf-cb:checked::after {
+  content: '✓';
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+}
+.sf-cb-ro {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 1.5px dashed var(--mut);
+  border-radius: 3px;
+  font-size: 11px;
+}
+.sf-cb-ro.on {
+  border: 1.5px solid var(--ok);
+  color: var(--ok);
+}
+.sf-rel {
+  border: 1px solid var(--bd);
+  border-radius: 8px;
+  background: var(--card);
+  overflow: hidden;
+}
+.sf-rel-h {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--hov);
+}
+.sf-ic {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+}
+.sf-ic .ms {
+  font-size: 18px;
+}
+.sf-rel-b {
+  padding: 2px 12px 6px;
+}
+.sf-rec {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--bd);
+  font-size: 12.5px;
+}
+.sf-rec:last-child {
+  border-bottom: 0;
+}
+.sf-kv {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 6px;
+  margin-top: 2px;
+}
+.sf-kv > :first-child {
+  color: var(--mut);
+}
+.sf-viewall {
+  display: block;
+  text-align: center;
+  padding: 8px;
+  border-top: 1px solid var(--bd);
+  color: var(--pr);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+/* Quote page action bar */
+.qt-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--bd);
+  background: var(--card);
+}
+.qt-toolbar .btn[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Customer quote page: hide the CRM chrome */
+body.cq-mode header,
+body.cq-mode #nav {
+  display: none !important;
+}
+
+/* Printing a modal sheet (quote / GST invoice): lay it out as a normal page */
+@media print {
+  #modal .fixed {
+    position: static !important;
+    background: none !important;
+    display: block !important;
+    padding: 0 !important;
+  }
+  #modal .card {
+    max-height: none !important;
+    max-width: none !important;
+    overflow: visible !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .inv-table th,
+  .inv-table td {
+    border-bottom: 1px solid #ccc;
+    padding: 3px 4px;
+  }
+}
+.inv-table th,
+.inv-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--bd);
+  vertical-align: top;
+}
+
+.file-drop {
+  border: 2px dashed var(--bd);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--hov);
+}
+.file-drop.over {
+  border-color: var(--pr);
+}
+
+/* ==========================================================================
+   Phone layout (reps in the field): record page, quote screens, invoices, modals
+   ========================================================================== */
+@media (max-width: 767px) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+  #app {
+    padding: 8px !important;
+  }
+  /* bigger touch targets, no iOS zoom on focus */
+  .btn {
+    min-height: 40px;
+  }
+  .inp,
+  input.inp,
+  select.inp,
+  textarea.inp,
+  .qt-num {
+    font-size: 16px !important;
+    min-height: 40px;
+  }
+  .qt-num {
+    width: 76px !important;
+  }
+  /* modals become bottom sheets */
+  #modal > .fixed {
+    place-items: end center !important;
+    padding: 0 !important;
+  }
+  #modal .card {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 92vh !important;
+    border-radius: 16px 16px 0 0 !important;
+    padding: 16px !important;
+  }
+  #modal .flex.justify-end {
+    flex-wrap: wrap;
+  }
+  #modal .flex.justify-end .btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+  /* record page: single column; related cards under the details */
+  .sf-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .sf-row {
+    grid-template-columns: 1fr !important;
+  }
+  .sf-rel-h .btn {
+    min-height: 32px;
+  }
+  /* tabs and stage path scroll sideways instead of wrapping */
+  .sf-tabs,
+  [role='tablist'],
+  .stage-path {
+    overflow-x: auto;
+    flex-wrap: nowrap !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sf-tabs > *,
+  [role='tablist'] > * {
+    flex: 0 0 auto;
+  }
+  /* quote screen */
+  .qt-head {
+    padding: 12px !important;
+  }
+  .qt-head h1 {
+    font-size: 17px !important;
+  }
+  .qt-steps {
+    overflow-x: auto;
+    flex-wrap: nowrap !important;
+  }
+  .qt-step {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .qt-content {
+    padding: 8px !important;
+  }
+  .qt-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .qt-toolbar {
+    overflow-x: auto;
+    flex-wrap: nowrap !important;
+    padding-bottom: 6px;
+  }
+  .qt-toolbar > * {
+    flex: 0 0 auto;
+  }
+  .qt-section-head {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .qt-section-head .qt-tool,
+  .qt-section-head select.btn {
+    max-width: 100%;
+  }
+  .qt-foot {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    flex-wrap: wrap;
+    gap: 8px;
+    background: var(--card, #fff);
+  }
+  .qt-foot .btn {
+    flex: 1 1 140px;
+    justify-content: center;
+  }
+  .qt-banner {
+    flex-wrap: wrap;
+  }
+  /* wide tables scroll inside their card instead of breaking the page */
+  .qt-table,
+  .inv-table,
+  .card table {
+    min-width: 520px;
+  }
+  .overflow-x-auto,
+  .qt-section > div:has(> table) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .inv-sheet .grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+@media (max-width: 480px) {
+  .qt-table th:nth-child(2),
+  .qt-table td:nth-child(2) {
+    display: none; /* product code: it is under the name on the invoice and in the details */
+  }
+  .qt-table {
+    min-width: 440px;
+  }
+}
+
+@media (max-width: 767px) {
+  #nav a {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .qt-section-head .qt-tool {
+    flex: 1 1 44%;
+    justify-content: center;
+    white-space: normal;
+    min-width: 0;
+  }
+  .qt-section-head > .flex-1 {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .qt-content {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .qt-content > * {
+    min-width: 0;
+  }
+}

@@ -67,6 +67,13 @@ function drop(e, i) {
 }
 function setStage(o, i) {
   o.stage = i;
+  (o.sh = o.sh || []).unshift({
+    stage: ST[i],
+    amount: o.amount,
+    close: o.close,
+    by: roleNow().name,
+    t: Date.now(),
+  });
   (S.acts[o.id] = S.acts[o.id] || []).unshift({
     k: 'sync',
     x: 'Stage changed to ' + ST[i],

@@ -304,6 +304,13 @@ function drop(e, i) {
 }
 function setStage(o, i) {
   o.stage = i;
+  (o.sh = o.sh || []).unshift({
+    stage: ST[i],
+    amount: o.amount,
+    close: o.close,
+    by: roleNow().name,
+    t: Date.now(),
+  });
   (S.acts[o.id] = S.acts[o.id] || []).unshift({
     k: 'sync',
     x: 'Stage changed to ' + ST[i],
@@ -316,6 +323,18 @@ function setStage(o, i) {
 
 // Opportunity field definitions, risk scoring, inline field saves and cloning.
 
+const CHURN_REASONS = [
+  'Budget cuts',
+  'Going with a competitor',
+  'Champion left',
+  'Product fit',
+  'Pricing',
+  'Low usage',
+  'Contract terms',
+  'Merger / acquisition',
+  'Support issues',
+  'Other',
+];
 const LEFT = [
   ['owner', 'Opportunity owner', 's'],
   ['name', 'Opportunity name', 't'],
@@ -353,6 +372,8 @@ const RIGHT = [
   ['lost', 'Why we lost', 'ta'],
   ['risk', 'Risk classification', 's', ['None', 'Low', 'Medium', 'High']],
   ['churn', 'Risk/churn level', 's', ['Level 1', 'Level 2', 'Level 3']],
+  ['churnWhy', 'Churn reasons', 'ms', CHURN_REASONS],
+  ['churnNotes', 'Churn notes', 'ta'],
   ['notes', 'At-risk notes', 'ta'],
   ['desc', 'Description', 'ta'],
 ];
@@ -402,8 +423,15 @@ const fld = (o, [k, l, t, op]) => {
     ed = S.ed == k && t != 'ro' && t != 'b';
   let b;
   if (t == 'b')
-    b = `<input type="checkbox" ${v ? 'checked' : ''} onchange="sf('${k}',this.checked)">`;
-  else if (ed) {
+    b = `<input class="sf-cb" type="checkbox" aria-label="${E(l)}" ${v ? 'checked' : ''} onchange="sf('${k}',this.checked)">`;
+  else if (t == 'ms') {
+    const picked = Array.isArray(v) ? v : [];
+    b = ed
+      ? `<div class="sf-ms">${op.map((x) => `<label class="flex items-center gap-2 py-0.5"><input type="checkbox" value="${E(x)}" ${picked.includes(x) ? 'checked' : ''}> ${E(x)}</label>`).join('')}<div class="flex gap-2 mt-2"><button type="button" class="btn btn-p" onclick="saveMs('${k}',this)">Save</button><button type="button" class="btn" onclick="S.ed=null;render()">Cancel</button></div></div>`
+      : picked.length
+        ? `<div class="flex flex-wrap gap-1">${picked.map((x) => `<span class="chip wr">${E(x)}</span>`).join('')}</div>`
+        : '–';
+  } else if (ed) {
     const a = `data-ed onchange="sf('${k}',this.value)" onblur="S.ed=null;render()"`;
     b =
       t == 's'
@@ -412,13 +440,26 @@ const fld = (o, [k, l, t, op]) => {
           ? `<textarea class="inp" rows="3" ${a}>${E(v)}</textarea>`
           : `<input class="inp" type="${t == 'n' ? 'number' : t == 'd' ? 'date' : 'text'}" value="${E(v)}" ${a}>`;
   } else
-    b = `<div class="font-semibold break-words">${t == 'n' ? M(v) : t == 'd' ? fd(v) : k == 'amount' ? M(v) : k == 'owner' ? repLink(v) : k == 'account' ? acctSpan(v) + acctEditBtn(v) : E(v) || '–'}</div>`;
-  return `<div class="py-2 border-b flex justify-between gap-2" style="border-color:var(--bd)"><div class="min-w-0 flex-1"><div class="mut text-[11px]">${l}</div>${b}</div>${t == 'ro' || t == 'b' ? '' : `<span class="ms mut" style="font-size:16px;cursor:pointer" title="Edit" onclick="S.ed='${k}';render()">edit</span>`}</div>`;
+    b = `<div style="white-space:pre-wrap">${t == 'n' ? (v === '' || v == null ? '–' : M(v)) : t == 'd' ? (v ? fd(v) : '–') : k == 'amount' ? M(v) : k == 'owner' ? repLink(v) : k == 'account' ? acctSpan(v) + acctEditBtn(v) : E(v) || '–'}</div>`;
+  const pen =
+    t == 'ro' || t == 'b'
+      ? ''
+      : `<span class="ms" title="Edit ${E(l)}" onclick="S.ed='${k}';render()">edit</span>`;
+  return sfRow(l, b, pen);
 };
+// One label / value row of the record page.
+const sfRow = (label, valueHtml, penHtml = '') =>
+  `<div class="sf-row"><div class="sf-l">${label}</div><div class="sf-v">${valueHtml}</div><div class="sf-pen">${penHtml}</div></div>`;
+function saveMs(k, btn) {
+  const vals = [...btn.closest('.sf-ms').querySelectorAll('input:checked')].map((i) => i.value);
+  sf(k, vals);
+}
 function sf(k, v) {
-  const o = cur();
+  const o = cur(),
+    before = gv(o, k);
+  if (String(before) !== String(v)) recordFieldChange(o, k, before, v);
   if (['owner', 'name', 'close', 'next'].includes(k)) o[k] = v;
-  else (o.f = o.f || {})[k] = k == 'orig' ? +v : v;
+  else (o.f = o.f || {})[k] = k == 'orig' || NUM_KEYS.has(k) ? +v : v;
   S.ed = null;
   save();
   toast('Saved');
@@ -590,24 +631,24 @@ V['opp-detail'] = () => {
     sec = (t, a, b) =>
       `<div class="card p-4"><div class="flex justify-between items-center"><b>${t}</b>${a ? `<button class="btn" onclick="${a}">${b}</button>` : ''}</div>`;
   const pv = {
-    details: `<div class="card p-4"><b>Details</b><div class="grid md:grid-cols-2 gap-x-8 mt-1"><div>${LEFT.map((f) => fld(o, f)).join('')}</div><div>${RIGHT.map((f) => fld(o, f)).join('')}</div></div></div>`,
+    details: recordPage(o),
     related: `<div class="space-y-3"><div class="card"><div class="p-4 pb-2 flex justify-between"><b>Products (${o.items.length})</b><button class="btn" onclick="openQuote(${o.id})">Edit products in quote</button></div>${table(['Product', 'Qty', 'List price', 'Discount', 'Total'], o.items.map((i) => `<tr><td>${E(i.n)}</td><td>${i.q}</td><td>${M(i.p)}</td><td>${i.d}%</td><td><b>${M(i.p * i.q * (1 - i.d / 100))}</b></td></tr>`).join(''))}</div><div class="card"><div class="p-4 pb-2 flex justify-between"><b>Quotes (${Q.length})</b><button class="btn btn-p" onclick="openQuote(${o.id})">New quote</button></div>${table(
       ['Quote', 'Invoice', 'Total', 'Status', 'Expires'],
       Q.map((q) => {
         const inv = q.invoiceId && S.invoices && S.invoices.find((i) => i.id === q.invoiceId);
-        return `<tr class="r" onclick="openQuoteRecord('${q.no}')"><td><b>${q.no}</b></td><td>${inv ? inv.invoiceNo : '—'}</td><td>${M(qcalc(q).tot)}</td><td>${q.status}</td><td>${fd(q.exp)}</td></tr>`;
+        return `<tr class="r" onclick="openQuoteRecord('${q.no}')"><td><b>${q.no}</b></td><td>${inv ? inv.invoiceNo : '—'}</td><td>${M(qcalc(q).tot)}</td><td>${quoteStatusChip(q)}</td><td>${fd(q.exp)}</td></tr>`;
       }).join('')
     )}</div></div>`,
     activity: `<div class="space-y-3">${sec('Log activity')}<form onsubmit="logAct(event)" class="mt-2 grid sm:grid-cols-4 gap-2"><select name="k" class="inp"><option value="note_alt">Note</option><option value="call">Call</option><option value="mail">Email</option><option value="task_alt">Task</option></select><input name="x" required class="inp sm:col-span-2" placeholder="What happened or what needs doing?"><button class="btn btn-p justify-center">Log</button></form></div>
  ${sec('Upcoming tasks (' + tk.length + ')')}${tk.map((t) => `<label class="flex gap-2 py-2"><input type="checkbox" onchange="S.tasks.splice(S.tasks.indexOf(S.tasks.find(x=>x.t=='${E(t.t).replace(/'/g, '')}')),1);save();toast('Task completed');render()">${E(t.t)} <span class="mut">· ${t.due}</span></label>`).join('') || '<p class="mut mt-2">No open tasks for this deal.</p>'}</div>
- ${sec('Timeline')}${tl.map((a) => `<div class="flex gap-2 py-2 border-b" style="border-color:var(--bd)"><span class="ms mut">${a.k}</span><div><div>${E(a.x)}</div><small class="mut">${ago(a.t)}</small></div></div>`).join('') || '<p class="mut mt-2">No activity yet. Log your first call or note.</p>'}</div></div>`,
+ ${sec('Timeline')}${tl.map((a) => `<div class="flex gap-2 py-2 border-b" style="border-color:var(--bd)"><span class="ms mut">${a.k}</span><div><div>${E(hideInvoiceRefs(a.x))}</div><small class="mut">${ago(a.t)}</small></div></div>`).join('') || '<p class="mut mt-2">No activity yet. Log your first call or note.</p>'}</div></div>`,
     chatter: `<div class="card p-4"><b>Chatter</b><form class="flex gap-2 my-3" onsubmit="event.preventDefault();const v=this.x.value.trim();if(v){(S.chat[S.cur]=S.chat[S.cur]||[]).unshift({x:v,t:Date.now()});save();render()}"><input name="x" class="inp" placeholder="Share an update with the team"><button class="btn btn-p">Share</button></form>${ch.map((c) => `<div class="flex gap-2 py-2 border-b" style="border-color:var(--bd)"><span class="w-8 h-8 rounded-full grid place-items-center text-white font-bold shrink-0" style="background:var(--pr)">AL</span><div><b>Alex Lee</b> <small class="mut">${ago(c.t)}</small><div>${E(c.x)}</div></div></div>`).join('') || '<p class="mut">Nobody has posted yet. Start the conversation.</p>'}</div>`,
   }[T];
   return `<div class="card p-4 mb-3"><div class="flex flex-wrap items-start gap-2"><span class="ms" style="color:var(--warn);font-size:32px">handshake</span><div class="flex-1 min-w-[220px]"><div class="mut cursor-pointer" onclick="nav('opps')">Opportunity ›</div><h1 class="text-xl font-bold">${E(o.name)}</h1></div>
  <button class="btn" onclick="o_f()">${cur().fol ? '✓ Following' : '+ Follow'}</button><button class="btn" onclick="shareToSlack()">Send to Slack</button><button class="btn" onclick="window.print()">Printable view</button><button class="btn" onclick="cloneOpp(0)">Clone</button><button class="btn" onclick="modal('edit')">Edit</button><button class="btn btn-p" onclick="openQuote(${o.id})">Generate quote</button>
  <details class="relative"><summary class="btn list-none">▾</summary><div class="card absolute right-0 mt-1 w-52 z-20 p-1 shadow-lg"><button class="${mi}" onclick="cloneOpp(1)">Clone with related</button><button class="${mi}" onclick="S.tab='details';S.ed='refRep';render()">Add referral</button>${canEditOwner() ? `<button class="${mi}" onclick="S.ed='owner';S.tab='details';render()">Change owner</button>` : ''}<button class="${mi}" onclick="o_s()">${cur().slack ? 'Turn off Slack alerts' : 'Turn on Slack alerts'}</button><button class="${mi}" style="color:var(--err)" onclick="if(confirm('Delete this opportunity?')){S.opps=S.opps.filter(x=>x.id!=${o.id});save();toast('Opportunity deleted');nav('opps')}">Delete</button></div></details></div>
  <div class="grid grid-cols-2 md:grid-cols-7 gap-4 mt-4">${hd('Account name', `<a class="cursor-pointer" style="color:var(--pr)" ${acctAttr(o.account)} onclick="S.q='${E(o.account).replace(/'/g, '')}';nav('opps')">${E(o.account)}</a>${acctEditBtn(o.account)}`)}${hd('Close date', fd(o.close))}${hd('Amount', M(o.amount))}${hd('Assigned rep', repLink(o.owner))}${hd('Quotation', quoteHeaderStatus(o))}${hd('Priority', `<select class="inp" style="width:auto;padding:2px 6px" aria-label="Priority" onchange="setPriority(${o.id},this.value)">${prioOptions(o.priority)}</select>`)}${hd('Risk flag', `<span class="chip ${rk == 'High' ? 'wr' : rk == 'Low' || rk == 'None' ? 'ok' : ''}">${rk}</span>`)}</div></div>
- <div class="card p-3 mb-3 flex items-center gap-3"><div class="flex flex-1 overflow-x-auto gap-1">${ST.map((s, i) => `<div class="step ${i < o.stage || o.stage == 5 ? 'done' : i == o.stage ? 'cur' : ''}" ${i == 5 && o.lost ? 'style="background:var(--err)"' : ''} onclick="setStage(cur(),${i})">${i < o.stage || o.stage == 5 ? '✓ ' : ''}${i == 5 && o.lost ? 'Closed Lost' : s}</div>`).join('')}</div>${o.stage < 5 ? `<button class="btn btn-p" onclick="setStage(cur(),${o.stage + 1})">Mark stage as complete</button>` : `<button class="btn btn-p" onclick="const x=cur();x.lost=!x.lost;save();toast('Marked '+(x.lost?'closed lost':'closed won'));render()">Change closed stage</button>`}</div>
+ <div class="card p-3 mb-3 flex items-center gap-3"><div class="flex flex-1 overflow-x-auto gap-1">${ST.map((s, i) => `<div class="step ${i < o.stage || o.stage == 5 ? 'done' : i == o.stage ? 'cur' : ''}" ${i == 5 && o.lost ? 'style="background:var(--err)"' : ''} onclick="setStage(cur(),${i})">${i < o.stage || o.stage == 5 ? '✓ ' : ''}${i == 5 && o.lost ? 'Closed Lost' : s}</div>`).join('')}</div>${o.stage < 5 ? (o.stage + 1 === 5 && !['admin', 'ceo'].includes(S.role) ? '<span class="mut text-xs">Closed Won is set by Admin / CEO after payment</span>' : `<button class="btn btn-p" onclick="setStage(cur(),${o.stage + 1})">${o.stage + 1 === 5 ? 'Mark Closed Won' : 'Mark stage as complete'}</button>`) : ['admin', 'ceo'].includes(S.role) ? `<button class="btn btn-p" onclick="toggleClosedStage()">Change closed stage</button>` : ''}</div>
  <div class="flex gap-4 border-b mb-3" style="border-color:var(--bd)">${[
    ['details', 'Details'],
    ['related', 'Related'],
@@ -619,7 +660,7 @@ V['opp-detail'] = () => {
        `<a class="py-2 font-semibold cursor-pointer" style="${T == t[0] ? 'border-bottom:3px solid var(--pr);color:var(--pr)' : 'color:var(--mut)'}" onclick="tab('${t[0]}')">${t[1]}</a>`
    )
    .join('')}</div>
- <div class="grid lg:grid-cols-3 gap-3"><div class="lg:col-span-2">${pv}</div><div class="space-y-3">
+ <div class="grid lg:grid-cols-[minmax(0,1fr)_360px] gap-3 items-start"><div class="min-w-0">${pv}</div><div class="space-y-3">${sidebarHtml(o)}</div><div class="hidden">
  ${sec('Quick links')}<div class="mt-2 grid gap-1">${[
    ['Contact roles (' + R.length + ')', 'details'],
    ['Products (' + o.items.length + ')', 'related'],
@@ -1069,7 +1110,8 @@ function newInvoice(q) {
       discount: sub - total,
       total,
       terms: q.terms || 'Net 30',
-      tnc: q.tnc || '',
+      tnc: effectiveTnc(q),
+      showDiscount: !!q.showDiscount,
       generatedAt: Date.now(),
       status: 'Ready to submit',
       currency: 'INR',
@@ -1203,7 +1245,7 @@ function openProductForm(code = '') {
   if (S.role === 'rep') return toast('Only Admin and CEO can manage products');
   const p = S.products.find((x) => x.code === code) || {};
   $('#modal').innerHTML =
-    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><form class="card p-5 w-full max-w-md space-y-3" onsubmit="saveProduct(event,'${code}')"><h2 class="text-lg font-bold">${code ? 'Edit product' : 'New product'}</h2><label class="block">Product name<input name="name" class="inp" required value="${E(p.name || '')}"></label><label class="block">Product code<input name="code" class="inp" required value="${E(p.code || '')}"></label><label class="block">List price (₹)<input name="listPrice" type="number" min="0.01" step="0.01" class="inp" required value="${p.listPrice ?? ''}"></label><label class="block">Minimum selling price (₹)<input name="minPrice" type="number" min="0.01" step="0.01" class="inp" required value="${p.minPrice ?? ''}"></label><label class="block">Maximum selling price (₹)<input name="maxPrice" type="number" min="0.01" step="0.01" class="inp" required value="${p.maxPrice ?? ''}"></label><label class="block">Status<select name="active" class="inp"><option value="yes" ${p.active !== false ? 'selected' : ''}>Active</option><option value="no" ${p.active === false ? 'selected' : ''}>Inactive</option></select></label><div class="flex justify-end gap-2"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">Save product</button></div></form></div>`;
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><form class="card p-5 w-full max-w-md space-y-3" onsubmit="saveProduct(event,'${code}')"><h2 class="text-lg font-bold">${code ? 'Edit product' : 'New product'}</h2><label class="block">Product name<input name="name" class="inp" required value="${E(p.name || '')}"></label><label class="block">Product code<input name="code" class="inp" required value="${E(p.code || '')}"></label><label class="block">List price (₹)<input name="listPrice" type="number" min="0.01" step="0.01" class="inp" required value="${p.listPrice ?? ''}"></label><label class="block">Minimum selling price (₹)<input name="minPrice" type="number" min="0.01" step="0.01" class="inp" required value="${p.minPrice ?? ''}"></label><label class="block">Maximum selling price (₹)<input name="maxPrice" type="number" min="0.01" step="0.01" class="inp" required value="${p.maxPrice ?? ''}"></label><div class="grid grid-cols-2 gap-3"><label class="block">HSN / SAC code<input name="hsn" class="inp" maxlength="8" value="${E(p.hsn || '')}"></label><label class="block">GST %<input name="gst" type="number" min="0" max="40" step="0.01" class="inp" placeholder="default" value="${p.gst ?? ''}"></label></div><label class="block">Status<select name="active" class="inp"><option value="yes" ${p.active !== false ? 'selected' : ''}>Active</option><option value="no" ${p.active === false ? 'selected' : ''}>Inactive</option></select></label><div class="flex justify-end gap-2"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">Save product</button></div></form></div>`;
 }
 function saveProduct(e, oldCode) {
   e.preventDefault();
@@ -1216,7 +1258,11 @@ function saveProduct(e, oldCode) {
       minPrice: +v.minPrice,
       maxPrice: +v.maxPrice,
       active: v.active === 'yes',
+      hsn: (v.hsn || '').trim(),
+      gst: v.gst === '' ? undefined : +v.gst,
     };
+  const prev = S.products.find((x) => x.code === oldCode);
+  if (prev && prev.tiers) p.tiers = prev.tiers;
   if (!(p.minPrice > 0 && p.minPrice <= p.listPrice && p.listPrice <= p.maxPrice))
     return toast('Prices must satisfy minimum ≤ list ≤ maximum');
   const dup = S.products.find((x) => x.code === p.code && x.code !== oldCode);
@@ -1332,7 +1378,7 @@ function quoteLineRows(q, locked, withActions) {
       const net = i.p * (1 - i.d / 100);
       const saved = (i.p * i.q * i.d) / 100;
       const discountCell = withActions
-        ? `<input class="inp qt-num" type="number" min="0" max="100" step="0.1" value="${i.d}" ${locked || !canGiveDiscount() ? 'disabled' : ''} title="${canGiveDiscount() ? '' : 'Only Admin and CEO can give discounts'}" aria-label="Discount percent" onchange="changeQuoteItem(${k},'d',this.value)"><span class="qt-sub">${i.d ? `−${M(saved)}` : ''}</span>`
+        ? `<input class="inp qt-num" type="number" min="0" max="100" step="0.1" value="${i.d}" ${locked ? 'disabled' : ''} title="${canGiveDiscount() ? '' : 'Your discount goes to Admin / CEO for approval'}" aria-label="Discount percent" onchange="changeQuoteItem(${k},'d',this.value)"><span class="qt-sub">${i.d ? `−${M(saved)}` : ''}</span>`
         : `${i.d}%`;
       const qtyCell = withActions
         ? `<input class="inp qt-num" type="number" min="1" value="${i.q}" ${locked ? 'disabled' : ''} aria-label="Quantity" onchange="changeQuoteItem(${k},'q',this.value)">`
@@ -1340,13 +1386,17 @@ function quoteLineRows(q, locked, withActions) {
       const removeCell = withActions
         ? `<td class="qt-r">${locked ? '' : `<button class="qt-del" title="Remove" aria-label="Remove line" onclick="removeQuoteItem(${k})"><span class="ms">delete</span></button>`}</td>`
         : '';
-      return `<tr><td><b class="qt-link">${E(i.n)}</b></td><td class="qt-code">${E(i.c)}</td><td class="qt-r">${M(i.p)}</td><td class="qt-r">${qtyCell}</td><td class="qt-r">${discountCell}</td><td class="qt-r"><b>${M(net * i.q)}</b></td>${removeCell}</tr>`;
+      return `<tr><td><b class="qt-link">${E(i.n)}</b></td><td class="qt-code">${E(i.c)}</td><td class="qt-r">${M(withActions || q.showDiscount ? i.p : net)}</td><td class="qt-r">${qtyCell}</td>${withActions || q.showDiscount ? `<td class="qt-r">${discountCell}</td>` : ''}<td class="qt-r"><b>${M(net * i.q)}</b></td>${removeCell}</tr>`;
     })
     .join('');
 }
 
 function quoteLinesCard(q, locked, withActions) {
-  const head = ['Product Name', 'Code', 'List Price', 'Qty', 'Discount %', 'Total Price']
+  const head = (
+    withActions || q.showDiscount
+      ? ['Product Name', 'Code', 'List Price', 'Qty', 'Discount %', 'Total Price']
+      : ['Product Name', 'Code', 'Unit Price', 'Qty', 'Total Price']
+  )
     .map((h, n) => `<th class="${n > 1 ? 'qt-r' : ''}">${h}</th>`)
     .concat(withActions ? ['<th class="qt-r">Actions</th>'] : [])
     .join('');
@@ -1361,22 +1411,8 @@ function quoteLinesCard(q, locked, withActions) {
   return `<section class="qt-section"><div class="qt-section-head"><span class="ms">inventory_2</span><b>Line Items &amp; Product Bundling</b><span class="chip ok">${q.items.length} ${q.items.length === 1 ? 'Item' : 'Items'}</span><span class="flex-1"></span>${tools}</div><div class="overflow-x-auto"><table class="qt-table"><thead><tr>${head}</tr></thead><tbody>${quoteLineRows(q, locked, withActions)}</tbody></table></div></section>`;
 }
 
-function quoteSummaryRow(q, o, floor, route) {
-  const subtotal = q.items.reduce((a, i) => a + i.p * i.q, 0);
-  const discount = subtotal - quoteTotal(q);
-  const limit = ROLE_DISCOUNT_LIMIT[S.role];
-  const needsApproval = route.status !== 'Approved';
-  const headline = floor.length
-    ? 'CEO approval required'
-    : needsApproval
-      ? 'Approval Required'
-      : 'Approval Not Required';
-  const detail = floor.length
-    ? 'At least one product is priced below its minimum selling price, so CEO approval is mandatory.'
-    : needsApproval
-      ? `Blended discount of ${quoteDiscount(q).toFixed(1)}% will be routed to ${E(route.approver)} for approval.`
-      : `Total discount (${quoteDiscount(q).toFixed(1)}%) is within ${E(roleNow().name)}'s delegation authority.`;
-  return `<div class="qt-bottom"><div class="qt-guide"><span class="qt-guide-icon"><span class="ms">auto_awesome</span></span><div><div class="qt-guide-title">Discount &amp; Pricing Guidance <span class="qt-badge">Insight</span></div><p><b>${headline}:</b> ${detail}</p><div class="qt-guide-stats"><span>Your limit: <b>${limit === null ? 'Unlimited' : limit.toFixed(1) + '%'}</b></span><span>Applied Blended Rate: <b>${quoteDiscount(q).toFixed(2)}%</b></span><span class="${floor.length ? 'qt-bad' : 'qt-good'}">Margin Protection: <b>${floor.length ? 'Below product minimum' : 'Verified'}</b></span></div></div></div><div class="qt-totals"><div class="qt-total-row"><span class="mut">Subtotal (List)</span><span>${M(subtotal)}</span></div><div class="qt-total-row"><span class="qt-link">Total Additional Discounts</span><span class="qt-link">${discount ? '−' : ''}${M(discount)}</span></div><div class="qt-total-row"><span class="mut">Estimated Tax / Surcharge</span><span>${M(0)}</span></div><div class="qt-total-row qt-grand"><b>Grand Total</b><b>${M(quoteTotal(q))}</b></div><small class="mut qt-r" style="display:block">All figures formatted in INR (₹)</small></div></div>`;
+function quoteSummaryRow(q) {
+  return `<div class="qt-bottom"><div class="qt-totals"><div class="qt-total-row qt-grand"><b>Grand Total</b><b>${M(quoteTotal(q))}</b></div><small class="mut qt-r" style="display:block">All figures formatted in INR (₹)</small></div></div>`;
 }
 
 V.quote = () => {
@@ -1393,17 +1429,19 @@ V.quote = () => {
     // keep the autofilled addresses on the quote so they are saved with it
     if (q.address === undefined) q.address = d.address;
     if (q.shipping === undefined) q.shipping = d.shipping;
+    if (q.toEmail === undefined) q.toEmail = d.toEmail;
+    if (q.toPhone === undefined) q.toPhone = d.toPhone;
   }
   const dis = locked ? 'disabled' : '';
 
   const field = (label, control, required) =>
     `<label class="qt-field"><span>${label}${required ? ' <i class="qt-req">*</i>' : ''}</span>${control}</label>`;
 
-  const infoCard = `<section class="qt-section"><div class="qt-section-head"><span class="ms">badge</span><b>Quote Information</b></div><div class="qt-grid">${field('Quote Name', `<input class="inp" value="${E(d.name)}" ${dis} onchange="S.qd.name=this.value">`, true)}<label class="qt-check"><input type="checkbox" ${d.primary ? 'checked' : ''} ${dis} onchange="S.qd.primary=this.checked"> Primary Quote (Syncs to Opportunity)</label>${field('Expiration Date', `<input type="date" class="inp" value="${q.exp}" ${dis} onchange="S.qd.exp=this.value">`)}${field('Status', q.status === 'Draft' ? quoteOtherSelect('label', QUOTE_STATUS_CHOICES, q.label || 'Draft', false) : `<select class="inp" disabled><option>${E(q.status)}</option></select>`)}${field('Prepared For', `<input class="inp" value="${E(d.preparedFor)}" ${dis} onchange="S.qd.preparedFor=this.value">`)}${field('Sales Rep / Owner', `<input class="inp" value="${E(ownerLabel(o.owner))}" disabled>`)}${field('Payment Terms', quoteOtherSelect('terms', PAYMENT_TERMS, q.terms, locked))}${field('Billing Address', `<input class="inp" value="${E(d.address)}" placeholder="Street, city, state, PIN" ${dis} onchange="S.qd.address=this.value">`)}${field('Shipping Address', `<input class="inp" value="${E(d.shipping)}" placeholder="Street, city, state, PIN" ${dis} onchange="S.qd.shipping=this.value">`)}</div></section>`;
+  const infoCard = `<section class="qt-section"><div class="qt-section-head"><span class="ms">badge</span><b>Quote Information</b></div><div class="qt-grid">${field('Quote Name', `<input class="inp" value="${E(d.name)}" ${dis} onchange="S.qd.name=this.value">`, true)}<label class="qt-check"><input type="checkbox" ${d.primary ? 'checked' : ''} ${dis} onchange="S.qd.primary=this.checked"> Primary Quote (Syncs to Opportunity)</label>${field('Expiration Date', `<input type="date" class="inp" value="${q.exp}" ${dis} onchange="S.qd.exp=this.value">`)}${field('Status', q.status === 'Draft' ? quoteOtherSelect('label', QUOTE_STATUS_CHOICES, q.label || 'Draft', false) : `<select class="inp" disabled><option>${E(q.status)}</option></select>`)}${contactsOfAccount(o.account).length ? field('Customer Contact', `<select class="inp" ${dis} onchange="pickQuoteContact(this.value)"><option value="">Choose a contact…</option>${contactOptions(o.account, String(d.preparedFor).replace(/\s*\(.*\)\s*$/, ''))}</select>`) : ''}${field('Prepared For', `<input class="inp" value="${E(d.preparedFor)}" ${dis} onchange="S.qd.preparedFor=this.value">`)}${field('Send To (Email)', `<input class="inp" type="email" value="${E(d.toEmail)}" placeholder="customer@company.com" ${dis} onchange="S.qd.toEmail=this.value">`)}${field('WhatsApp Number', `<input class="inp" type="tel" value="${E(d.toPhone)}" placeholder="+91 98765 43210" ${dis} onchange="S.qd.toPhone=this.value">`)}${field('Sales Rep / Owner', `<input class="inp" value="${E(ownerLabel(o.owner))}" disabled>`)}${field('Billing Address', `<input class="inp" value="${E(d.address)}" placeholder="Street, city, state, PIN" ${dis} onchange="S.qd.address=this.value">`)}${field('Shipping Address', `<input class="inp" value="${E(d.shipping)}" placeholder="Street, city, state, PIN" ${dis} onchange="S.qd.shipping=this.value">`)}</div></section>`;
 
   const approvalCard = approvalSection(q, floor, locked);
 
-  const previewCard = `<section class="qt-section"><div class="qt-section-head"><span class="ms">visibility</span><b>Preview</b></div><div class="qt-body"><p><b>${E(d.name)}</b></p><p class="mut">Prepared for ${E(d.preparedFor || '—')} · Expires ${fd(q.exp)} · ${E(q.terms)}</p>${d.address ? `<p class="mut">Billing: ${E(d.address)}</p>` : ''}${d.shipping ? `<p class="mut">Shipping: ${E(d.shipping)}</p>` : ''}<p style="margin-top:8px"><b>Terms &amp; conditions</b></p><p style="white-space:pre-wrap">${q.tnc ? E(q.tnc) : '<span class="mut">None added.</span>'}</p></div></section>`;
+  const previewCard = `<section class="qt-section"><div class="qt-section-head"><span class="ms">visibility</span><b>Preview</b></div><div class="qt-body"><p><b>${E(d.name)}</b></p><p class="mut">Prepared for ${E(d.preparedFor || '—')} · Expires ${fd(q.exp)}</p>${d.address ? `<p class="mut">Billing: ${E(d.address)}</p>` : ''}${d.shipping ? `<p class="mut">Shipping: ${E(d.shipping)}</p>` : ''}<p style="margin-top:8px"><b>Terms &amp; conditions</b></p><p style="white-space:pre-wrap">${E(effectiveTnc(q))}</p></div></section>`;
 
   const body =
     step === 1
@@ -1496,11 +1534,21 @@ V.products = () =>
     ? '<p class="mut">Product catalogue is managed by Admin and CEO.</p>'
     : `<div class="flex items-center mb-3"><h1 class="text-xl font-bold flex-1">Products</h1><button class="btn btn-p" onclick="openProductForm()">New product</button></div><p class="mut mb-3">Set list, minimum and maximum selling prices. A discounted unit price below minimum always requires CEO approval.</p>` +
       table(
-        ['Product', 'Code', 'List price', 'Minimum price', 'Maximum price', 'Status', ''],
+        [
+          'Product',
+          'Code',
+          'HSN/SAC',
+          'GST',
+          'List price',
+          'Minimum price',
+          'Maximum price',
+          'Status',
+          '',
+        ],
         S.products
           .map(
             (p) =>
-              `<tr><td><b>${E(p.name)}</b></td><td>${E(p.code)}</td><td>${M(p.listPrice)}</td><td>${M(p.minPrice)}</td><td>${M(p.maxPrice)}</td><td>${p.active ? 'Active' : 'Inactive'}</td><td><button class="btn" onclick="openProductForm('${p.code}')">Edit</button></td></tr>`
+              `<tr><td><b>${E(p.name)}</b></td><td>${E(p.code)}</td><td>${E(p.hsn || '–')}</td><td>${p.gst === undefined ? 'Default' : p.gst + '%'}</td><td>${M(p.listPrice)}</td><td>${M(p.minPrice)}</td><td>${M(p.maxPrice)}</td><td>${p.active ? 'Active' : 'Inactive'}</td><td><button class="btn" onclick="openProductForm('${p.code}')">Edit</button></td></tr>`
           )
           .join('')
       );
@@ -1527,7 +1575,7 @@ V.invoices = () => {
 V['invoice-detail'] = () => {
   const i = S.invoices.find((x) => x.id === S.currentInvoice);
   if (!i) return V.invoices();
-  return `<div class="mut cursor-pointer mb-2" onclick="nav('invoices')">‹ Back to invoices</div><div class="card p-5"><h1 class="text-xl font-bold">Invoice ${i.invoiceNo}</h1><p class="mut">Generated from quotation ${i.quoteNo}</p><div class="mt-4"><b>${E(i.account)}</b><div class="mut">${E(i.opportunity)}</div></div>${table(['Product', 'Code', 'Qty', 'Unit price', 'Discount', 'Total'], i.items.map((x) => `<tr><td>${E(x.n)}</td><td>${E(x.c)}</td><td>${x.q}</td><td>${M(x.p)}</td><td>${x.d}%</td><td>${M(x.p * x.q * (1 - x.d / 100))}</td></tr>`).join(''))}<div class="text-right text-lg font-bold mt-3">Invoice total: ${M(i.total)}</div><div class="flex justify-end gap-2 mt-4"><button class="btn" onclick="window.print()">Print / Save PDF</button>${i.status !== 'Submitted to client' ? `<button class="btn btn-p" onclick="sendInvoice('${i.id}')">Submit to client</button>` : '<span class="chip ok">Submitted to client</span>'}</div></div>`;
+  return `<div class="mut cursor-pointer mb-2" onclick="nav('invoices')">‹ Back to invoices</div><div class="card p-5"><h1 class="text-xl font-bold">Invoice ${i.invoiceNo}</h1><p class="mut">Generated from quotation ${i.quoteNo}</p><div class="mt-4"><b>${E(i.account)}</b><div class="mut">${E(i.opportunity)}</div></div>${billLinesTable(i.items, !!i.showDiscount)}<div class="text-right text-lg font-bold mt-3">Grand total: ${M(i.total)}</div><div class="flex justify-end gap-2 mt-4"><button class="btn" onclick="window.print()">Print / Save PDF</button>${i.status !== 'Submitted to client' ? `<button class="btn btn-p" onclick="sendInvoice('${i.id}')">Submit to client</button>` : '<span class="chip ok">Submitted to client</span>'}</div></div>`;
 };
 
 // Portal picker added to the header.
@@ -2487,15 +2535,15 @@ function saveResetPassword(e, id) {
 // Invoices: record payment after the invoice has been submitted
 const baseInvoiceDetail = V['invoice-detail'];
 function invoiceTermsBlock(i) {
-  const tnc = i.tnc ?? S.quotes.find((q) => q.no === i.quoteNo)?.tnc ?? '';
-  return `<div class="mt-4"><b>Payment terms</b><div>${E(i.terms || 'Net 30')}</div></div><div class="mt-3"><b>Terms &amp; conditions</b><div style="white-space:pre-wrap">${tnc ? E(tnc) : '<span class="mut">None</span>'}</div></div>`;
+  const tnc = i.tnc || effectiveTnc(S.quotes.find((q) => q.no === i.quoteNo));
+  return `<div class="mt-3"><b>Terms &amp; conditions</b><div style="white-space:pre-wrap">${tnc ? E(tnc) : '<span class="mut">None</span>'}</div></div>`;
 }
 V['invoice-detail'] = () => {
   const i = S.invoices.find((x) => x.id === S.currentInvoice);
   const html = i
     ? baseInvoiceDetail().replace(
-        '<div class="text-right text-lg font-bold mt-3">Invoice total:',
-        invoiceTermsBlock(i) + '<div class="text-right text-lg font-bold mt-3">Invoice total:'
+        '<div class="text-right text-lg font-bold mt-3">Grand total:',
+        invoiceTermsBlock(i) + '<div class="text-right text-lg font-bold mt-3">Grand total:'
       )
     : baseInvoiceDetail();
   if (!i) return html;
@@ -3021,7 +3069,7 @@ function approvalBanner(q, inv) {
       .filter(Boolean)
       .map((l) => `<div>${l}</div>`)
       .join('')}</div></div>`;
-  if (q.status === 'Approved' || q.status === 'Paid')
+  if (['Approved', 'Sent to client', 'Paid'].includes(q.status))
     return box('ok', 'verified', 'Approval granted', [
       `Approved by <b>${E(q.approvedBy || '')}</b> on ${whenText(q.approvedAt)}`,
       q.approvedNotes ? `Approval notes: ${E(q.approvedNotes)}` : '',
@@ -3055,7 +3103,7 @@ function approvalSection(q, floor, locked) {
     .join('');
   return `<section class="qt-section"><div class="qt-section-head"><span class="ms">approval</span><b>Approval Authority</b></div><div class="qt-body"><p>Reps cannot give discounts · Admin up to <b>${adminDiscountLimit()}%</b> (set by the CEO) · CEO any discount. Any line priced below the product minimum always needs CEO approval.</p><p class="mut" style="margin-top:6px">${floor.length ? `Lines below minimum: ${floor.map((i) => E(i.c)).join(', ')}` : 'No lines are below their product minimum.'}</p></div></section>
 <section class="qt-section"><div class="qt-section-head"><span class="ms">edit_note</span><b>Notes for approval <i class="qt-req">*</i></b></div><div class="qt-body"><textarea class="inp" rows="3" ${locked ? 'disabled' : ''} placeholder="Explain the discount or pricing so the approver can decide. Required before submitting." oninput="S.qd.notes=this.value">${E(q.notes || '')}</textarea></div></section>
-<section class="qt-section"><div class="qt-section-head"><span class="ms">gavel</span><b>Terms &amp; conditions</b>${canEditTnc ? '' : '<span class="mut text-xs">Added by Admin / CEO</span>'}</div><div class="qt-body">${canEditTnc ? `<textarea class="inp" rows="4" placeholder="e.g. Pricing valid until the expiry date. Payment as per the terms above." oninput="S.qd.tnc=this.value">${E(q.tnc || '')}</textarea>` : `<p style="white-space:pre-wrap">${q.tnc ? E(q.tnc) : '<span class="mut">None added yet.</span>'}</p>`}</div></section>${history ? `<section class="qt-section"><div class="qt-section-head"><span class="ms">history</span><b>Approval history</b></div><div class="qt-body">${history}</div></section>` : ''}`;
+${tncSection(q, locked)}${history ? `<section class="qt-section"><div class="qt-section-head"><span class="ms">history</span><b>Approval history</b></div><div class="qt-body">${history}</div></section>` : ''}`;
 }
 
 // Approve / reject now ask for notes (required) and, on approval, terms & conditions.
@@ -3090,7 +3138,7 @@ function openApprovalDialog(q, mode) {
     `<div class="p-3 rounded text-xs" style="background:var(--hov)"><b>Notes from ${E(q.createdBy || 'the rep')}:</b> ${E(q.notes || '—')}<br><span class="mut">Discount ${quoteDiscount(q).toFixed(2)}% · Total ${M(quoteTotal(q))}</span></div>` +
     `<label class="block">${approve ? 'Approval notes' : 'Reason for rejection'} *<textarea class="inp" name="notes" rows="3" required placeholder="${approve ? 'Why is this approved?' : 'What needs to change?'}"></textarea></label>` +
     (approve
-      ? `<label class="block">Terms &amp; conditions <span class="mut text-xs">(optional)</span><textarea class="inp" name="tnc" rows="4" placeholder="Conditions that apply to this approval">${E(q.tnc || '')}</textarea></label>`
+      ? `<label class="block">Terms &amp; conditions <span class="mut text-xs">(optional)</span><textarea class="inp" name="tnc" rows="4" placeholder="Conditions that apply to this approval">${E(effectiveTnc(q))}</textarea></label>`
       : '') +
     `<div class="flex justify-end gap-2"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">${approve ? 'Approve' : 'Reject'}</button></div></form></div>`;
   $('#modal textarea').focus();
@@ -3124,7 +3172,10 @@ function finishApproval(e, no, mode) {
   q.approvedBy = roleNow().name;
   q.approvedAt = Date.now();
   q.approvedNotes = notes;
-  q.tnc = (v.tnc || '').trim();
+  {
+    const t = (v.tnc || '').trim();
+    q.tnc = t && t !== standardTnc().trim() ? t : undefined;
+  }
   q.nextApprover = null;
   addQuoteHistory(q, 'Approved', notes + (q.tnc ? ` — Terms: ${q.tnc}` : ''));
   const inv = newInvoice(q);
@@ -3149,12 +3200,18 @@ function finishApproval(e, no, mode) {
 function quoteStatusInfo(q) {
   const s = q.status;
   if (s === 'Approved') return { tone: 'ok', text: 'Approved' };
+  if (s === 'Sent to client') return { tone: 'ok', text: 'Approved · Sent to client' };
   if (s === 'Paid') return { tone: 'ok', text: 'Paid' };
   if (s === 'Rejected') return { tone: 'er', text: 'Rejected' };
+  if (s === 'Expired') return { tone: 'er', text: 'Expired' };
   if (s === 'Pending CEO Approval') return { tone: 'wr', text: 'Under approval · CEO' };
   if (s === 'Pending Admin Approval') return { tone: 'wr', text: 'Under approval · Admin' };
   return { tone: '', text: q.label && q.label !== 'Draft' ? `Draft · ${q.label}` : 'Draft' };
 }
+const quoteStatusChip = (q) => {
+  const i = quoteStatusInfo(q);
+  return `<span class="chip ${i.tone}">${i.text}</span>`;
+};
 const quotesOf = (o) => S.quotes.filter((q) => q.opp == o.id);
 function quoteHeaderStatus(o) {
   const list = quotesOf(o);
@@ -3170,16 +3227,20 @@ function quoteStatusCard(o) {
     .reverse()
     .map((q) => {
       const i = quoteStatusInfo(q);
-      const detail =
-        q.status === 'Approved' || q.status === 'Paid'
-          ? `Approved by ${E(q.approvedBy || '')} · ${whenText(q.approvedAt)}`
+      const approved = ['Approved', 'Sent to client', 'Paid'].includes(q.status),
+        detail = approved
+          ? (q.approvedBy
+              ? `Approved by ${E(q.approvedBy)} · ${whenText(q.approvedAt)}`
+              : 'Approved') + (q.approvedNotes ? ` — ${E(q.approvedNotes)}` : '')
           : q.status === 'Rejected'
-            ? `Rejected by ${E(q.rejectedBy || '')} · ${whenText(q.rejectedAt)}`
+            ? `Rejected by ${E(q.rejectedBy || '')} · ${whenText(q.rejectedAt)}` +
+              (q.rejectedNotes ? ` — ${E(q.rejectedNotes)}` : '')
             : q.status.startsWith('Pending')
-              ? `Awaiting ${E(q.nextApprover || 'approver')}`
+              ? `Awaiting ${E(q.nextApprover || 'approver')}` +
+                (q.createdBy ? ` · submitted by ${E(q.createdBy)}` : '')
               : 'Not submitted for approval';
       const inv = q.invoiceId && S.invoices.find((x) => x.id === q.invoiceId);
-      return `<div class="py-2 border-b cursor-pointer" style="border-color:var(--bd)" onclick="openQuoteRecord('${E(q.no)}')"><div class="flex justify-between items-center gap-2"><b>${E(q.no)}</b><span class="chip ${i.tone}">${i.text}</span></div><div class="mut text-xs">${detail}${inv ? ` · ${E(inv.invoiceNo)}` : ''}</div></div>`;
+      return `<div class="py-2 border-b cursor-pointer" style="border-color:var(--bd)" onclick="openQuoteRecord('${E(q.no)}')"><div class="flex justify-between items-center gap-2"><b>${E(q.no)}</b><span class="chip ${i.tone}">${i.text}</span></div><div class="mut text-xs">${detail}${inv && canSeeInvoices() ? ` · ${E(inv.invoiceNo)}` : ''}</div></div>`;
     })
     .join('');
   return `<div class="card p-4"><div class="flex justify-between items-center"><b>Quotation status (${list.length})</b><button class="btn" onclick="openQuote(${o.id})">New quote</button></div>${rows || '<p class="mut mt-2">No quotation yet. Use Generate quote to start one.</p>'}</div>`;
@@ -3394,7 +3455,7 @@ const prefsOf = () => {
   };
   return S.prefs[id];
 };
-const SETTINGS_SECTIONS = () => {
+let SETTINGS_SECTIONS = () => {
   const base = [
     ['profile', 'Profile', 'account_circle'],
     ['security', 'Password & security', 'lock'],
@@ -3406,7 +3467,8 @@ const SETTINGS_SECTIONS = () => {
     base.push(
       ['teams', 'Teams & targets', 'groups'],
       ['quotes', 'Quote defaults', 'request_quote'],
-      ['limits', 'Approval limits', 'approval']
+      ['limits', 'Approval limits', 'approval'],
+      ['terms', 'Terms & conditions', 'gavel']
     );
   if (S.role === 'ceo') base.push(['workspace', 'Workspace & data', 'tune']);
   return base;
@@ -3666,14 +3728,7 @@ function canGiveDiscount() {
 }
 
 // Server-side style guards for the quote builder (the inputs are also disabled in the UI).
-const changeQuoteItemBeforePolicy = changeQuoteItem;
-changeQuoteItem = function (k, f) {
-  if (f === 'd' && !canGiveDiscount()) {
-    toast('Only Admin and CEO can give discounts');
-    return render();
-  }
-  return changeQuoteItemBeforePolicy.apply(this, arguments);
-};
+// Reps may type a discount; the quote then goes to Admin or CEO for approval (see quoteRoute).
 const tieredBeforePolicy = applyTieredDiscount;
 applyTieredDiscount = function () {
   if (!canGiveDiscount()) return toast('Only Admin and CEO can give discounts');
@@ -3786,6 +3841,9 @@ function showNextPopup() {
   if (!p) return;
   p.seen = { ...(p.seen || {}), [S.authUser]: true }; // showing it counts as seen, so it never repeats
   save();
+  if (String(p.kind).startsWith('tnc')) return showTncPopup(p);
+  if (String(p.kind).startsWith('cq-')) return showCqPopup(p);
+  if (String(p.kind).startsWith('bill-')) return showBillPopup(p);
   const q = quoteOf(p.no),
     o = q && S.opps.find((x) => x.id == q.opp);
   if (!q) return showNextPopup();
@@ -4071,6 +4129,1941 @@ V.accounts = () => {
   );
 };
 
+// Quote creation pop-up, top action buttons (Sync / Sign / PO / Print), bill output, standard Terms & Conditions
+// (Admin / CEO own them; rep changes need approval), "show discount on bill", and the Closed Won rule.
+
+// ---------------------------------------------------------------------------
+// Standard terms & conditions
+// ---------------------------------------------------------------------------
+const DEFAULT_TNC =
+  '1. Prices are in INR and valid until the quote expiry date.\n2. Goods remain the property of the seller until payment is received in full.\n3. Delivery dates are estimates and may change with stock and shipping conditions.\n4. Any change to these terms must be agreed in writing.';
+S.settings = S.settings || {};
+if (!S.settings.tnc)
+  S.settings.tnc = { text: DEFAULT_TNC, version: 1, by: 'System', at: Date.now() };
+S.tncRequests = S.tncRequests || [];
+
+const isAdminOrCeo = () => ['admin', 'ceo'].includes(S.role);
+const standardTnc = () => S.settings.tnc.text;
+const effectiveTnc = (q) => (q && q.tnc ? q.tnc : standardTnc());
+const pendingTnc = (q) => S.tncRequests.find((r) => r.quoteNo === q.no && r.status === 'Pending');
+const lastTncDecision = (q) =>
+  S.tncRequests
+    .filter((r) => r.quoteNo === q.no && r.status !== 'Pending')
+    .sort((a, b) => (b.decidedAt || 0) - (a.decidedAt || 0))[0];
+
+// Terms & conditions block on the quote (step 3): Admin / CEO edit directly, reps send a change for approval.
+function tncSection(q, locked) {
+  const eff = effectiveTnc(q),
+    pend = pendingTnc(q),
+    last = lastTncDecision(q),
+    head = `<div class="qt-section-head"><span class="ms">gavel</span><b>Terms &amp; conditions</b><span class="mut text-xs">${q.tnc ? 'Custom for this quote' : 'Standard terms'}</span></div>`;
+  let body;
+  if (isAdminOrCeo() && !locked) {
+    body = `<textarea class="inp" rows="6" aria-label="Terms and conditions" oninput="S.qd.tnc=this.value">${E(eff)}</textarea><p class="mut text-xs mt-1">These terms print on every bill. Admin / CEO changes apply straight away. The standard terms for all quotes are in Settings → Terms &amp; conditions.</p>`;
+  } else {
+    body =
+      `<p style="white-space:pre-wrap">${E(eff)}</p>` +
+      (pend
+        ? `<div class="qt-banner wr mt-2"><span class="ms">hourglass_top</span><div><b>Change waiting for Admin / CEO approval</b><div class="mut">Requested by ${E(pend.by)} · ${whenText(pend.at)}</div><div style="white-space:pre-wrap">${E(pend.text)}</div></div></div>`
+        : '') +
+      (last && !pend
+        ? `<div class="qt-banner ${last.status === 'Approved' ? 'ok' : 'err'} mt-2"><span class="ms">${last.status === 'Approved' ? 'verified' : 'cancel'}</span><div><b>Last change request ${last.status.toLowerCase()}</b>${last.decisionNote ? `<div>${E(last.decisionNote)}</div>` : ''}</div></div>`
+        : '') +
+      (!locked && !pend
+        ? `<div class="mt-2"><button type="button" class="btn" onclick="openTncRequest()"><span class="ms">edit_note</span>Request change</button><span class="mut text-xs ml-2">Needs Admin / CEO approval</span></div>`
+        : '');
+  }
+  return `<section class="qt-section">${head}<div class="qt-body">${body}</div></section>`;
+}
+
+function openTncRequest() {
+  const q = S.qd;
+  if (!q || pendingTnc(q)) return;
+  $('#modal').innerHTML =
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><form class="card p-5 w-full max-w-lg max-h-full overflow-auto space-y-3" onsubmit="saveTncRequest(event)"><h2 class="text-lg font-bold">Request change to terms &amp; conditions</h2><p class="mut text-xs">Admin or CEO must approve before the new terms apply to quote ${E(q.no)}.</p>` +
+    `<label class="block">Proposed terms *<textarea class="inp" name="text" rows="7" required>${E(effectiveTnc(q))}</textarea></label>` +
+    `<label class="block">Why is this change needed? *<textarea class="inp" name="note" rows="2" required></textarea></label>` +
+    `<div class="flex justify-end gap-2"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">Send for approval</button></div></form></div>`;
+  $('#modal textarea').focus();
+}
+function saveTncRequest(e) {
+  e.preventDefault();
+  const q = S.qd,
+    v = Object.fromEntries(new FormData(e.target)),
+    text = (v.text || '').trim();
+  if (!q || pendingTnc(q)) return;
+  if (!text || !(v.note || '').trim()) return toast('Add the new terms and the reason');
+  if (text === effectiveTnc(q).trim()) return toast('The terms are unchanged');
+  if (isAdminOrCeo()) return toast('Admin and CEO can edit the terms directly');
+  const r = {
+    id: 'tr' + Date.now(),
+    quoteNo: q.no,
+    text,
+    note: v.note.trim(),
+    by: roleNow().name,
+    byId: S.authUser,
+    at: Date.now(),
+    status: 'Pending',
+  };
+  S.tncRequests.push(r);
+  queuePopup({ kind: 'tnc-request', no: q.no, reqId: r.id, toRole: 'admin', by: S.authUser });
+  queuePopup({ kind: 'tnc-request', no: q.no, reqId: r.id, toRole: 'ceo', by: S.authUser });
+  $('#modal').innerHTML = '';
+  save();
+  toast('Terms change sent to Admin / CEO for approval');
+  render();
+}
+function decideTnc(id, approve) {
+  if (!isAdminOrCeo()) return toast('Only Admin or CEO can decide this');
+  const r = S.tncRequests.find((x) => x.id === id);
+  if (!r || r.status !== 'Pending') return toast('This request was already decided');
+  const note = approve ? '' : (prompt('Reason for rejecting this change (required)') || '').trim();
+  if (!approve && !note) return toast('A reason is required to reject');
+  r.status = approve ? 'Approved' : 'Rejected';
+  r.decidedBy = roleNow().name;
+  r.decidedAt = Date.now();
+  r.decisionNote = note;
+  if (approve) {
+    const q = S.quotes.find((x) => x.no === r.quoteNo);
+    if (q) q.tnc = r.text;
+    if (S.qd && S.qd.no === r.quoteNo) S.qd.tnc = r.text;
+    const inv = q && q.invoiceId && S.invoices.find((i) => i.id === q.invoiceId);
+    if (inv && inv.status !== 'Paid') inv.tnc = r.text;
+  }
+  queuePopup({
+    kind: approve ? 'tnc-approved' : 'tnc-rejected',
+    no: r.quoteNo,
+    reqId: r.id,
+    toUser: r.byId,
+    by: S.authUser,
+  });
+  save();
+  toast(`Terms change ${approve ? 'approved' : 'rejected'}`);
+  render();
+}
+function showTncPopup(p) {
+  const r = S.tncRequests.find((x) => x.id === p.reqId);
+  if (!r) return;
+  if (p.kind === 'tnc-request') {
+    if (r.status !== 'Pending') return;
+    return showPopup({
+      tone: 'wr',
+      icon: 'gavel',
+      title: `Terms change needs approval: ${E(r.quoteNo)}`,
+      lines: [
+        `<b>${E(r.by)}</b> asked to change the terms and conditions.`,
+        `Reason: ${E(r.note)}`,
+      ],
+      actions: [{ label: 'Review now', js: `nav('approvals')` }],
+    });
+  }
+  const ok = p.kind === 'tnc-approved';
+  showPopup({
+    tone: ok ? 'ok' : 'err',
+    icon: ok ? 'verified' : 'cancel',
+    title: `Terms change ${ok ? 'approved' : 'rejected'}: ${E(r.quoteNo)}`,
+    lines: [
+      `${ok ? 'Approved' : 'Rejected'} by <b>${E(r.decidedBy || '')}</b>.`,
+      r.decisionNote ? `Reason: ${E(r.decisionNote)}` : '',
+    ],
+    actions: [{ label: 'Open quote', js: `openQuoteRecord('${E(r.quoteNo)}')` }],
+  });
+}
+
+// Approvals page: terms & conditions requests for Admin / CEO.
+const approvalsViewBeforeTnc = V.approvals;
+V.approvals = function () {
+  const html = approvalsViewBeforeTnc.apply(this, arguments);
+  if (S.role === 'rep') return html;
+  const pend = S.tncRequests.filter((r) => r.status === 'Pending'),
+    done = S.tncRequests
+      .filter((r) => r.status !== 'Pending')
+      .sort((a, b) => b.decidedAt - a.decidedAt)
+      .slice(0, 5),
+    row = (r, actions) =>
+      `<tr><td><b>${E(r.quoteNo)}</b></td><td>${E(r.by)}</td><td>${E(r.note)}</td><td style="white-space:pre-wrap;max-width:360px">${E(r.text)}</td><td>${actions}</td></tr>`;
+  return (
+    html +
+    `<h2 class="text-lg font-bold mt-6 mb-2">Terms &amp; conditions requests</h2>` +
+    (pend.length
+      ? table(
+          ['Quote', 'Requested by', 'Reason', 'Proposed terms', 'Action'],
+          pend
+            .map((r) =>
+              row(
+                r,
+                `<button class="btn btn-p" onclick="decideTnc('${r.id}',true)">Approve</button> <button class="btn" style="color:var(--err)" onclick="decideTnc('${r.id}',false)">Reject</button>`
+              )
+            )
+            .join('')
+        )
+      : '<p class="mut">No terms changes waiting.</p>') +
+    (done.length
+      ? `<p class="mut text-xs mt-3">Recent decisions: ${done.map((r) => `${E(r.quoteNo)} ${r.status.toLowerCase()} by ${E(r.decidedBy)}`).join(' · ')}</p>`
+      : '')
+  );
+};
+
+// Settings → Terms & conditions (Admin / CEO).
+SETTINGS_PANELS.terms = function () {
+  const t = S.settings.tnc;
+  return `${secHead('gavel', 'Terms & conditions', 'These terms print on every quote and bill. Reps cannot change them; a rep can ask for a change on a quote, which Admin or CEO must approve.')}<form onsubmit="saveStandardTnc(event)" class="space-y-3"><textarea class="inp" name="text" rows="10" aria-label="Standard terms and conditions" required>${E(t.text)}</textarea><div class="flex items-center gap-3 flex-wrap"><button class="btn btn-p">Save terms</button><span class="mut text-xs">Version ${t.version} · last changed by ${E(t.by)} on ${whenText(t.at)}. New bills use the latest terms; bills already generated keep theirs.</span></div></form>`;
+};
+function saveStandardTnc(e) {
+  e.preventDefault();
+  if (!isAdminOrCeo()) return toast('Only Admin or CEO can change the terms');
+  const text = (new FormData(e.target).get('text') || '').trim();
+  if (!text) return toast('Terms cannot be empty');
+  S.settings.tnc = {
+    text,
+    version: S.settings.tnc.version + 1,
+    by: roleNow().name,
+    at: Date.now(),
+  };
+  save();
+  toast('Terms & conditions saved');
+  render();
+}
+
+// ---------------------------------------------------------------------------
+// Bill output (quote print view and invoice share this): grand total only, discount shown only if switched on
+// ---------------------------------------------------------------------------
+function billLinesTable(items, showDiscount) {
+  const head = [
+    'Product',
+    'Code',
+    'Qty',
+    'Unit price',
+    ...(showDiscount ? ['Discount'] : []),
+    'Total',
+  ];
+  return table(
+    head,
+    items
+      .map((x) => {
+        const net = x.p * (1 - x.d / 100);
+        return `<tr><td>${E(x.n)}</td><td>${E(x.c)}</td><td>${x.q}</td><td>${M(showDiscount ? x.p : net)}</td>${showDiscount ? `<td>${x.d}%</td>` : ''}<td>${M(net * x.q)}</td></tr>`;
+      })
+      .join('')
+  );
+}
+function printQuote() {
+  const q = S.qd,
+    o = cur();
+  if (!q || !o) return;
+  $('#modal').innerHTML =
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><div class="card p-6 w-full max-w-3xl max-h-full overflow-auto"><div class="flex justify-between gap-3"><div><h2 class="text-xl font-bold">Quote ${E(q.no)}</h2><div class="mut">${E(q.name || '')}</div><div class="mut">Prepared for ${E(q.preparedFor || o.account)} · Valid until ${fd(q.exp)}</div></div><b>${E(o.account)}</b></div>` +
+    `<div class="grid sm:grid-cols-2 gap-3 mt-3 text-sm"><div><div class="mut text-xs">Billing address</div><div style="white-space:pre-wrap">${E(q.address || '–')}</div></div><div><div class="mut text-xs">Shipping address</div><div style="white-space:pre-wrap">${E(q.shipping || '–')}</div></div></div>` +
+    `<div class="my-4">${billLinesTable(q.items, !!q.showDiscount)}</div><div class="text-right text-lg font-bold">Grand total ${M(quoteTotal(q))}</div>` +
+    `<div class="mt-4"><b>Terms &amp; conditions</b><div style="white-space:pre-wrap" class="text-sm">${E(effectiveTnc(q))}</div></div>` +
+    (q.po
+      ? `<p class="mt-3 text-sm"><b>Customer PO:</b> ${E(q.po.no)}${q.po.date ? ' · ' + fd(q.po.date) : ''}</p>`
+      : '') +
+    (q.signedBy
+      ? `<p class="mt-1 text-sm"><b>Signed by:</b> ${E(q.signedBy)} · ${whenText(q.signedAt)}</p>`
+      : '') +
+    `<div class="flex justify-end gap-2 mt-4"><button class="btn" onclick="$('#modal').innerHTML=''">Close</button><button class="btn btn-p" onclick="window.print()">Print / Save PDF</button></div></div></div>`;
+}
+
+// Update a quote (stored copy, the open copy and its invoice) in one go.
+function patchQuote(no, patch) {
+  const q = S.quotes.find((x) => x.no === no);
+  if (q) Object.assign(q, patch);
+  if (S.qd && S.qd.no === no) Object.assign(S.qd, patch);
+  const inv = q && q.invoiceId && S.invoices.find((i) => i.id === q.invoiceId);
+  if (inv && 'showDiscount' in patch && inv.status !== 'Paid')
+    inv.showDiscount = patch.showDiscount;
+  save();
+}
+function setShowDiscount(on) {
+  if (!canGiveDiscount()) return toast('Only Admin and CEO can change this');
+  patchQuote(S.qd.no, { showDiscount: !!on });
+  toast(on ? 'Discount will be shown on the bill' : 'Discount hidden on the bill');
+  render();
+}
+
+// ---------------------------------------------------------------------------
+// Top buttons: Sync quote, Sign, PO, Print
+// ---------------------------------------------------------------------------
+const quoteApproved = (q) => ['Approved', 'Sent to client', 'Paid'].includes(q.status);
+function quoteToolbar(q) {
+  const ok = quoteApproved(q),
+    why = ok ? '' : 'Available once the quote is approved',
+    syncOk = !String(q.status).startsWith('Pending') && q.status !== 'Rejected';
+  return `<div class="qt-toolbar"><button class="btn" ${syncOk ? '' : 'disabled'} title="${syncOk ? "Copy this quote's products and total to the opportunity" : 'Not available while the quote is pending or rejected'}" onclick="syncQuote()"><span class="ms">sync</span>Sync Quote</button><button class="btn" ${ok ? '' : 'disabled'} title="${why}" onclick="openSignForm()"><span class="ms">draw</span>Sign</button><button class="btn" ${ok ? '' : 'disabled'} title="${why}" onclick="openPoForm()"><span class="ms">receipt_long</span>PO</button><button class="btn" onclick="printQuote()"><span class="ms">print</span>Print / PDF</button>${q.syncedAt ? `<span class="chip ok">Synced ${ago(q.syncedAt)}</span>` : ''}${q.signedBy ? `<span class="chip ok">Signed by ${E(q.signedBy)}</span>` : ''}${q.po ? `<span class="chip ok">PO ${E(q.po.no)}</span>` : ''}<span class="flex-1"></span><label class="qt-check" title="${canGiveDiscount() ? '' : 'Only Admin and CEO can change this'}"><input type="checkbox" ${q.showDiscount ? 'checked' : ''} ${canGiveDiscount() ? '' : 'disabled'} onchange="setShowDiscount(this.checked)"> Show discount on bill</label></div>`;
+}
+const quoteViewBeforeFlow = V.quote;
+V.quote = function () {
+  const html = quoteViewBeforeFlow.apply(this, arguments);
+  return S.qd
+    ? html.replace('<nav class="qt-steps">', quoteToolbar(S.qd) + '<nav class="qt-steps">')
+    : html;
+};
+
+function syncQuote() {
+  const q = S.qd,
+    o = cur();
+  if (!q || !o) return;
+  if (String(q.status).startsWith('Pending') || q.status === 'Rejected')
+    return toast('Not available while the quote is pending or rejected');
+  S.quotes.forEach((x) => {
+    if (x.opp == q.opp) x.primary = x.no === q.no;
+  });
+  q.primary = true;
+  storeQuote(q);
+  o.items = clone(q.items);
+  o.amount = Math.round(quoteTotal(q));
+  patchQuote(q.no, { syncedAt: Date.now(), primary: true });
+  logOpp(
+    o.id,
+    'sync',
+    `Quote ${q.no} synced to the opportunity by ${roleNow().name} (${M(o.amount)})`
+  );
+  toast('Quote synced to the opportunity');
+  render();
+}
+function simpleQuoteForm(title, fields, submitJs, submitLabel) {
+  $('#modal').innerHTML =
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><form class="card p-5 w-full max-w-md space-y-3" onsubmit="${submitJs}(event)"><h2 class="text-lg font-bold">${title}</h2>${fields}<div class="flex justify-end gap-2"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">${submitLabel}</button></div></form></div>`;
+  $('#modal input').focus();
+}
+function openSignForm() {
+  const q = S.qd;
+  if (!q || !quoteApproved(q)) return toast('Available once the quote is approved');
+  simpleQuoteForm(
+    `Sign quotation ${E(q.no)}`,
+    `<label class="block">Signed by *<input class="inp" name="by" required value="${E(q.signedBy || String(q.preparedFor || '').replace(/\s*\(.*\)\s*$/, ''))}"></label><label class="block">Date<input class="inp" type="date" name="date" value="${D(0)}"></label>`,
+    'saveSign',
+    'Save signature'
+  );
+}
+function saveSign(e) {
+  e.preventDefault();
+  const q = S.qd,
+    v = Object.fromEntries(new FormData(e.target));
+  if (!q || !quoteApproved(q) || !(v.by || '').trim()) return;
+  patchQuote(q.no, {
+    signedBy: v.by.trim(),
+    signedAt: v.date ? new Date(v.date + 'T12:00').getTime() : Date.now(),
+  });
+  logOpp(q.opp, 'sync', `Quote ${q.no} signed by ${v.by.trim()}`);
+  $('#modal').innerHTML = '';
+  toast('Signature recorded');
+  render();
+}
+function openPoForm() {
+  const q = S.qd;
+  if (!q || !quoteApproved(q)) return toast('Available once the quote is approved');
+  simpleQuoteForm(
+    `Customer PO for ${E(q.no)}`,
+    `<label class="block">PO number *<input class="inp" name="no" required value="${E((q.po || {}).no || '')}"></label><label class="block">PO date<input class="inp" type="date" name="date" value="${E((q.po || {}).date || D(0))}"></label>`,
+    'savePo',
+    'Save PO'
+  );
+}
+function savePo(e) {
+  e.preventDefault();
+  const q = S.qd,
+    v = Object.fromEntries(new FormData(e.target));
+  if (!q || !quoteApproved(q) || !(v.no || '').trim()) return;
+  patchQuote(q.no, { po: { no: v.no.trim(), date: v.date || '' } });
+  const o = S.opps.find((x) => x.id == q.opp);
+  if (o) (o.f = o.f || {}).po = v.no.trim(); // shows in "PO / Reference number" on the opportunity
+  logOpp(q.opp, 'sync', `Customer PO ${v.no.trim()} recorded on quote ${q.no}`);
+  $('#modal').innerHTML = '';
+  toast('PO recorded');
+  render();
+}
+
+// ---------------------------------------------------------------------------
+// New quote pop-up with details already filled in (products come from the opportunity)
+// ---------------------------------------------------------------------------
+const openQuoteBeforeFlow = openQuote;
+openQuote = function (id) {
+  const o = S.opps.find((x) => x.id == id);
+  if (!o) return openQuoteBeforeFlow.apply(this, arguments);
+  // continue a draft the user has already worked on; an untouched default quote goes through the pop-up
+  const draft = S.quotes
+    .filter((q) => q.opp == id && !q.isDefault && ['Draft', 'Rejected'].includes(q.status))
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+  if (draft) {
+    S.cur = id;
+    S.qstep = 1;
+    S.qd = clone(draft);
+    return nav('quote');
+  }
+  openNewQuoteForm(o);
+};
+
+// Every open opportunity gets a default quote with its products and price, so the Quotes card is never empty.
+// It follows the opportunity's products until someone saves or edits it.
+function ensureDefaultQuotes() {
+  let changed = false;
+  S.opps.forEach((o) => {
+    if (o.lost || o.stage === 5 || !o.items || !o.items.length) return;
+    const mine = S.quotes.filter((q) => q.opp == o.id);
+    if (!mine.length) {
+      const no = 'Q-' + (1001 + S.quotes.length),
+        d = quoteDefaults({ no }, o);
+      S.quotes.push({
+        opp: o.id,
+        no,
+        name: d.name,
+        primary: true,
+        isDefault: true,
+        exp: D(quoteDefaultsSetting().validityDays),
+        status: 'Draft',
+        label: 'Draft',
+        preparedFor: d.preparedFor,
+        toEmail: d.toEmail,
+        toPhone: d.toPhone,
+        address: d.address,
+        shipping: d.shipping,
+        showDiscount: false,
+        items: clone(o.items),
+        createdAt: Date.now(),
+      });
+      changed = true;
+      return;
+    }
+    mine
+      .filter((q) => q.isDefault && q.status === 'Draft')
+      .forEach((q) => {
+        if (JSON.stringify(q.items) !== JSON.stringify(o.items)) {
+          q.items = clone(o.items);
+          changed = true;
+        }
+      });
+  });
+  if (changed) save();
+}
+const storeQuoteBeforeDefault = storeQuote;
+storeQuote = function (q) {
+  delete q.isDefault; // once someone saves a quote it is no longer the auto-filled default
+  return storeQuoteBeforeDefault.apply(this, arguments);
+};
+const renderBeforeDefaultQuote = render;
+render = function () {
+  ensureDefaultQuotes();
+  return renderBeforeDefaultQuote.apply(this, arguments);
+};
+// Creating an opportunity (new, clone, converted lead) always ends in nav(), so make sure its default quote exists first.
+const navBeforeDefaultQuote = nav;
+nav = function () {
+  ensureDefaultQuotes();
+  return navBeforeDefaultQuote.apply(this, arguments);
+};
+ensureDefaultQuotes();
+function openNewQuoteForm(o) {
+  const dq = S.quotes.find((x) => x.opp == o.id && x.isDefault && x.status === 'Draft'),
+    no = dq ? dq.no : 'Q-' + (1001 + S.quotes.length),
+    d = quoteDefaults({ no }, o),
+    field = (label, control, req) =>
+      `<label class="qt-field"><span>${label}${req ? ' <i class="qt-req">*</i>' : ''}</span>${control}</label>`,
+    lines = o.items.map((i) => `${E(i.n)} × ${i.q}`).join(', ');
+  $('#modal').innerHTML =
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><form class="card qt-section w-full max-w-3xl max-h-full overflow-auto" role="dialog" aria-modal="true" aria-label="New quote" onsubmit="createQuoteFromForm(event,${o.id})">` +
+    `<div class="qt-section-head"><span class="ms">badge</span><b>Quote Information</b></div><div class="qt-grid">` +
+    field('Quote Name', `<input class="inp" name="name" required value="${E(d.name)}">`, true) +
+    `<label class="qt-check"><input type="checkbox" name="primary" checked> Primary Quote (Syncs to Opportunity)</label>` +
+    field(
+      'Expiration Date',
+      `<input type="date" class="inp" name="exp" required value="${D(quoteDefaultsSetting().validityDays)}">`
+    ) +
+    field(
+      'Status',
+      `<select class="inp" name="label">${QUOTE_STATUS_CHOICES.map((s) => `<option>${E(s)}</option>`).join('')}</select>`
+    ) +
+    (contactsOfAccount(o.account).length
+      ? field(
+          'Customer Contact',
+          `<select class="inp" onchange="fillQuoteFormContact(this)"><option value="">Choose a contact…</option>${contactOptions(o.account, String(d.preparedFor).replace(/\s*\(.*\)\s*$/, ''))}</select>`
+        )
+      : '') +
+    field('Prepared For', `<input class="inp" name="preparedFor" value="${E(d.preparedFor)}">`) +
+    field(
+      'Send To (Email)',
+      `<input class="inp" type="email" name="toEmail" value="${E(d.toEmail)}" placeholder="customer@company.com">`
+    ) +
+    field(
+      'WhatsApp Number',
+      `<input class="inp" type="tel" name="toPhone" value="${E(d.toPhone)}" placeholder="+91 98765 43210">`
+    ) +
+    field('Sales Rep / Owner', `<input class="inp" value="${E(ownerLabel(o.owner))}" disabled>`) +
+    field(
+      'Billing Address',
+      `<input class="inp" name="address" value="${E(d.address)}" placeholder="Street, city, state, PIN">`
+    ) +
+    field(
+      'Shipping Address',
+      `<input class="inp" name="shipping" value="${E(d.shipping)}" placeholder="Street, city, state, PIN">`
+    ) +
+    `</div><div class="qt-body"><div class="mut text-xs">Products from this opportunity (${o.items.length}) — added to the quote automatically</div><div>${lines || '—'}</div><div class="font-semibold mt-1">Total ${M(o.items.reduce((a, i) => a + i.p * i.q * (1 - i.d / 100), 0))}</div></div>` +
+    `<div class="flex justify-end gap-2 p-3"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">Create quote</button></div></form></div>`;
+  $('#modal input').focus();
+}
+function createQuoteFromForm(e, id) {
+  e.preventDefault();
+  const o = S.opps.find((x) => x.id == id),
+    v = Object.fromEntries(new FormData(e.target));
+  if (!o || !(v.name || '').trim() || !v.exp)
+    return toast('Quote name and expiry date are required');
+  // finishing the pop-up turns the opportunity's default quote into a real one (same number)
+  const dq = S.quotes.find((x) => x.opp == o.id && x.isDefault && x.status === 'Draft'),
+    no = dq ? dq.no : 'Q-' + (1001 + S.quotes.length);
+  S.qd = {
+    opp: o.id,
+    no,
+    name: v.name.trim(),
+    primary: !!v.primary,
+    exp: v.exp,
+    status: 'Draft',
+    label: v.label,
+    preparedFor: (v.preparedFor || '').trim(),
+    toEmail: (v.toEmail || '').trim(),
+    toPhone: (v.toPhone || '').trim(),
+    address: (v.address || '').trim(),
+    shipping: (v.shipping || '').trim(),
+    showDiscount: false,
+    items: clone(o.items),
+    createdAt: Date.now(),
+    createdBy: roleNow().name,
+  };
+  storeQuote(S.qd);
+  if (S.qd.primary) S.quotes.forEach((x) => x.opp == o.id && x.no !== no && (x.primary = false));
+  S.cur = o.id;
+  S.qstep = 1;
+  $('#modal').innerHTML = '';
+  save();
+  nav('quote');
+}
+
+// ---------------------------------------------------------------------------
+// Closed Won: Admin / CEO only, with notes, once payment is received
+// ---------------------------------------------------------------------------
+const setStageBeforeClosedWon = setStage;
+setStage = function (o, i) {
+  const won = o.stage === 5 && !o.lost;
+  if (i === 5) {
+    if (won) return;
+    if (!isAdminOrCeo())
+      return toast('Only Admin or CEO can mark a deal Closed Won, once payment is received');
+    return openClosedWon(o);
+  }
+  if (won && !isAdminOrCeo()) return toast('Only Admin or CEO can change a Closed Won deal');
+  return setStageBeforeClosedWon.apply(this, arguments);
+};
+function openClosedWon(o) {
+  const invs = S.invoices.filter((i) => i.opp == o.id),
+    paid = invs.some((i) => i.status === 'Paid');
+  $('#modal').innerHTML =
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><form class="card p-5 w-full max-w-lg max-h-full overflow-auto space-y-3" onsubmit="confirmClosedWon(event,${o.id})"><h2 class="text-lg font-bold">Mark Closed Won — ${E(o.name)}</h2>` +
+    `<p class="mut text-sm">Close the deal only after the payment has been received.</p>` +
+    (invs.length
+      ? `<div class="p-3 rounded text-xs" style="background:var(--hov)">${invs.map((i) => `${E(i.invoiceNo)}: <b>${E(i.status)}</b> · ${M(i.total)}`).join('<br>')}</div>`
+      : '') +
+    `<label class="flex items-center gap-2"><input type="checkbox" name="paid" ${paid ? 'checked' : ''}> Payment has been received</label>` +
+    `<label class="block">Closed Won notes *<textarea class="inp" name="notes" rows="4" required placeholder="Payment details, reference, anything the team should know"></textarea></label>` +
+    `<div class="flex justify-end gap-2"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">Mark Closed Won</button></div></form></div>`;
+  $('#modal textarea').focus();
+}
+function confirmClosedWon(e, id) {
+  e.preventDefault();
+  const o = S.opps.find((x) => x.id == id),
+    v = Object.fromEntries(new FormData(e.target)),
+    notes = (v.notes || '').trim();
+  if (!o || !isAdminOrCeo()) return toast('Only Admin or CEO can mark a deal Closed Won');
+  if (!v.paid) return toast('Confirm that the payment has been received');
+  if (!notes) return toast('Add Closed Won notes');
+  $('#modal').innerHTML = '';
+  o.lost = false;
+  setStageBeforeClosedWon(o, 5);
+  o.closedWon = { notes, by: roleNow().name, at: Date.now() };
+  (o.f = o.f || {}).won = notes;
+  logOpp(o.id, 'sync', `Closed Won by ${roleNow().name} after payment received. Notes: ${notes}`);
+  save();
+  render();
+}
+function toggleClosedStage() {
+  const o = cur();
+  if (!o || !isAdminOrCeo()) return toast('Only Admin or CEO can change the closed stage');
+  if (o.lost) return openClosedWon(o);
+  o.lost = true;
+  logOpp(o.id, 'sync', `Marked Closed Lost by ${roleNow().name}`);
+  save();
+  toast('Marked closed lost');
+  render();
+}
+
+// Sending quotes: customer email / phone on the quote, Send by email or WhatsApp, a customer link where the
+// customer can view, accept and sign, view tracking, and automatic expiry.
+//
+// Prototype note: there is no server. Email and WhatsApp open the sender's own mail / WhatsApp with the message
+// filled in, and the customer link (and its "opened" tracking) works in a browser that has this CRM's data.
+
+// ---------- customer contact on the quote ----------
+const contactsOfAccount = (acct) => S.contacts.filter((c) => c[2] === acct);
+function pickQuoteContact(name) {
+  const o = cur(),
+    c = o && S.contacts.find((x) => x[0] === name);
+  if (!c || !S.qd) return;
+  S.qd.preparedFor = `${c[0]}${c[1] ? ' (' + c[1] + ')' : ''}`;
+  S.qd.toEmail = c[3] || '';
+  S.qd.toPhone = c[4] || '';
+  render();
+}
+function fillQuoteFormContact(sel) {
+  const c = S.contacts.find((x) => x[0] === sel.value),
+    f = sel.form;
+  if (!c) return;
+  f.elements.preparedFor.value = `${c[0]}${c[1] ? ' (' + c[1] + ')' : ''}`;
+  f.elements.toEmail.value = c[3] || '';
+  f.elements.toPhone.value = c[4] || '';
+}
+const contactOptions = (acct, selectedName) =>
+  contactsOfAccount(acct)
+    .map(
+      (c) =>
+        `<option value="${E(c[0])}" ${c[0] === selectedName ? 'selected' : ''}>${E(c[0])}${c[1] ? ' – ' + E(c[1]) : ''}</option>`
+    )
+    .join('');
+
+// ---------- links, messages ----------
+const quoteToken = (q) =>
+  q.token || (q.token = 'cq' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36));
+const quoteLink = (q) => `${location.origin}${location.pathname}#cq/${quoteToken(q)}`;
+const phoneDigits = (p) => {
+  const d = String(p || '').replace(/\D/g, '');
+  return d.length === 10 ? '91' + d : d; // 10-digit Indian numbers get +91
+};
+const quoteExpired = (q) => !q.customer && !['Paid'].includes(q.status) && q.exp && days(q.exp) < 0;
+const quoteIsSendable = (q) => ['Approved', 'Sent to client', 'Paid'].includes(q.status);
+
+function quoteMessage(q, o) {
+  const co = (S.settings.company || {}).name || 'our team',
+    first =
+      String(q.preparedFor || '')
+        .replace(/\s*\(.*\)\s*$/, '')
+        .split(' ')[0] || 'there';
+  return `Hello ${first},\n\nPlease find quotation ${q.no} for ${o.account}.\nTotal: ${M(quoteTotal(q))}\nValid until: ${fd(q.exp)}\n\nView, accept and sign it here:\n${quoteLink(q)}\n\nRegards,\n${roleNow().name}\n${co}`;
+}
+
+// ---------- Send modal ----------
+function openSendQuote() {
+  const q = S.qd,
+    o = cur();
+  if (!q || !o) return;
+  if (!quoteIsSendable(q)) return toast('Quotes can be sent once they are approved');
+  if (q.status === 'Expired' || quoteExpired(q))
+    return toast('This quote has expired. Extend the expiry first');
+  const ch = S.sendChan === 'whatsapp' ? 'whatsapp' : 'email';
+  $('#modal').innerHTML =
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><form class="card p-5 w-full max-w-lg max-h-full overflow-auto space-y-3" onsubmit="doSendQuote(event)"><h2 class="text-lg font-bold">Send quotation ${E(q.no)}</h2>` +
+    `<div class="flex gap-2"><button type="button" class="btn ${ch === 'email' ? 'btn-p' : ''}" onclick="S.sendChan='email';openSendQuote()"><span class="ms">mail</span>Email</button><button type="button" class="btn ${ch === 'whatsapp' ? 'btn-p' : ''}" onclick="S.sendChan='whatsapp';openSendQuote()"><span class="ms">chat</span>WhatsApp</button></div>` +
+    (contactsOfAccount(o.account).length
+      ? `<label class="block">Contact<select class="inp" onchange="const c=S.contacts.find(x=>x[0]===this.value);if(c){this.form.elements.to.value=${ch === 'email' ? 'c[3]' : 'c[4]'}||''}"><option value="">Choose a contact…</option>${contactOptions(o.account, '')}</select></label>`
+      : '') +
+    `<input type="hidden" name="chan" value="${ch}">` +
+    (ch === 'email'
+      ? `<label class="block">To (email) *<input class="inp" name="to" type="email" required value="${E(q.toEmail || '')}" placeholder="customer@company.com"></label><label class="block">Subject<input class="inp" name="subject" value="${E(`Quotation ${q.no} – ${o.account}`)}"></label>`
+      : `<label class="block">WhatsApp number *<input class="inp" name="to" type="tel" required value="${E(q.toPhone || '')}" placeholder="+91 98765 43210"></label>`) +
+    `<label class="block">Message<textarea class="inp" name="msg" rows="9">${E(quoteMessage(q, o))}</textarea></label>` +
+    `<p class="mut text-xs">This opens your ${ch === 'email' ? 'email app' : 'WhatsApp'} with the message filled in. The link lets the customer view, accept and sign the quote, and you will see when it is opened.</p>` +
+    `<div class="flex justify-end gap-2 flex-wrap"><button type="button" class="btn" onclick="copyQuoteLink()"><span class="ms">link</span>Copy link</button><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">${ch === 'email' ? 'Open email' : 'Open WhatsApp'}</button></div></form></div>`;
+  const t = $('#modal [name=to]');
+  if (t && !t.value) t.focus();
+}
+function copyQuoteLink() {
+  const q = S.qd;
+  if (!q) return;
+  const l = quoteLink(q);
+  patchQuote(q.no, { token: q.token });
+  (navigator.clipboard ? navigator.clipboard.writeText(l) : Promise.reject()).then(
+    () => toast('Link copied'),
+    () => prompt('Copy this link', l)
+  );
+}
+function doSendQuote(e) {
+  e.preventDefault();
+  const q = S.qd,
+    o = cur(),
+    v = Object.fromEntries(new FormData(e.target)),
+    to = (v.to || '').trim();
+  if (!q || !o || !to) return;
+  if (v.chan === 'email' && !/^\S+@\S+\.\S+$/.test(to)) return toast('Enter a valid email address');
+  if (v.chan === 'whatsapp' && phoneDigits(to).length < 11)
+    return toast('Enter the number with country code');
+  const url =
+    v.chan === 'email'
+      ? `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(v.subject || '')}&body=${encodeURIComponent(v.msg || '')}`
+      : `https://wa.me/${phoneDigits(to)}?text=${encodeURIComponent(v.msg || '')}`;
+  const sends = [...(q.sends || []), { channel: v.chan, to, at: Date.now(), by: roleNow().name }];
+  patchQuote(q.no, {
+    token: quoteToken(q),
+    sends,
+    sentAt: Date.now(),
+    ...(v.chan === 'email' ? { toEmail: to } : { toPhone: to }),
+  });
+  logOpp(
+    o.id,
+    v.chan === 'email' ? 'mail' : 'sync',
+    `Quote ${q.no} sent to ${to} by ${v.chan === 'email' ? 'email' : 'WhatsApp'} (${roleNow().name})`
+  );
+  $('#modal').innerHTML = '';
+  const a = document.createElement('a');
+  a.href = url;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  toast(`Quote ready to send by ${v.chan === 'email' ? 'email' : 'WhatsApp'} to ${to}`);
+  render();
+}
+
+// ---------- toolbar: Send, status chips, extend ----------
+function sendQuoteChips(q) {
+  const last = (q.sends || []).slice(-1)[0],
+    views = (q.views || []).length,
+    cs = q.customer;
+  return (
+    (last
+      ? `<span class="chip ok" title="${E(last.to)}">Sent by ${last.channel === 'email' ? 'email' : 'WhatsApp'} to ${E(last.to)} · ${ago(last.at)}</span>`
+      : '') +
+    (views
+      ? `<span class="chip ${cs ? 'ok' : ''}">Opened ${views}× · last ${ago(q.views[views - 1].at)}</span>`
+      : last
+        ? '<span class="chip">Not opened yet</span>'
+        : '') +
+    (cs
+      ? `<span class="chip ${cs.status === 'Accepted' ? 'ok' : 'wr'}">Customer ${E(cs.status.toLowerCase())}${cs.name ? ' · ' + E(cs.name) : ''}</span>`
+      : '') +
+    (q.status === 'Expired' || quoteExpired(q) ? '<span class="chip wr">Expired</span>' : '')
+  );
+}
+const quoteToolbarBeforeSend = quoteToolbar;
+quoteToolbar = function (q) {
+  let html = quoteToolbarBeforeSend.apply(this, arguments);
+  const send = `<button class="btn" ${quoteIsSendable(q) ? '' : 'disabled'} title="${quoteIsSendable(q) ? 'Send by email or WhatsApp' : 'Quotes can be sent once approved'}" onclick="openSendQuote()"><span class="ms">send</span>Send</button>`,
+    extend =
+      (q.status === 'Expired' || quoteExpired(q)) && S.role !== 'rep'
+        ? `<button class="btn btn-p" onclick="extendQuote()"><span class="ms">event_repeat</span>Extend expiry</button>`
+        : '';
+  html = html.replace(
+    '<span class="ms">print</span>Print / PDF</button>',
+    '<span class="ms">print</span>Print / PDF</button>' + send + extend
+  );
+  return html.replace(
+    '<span class="flex-1"></span>',
+    sendQuoteChips(q) + '<span class="flex-1"></span>'
+  );
+};
+function extendQuote() {
+  const q = S.qd;
+  if (!q || S.role === 'rep') return toast('Only Admin or CEO can extend an expired quote');
+  const exp = D(quoteDefaultsSetting().validityDays);
+  const patch = { exp };
+  if (q.status === 'Expired')
+    patch.status = ['Approved', 'Sent to client'].includes(q.prevStatus) ? q.prevStatus : 'Draft';
+  patchQuote(q.no, patch);
+  const rec = S.quotes.find((x) => x.no === q.no);
+  if (rec) addQuoteHistory(rec, 'Extended', `Expiry moved to ${fd(exp)} by ${roleNow().name}`);
+  save();
+  toast('Expiry extended to ' + fd(exp));
+  render();
+}
+
+// ---------- the quick contact picker + email fields in the quote form ----------
+const quoteDefaultsBeforeSend = quoteDefaults;
+quoteDefaults = function (q, o) {
+  const d = quoteDefaultsBeforeSend.apply(this, arguments),
+    name = String(d.preparedFor || '').replace(/\s*\(.*\)\s*$/, ''),
+    c =
+      S.contacts.find((x) => x[2] === o.account && x[0] === name) ||
+      contactsOfAccount(o.account)[0];
+  d.toEmail = q.toEmail ?? (c ? c[3] || '' : '');
+  d.toPhone = q.toPhone ?? (c ? c[4] || '' : '');
+  return d;
+};
+
+// ---------- automatic expiry ----------
+function expireQuotes() {
+  let changed = false;
+  S.quotes.forEach((q) => {
+    if (!q.exp || days(q.exp) >= 0) return;
+    if (q.isDefault) {
+      q.exp = D(quoteDefaultsSetting().validityDays); // an untouched default quote never expires
+      changed = true;
+    } else if (['Draft', 'Rejected'].includes(q.status) || String(q.status).startsWith('Pending')) {
+      q.prevStatus = q.status;
+      q.status = 'Expired';
+      addQuoteHistory(q, 'Expired', `Validity ended on ${fd(q.exp)}`);
+      changed = true;
+    }
+  });
+  if (changed) save();
+}
+const renderBeforeExpiry = render;
+render = function () {
+  expireQuotes();
+  return renderBeforeExpiry.apply(this, arguments);
+};
+const navBeforeExpiry = nav;
+nav = function () {
+  expireQuotes();
+  return navBeforeExpiry.apply(this, arguments);
+};
+expireQuotes();
+
+// ---------- customer page (#cq/<token>) ----------
+const customerRoute = () => /^#cq\//.test(location.hash);
+const quoteByToken = (t) => S.quotes.find((q) => q.token && q.token === t);
+
+function trackQuoteView(q) {
+  const k = 'cqv-' + q.token;
+  try {
+    if (sessionStorage.getItem(k) && Date.now() - +sessionStorage.getItem(k) < 30 * 60e3) return;
+    sessionStorage.setItem(k, String(Date.now()));
+  } catch (e) {}
+  const first = !(q.views || []).length;
+  q.views = [...(q.views || []), { at: Date.now() }].slice(-200);
+  q.firstViewedAt = q.firstViewedAt || Date.now();
+  const o = S.opps.find((x) => x.id == q.opp);
+  if (o) logOpp(o.id, 'sync', `Customer opened quote ${q.no}${first ? ' for the first time' : ''}`);
+  if (first) {
+    const creator = S.users.find((u) => u.name === q.createdBy);
+    queuePopup({
+      kind: 'cq-viewed',
+      no: q.no,
+      toUser: creator ? creator.id : undefined,
+      toRole: creator ? undefined : 'admin',
+      by: 'customer',
+    });
+  }
+  save();
+}
+function renderCustomerQuote() {
+  document.body.classList.add('cq-mode');
+  const h = document.querySelector('header');
+  if (h) h.style.display = 'none';
+  const app = $('#app');
+  app.className = 'min-h-screen p-3 md:p-6 max-w-3xl mx-auto';
+  const q = quoteByToken(location.hash.slice(4)),
+    co = S.settings.company || {};
+  if (!q) {
+    app.innerHTML = `<div class="card p-6 text-center"><h1 class="text-xl font-bold">Link not valid</h1><p class="mut mt-2">This quotation link is not valid. Please ask the sender for a new one.</p></div>`;
+    return;
+  }
+  trackQuoteView(q);
+  const o = S.opps.find((x) => x.id == q.opp) || {},
+    expired = q.status === 'Expired' || quoteExpired(q),
+    cs = q.customer,
+    banner = cs
+      ? `<div class="qt-banner ${cs.status === 'Accepted' ? 'ok' : 'wr'}"><span class="ms">${cs.status === 'Accepted' ? 'verified' : 'info'}</span><div><b>You ${cs.status.toLowerCase()} this quotation</b><div>${E(cs.name || '')} · ${whenText(cs.at)}</div>${cs.reason ? `<div>Reason: ${E(cs.reason)}</div>` : ''}</div></div>`
+      : expired
+        ? `<div class="qt-banner wr"><span class="ms">event_busy</span><div><b>This quotation has expired</b><div>It was valid until ${fd(q.exp)}. Please contact us for an updated quote.</div></div></div>`
+        : !quoteIsSendable(q)
+          ? `<div class="qt-banner wr"><span class="ms">hourglass_top</span><div><b>This quotation is not available yet</b></div></div>`
+          : '';
+  const actions =
+    !cs && !expired && quoteIsSendable(q)
+      ? `<form class="card p-4 mt-3 space-y-3" onsubmit="customerRespond(event,'${E(q.token)}','Accepted')"><b>Accept and sign</b><label class="block">Your full name (as signature) *<input class="inp" name="name" required value="${E(String(q.preparedFor || '').replace(/\s*\(.*\)\s*$/, ''))}"></label><label class="flex items-start gap-2"><input type="checkbox" name="agree" required class="mt-1"> <span>I accept this quotation and its terms &amp; conditions.</span></label><div class="flex gap-2 flex-wrap"><button class="btn btn-p">Accept &amp; sign</button><button type="button" class="btn" style="color:var(--err)" onclick="customerDecline('${E(q.token)}')">Decline</button></div></form>`
+      : '';
+  app.innerHTML =
+    `<div class="card p-4 md:p-6"><div class="flex justify-between gap-3 flex-wrap"><div><div class="mut text-xs">${E(co.name || 'Quotation')}</div><h1 class="text-xl font-bold">Quotation ${E(q.no)}</h1><div class="mut">${E(q.name || '')}</div></div><div class="text-right"><div class="mut text-xs">Valid until</div><b>${fd(q.exp)}</b></div></div>${banner ? `<div class="mt-3">${banner}</div>` : ''}` +
+    `<div class="grid sm:grid-cols-2 gap-3 mt-4 text-sm"><div><div class="mut text-xs">Prepared for</div><b>${E(q.preparedFor || o.account || '')}</b><div class="mut">${E(o.account || '')}</div></div><div><div class="mut text-xs">Billing address</div><div style="white-space:pre-wrap">${E(q.address || '–')}</div><div class="mut text-xs mt-2">Shipping address</div><div style="white-space:pre-wrap">${E(q.shipping || '–')}</div></div></div>` +
+    `<div class="my-4 overflow-x-auto">${billLinesTable(q.items, !!q.showDiscount)}</div><div class="text-right text-lg font-bold">Grand total ${M(quoteTotal(q))}</div>` +
+    `<div class="mt-4"><b>Terms &amp; conditions</b><div style="white-space:pre-wrap" class="text-sm">${E(effectiveTnc(q))}</div></div></div>${actions}`;
+}
+function customerRespond(e, token, status) {
+  e.preventDefault();
+  const q = quoteByToken(token),
+    v = Object.fromEntries(new FormData(e.target));
+  if (!q || q.customer || q.status === 'Expired' || quoteExpired(q)) return;
+  q.customer = { status, name: (v.name || '').trim(), at: Date.now() };
+  if (status === 'Accepted') {
+    q.signedBy = q.customer.name;
+    q.signedAt = q.customer.at;
+  }
+  addQuoteHistory(q, 'Customer ' + status.toLowerCase(), q.customer.name);
+  const o = S.opps.find((x) => x.id == q.opp);
+  if (o)
+    logOpp(o.id, 'sync', `Customer ${status.toLowerCase()} quote ${q.no} (${q.customer.name})`);
+  const creator = S.users.find((u) => u.name === q.createdBy);
+  queuePopup({
+    kind: status === 'Accepted' ? 'cq-accepted' : 'cq-declined',
+    no: q.no,
+    toUser: creator ? creator.id : undefined,
+    toRole: creator ? undefined : 'admin',
+    by: 'customer',
+  });
+  if (creator && creator.role === 'rep')
+    queuePopup({
+      kind: status === 'Accepted' ? 'cq-accepted' : 'cq-declined',
+      no: q.no,
+      toRole: 'admin',
+      by: 'customer',
+    });
+  save();
+  renderCustomerQuote();
+}
+function customerDecline(token) {
+  const reason = (prompt('Reason for declining (optional)') || '').trim(),
+    q = quoteByToken(token);
+  if (!q || q.customer || q.status === 'Expired' || quoteExpired(q)) return;
+  q.customer = { status: 'Declined', name: '', at: Date.now(), reason };
+  addQuoteHistory(q, 'Customer declined', reason);
+  const o = S.opps.find((x) => x.id == q.opp);
+  if (o) logOpp(o.id, 'sync', `Customer declined quote ${q.no}${reason ? ': ' + reason : ''}`);
+  const creator = S.users.find((u) => u.name === q.createdBy);
+  queuePopup({
+    kind: 'cq-declined',
+    no: q.no,
+    toUser: creator ? creator.id : undefined,
+    toRole: creator ? undefined : 'admin',
+    by: 'customer',
+  });
+  save();
+  renderCustomerQuote();
+}
+// popups for the sales team about what the customer did
+function showCqPopup(p) {
+  const q = quoteOf(p.no);
+  if (!q) return;
+  const accepted = p.kind === 'cq-accepted',
+    viewed = p.kind === 'cq-viewed';
+  showPopup({
+    tone: accepted ? 'ok' : viewed ? 'wr' : 'err',
+    icon: accepted ? 'verified' : viewed ? 'visibility' : 'cancel',
+    title: viewed
+      ? `Customer opened quote ${E(q.no)}`
+      : `Customer ${accepted ? 'accepted' : 'declined'} quote ${E(q.no)}`,
+    lines: viewed
+      ? [`${E(q.preparedFor || 'The customer')} just opened the quotation you sent.`]
+      : [
+          q.customer ? `${E(q.customer.name || '')} · ${whenText(q.customer.at)}` : '',
+          q.customer && q.customer.reason ? `Reason: ${E(q.customer.reason)}` : '',
+        ],
+    actions: [{ label: 'Open quote', js: `openQuoteRecord('${E(q.no)}')` }],
+  });
+}
+function applyCustomerRoute() {
+  if (customerRoute()) renderCustomerQuote();
+  else if (document.body.classList.contains('cq-mode')) {
+    document.body.classList.remove('cq-mode');
+    $('#app').className = 'p-3 md:p-4 max-w-[1500px] mx-auto';
+    render();
+  }
+}
+addEventListener('hashchange', applyCustomerRoute); // runs after the app's own hashchange renderers
+setTimeout(applyCustomerRoute, 0);
+
+// Price book: configurable volume tiers (global, with optional per-product override), bundles,
+// and minimum / maximum selling price per product. Admin and CEO manage it in Settings → Price book.
+
+const DEFAULT_TIERS = [
+  { min: 2, pct: 5 },
+  { min: 4, pct: 10 },
+];
+function priceBook() {
+  const st = S.settings || (S.settings = {});
+  if (!st.priceBook) st.priceBook = { tiers: DEFAULT_TIERS.map((t) => ({ ...t })), bundles: [] };
+  if (!st.priceBook.tiers) st.priceBook.tiers = DEFAULT_TIERS.map((t) => ({ ...t }));
+  if (!st.priceBook.bundles) st.priceBook.bundles = [];
+  return st.priceBook;
+}
+const canManagePriceBook = () => ['admin', 'ceo'].includes(S.role);
+const cleanTiers = (arr) =>
+  (arr || [])
+    .map((t) => ({ min: Math.floor(+t.min), pct: Math.round(+t.pct * 10) / 10 }))
+    .filter((t) => t.min >= 2 && t.pct >= 0 && t.pct <= 100)
+    .sort((a, b) => a.min - b.min);
+function tiersFor(code) {
+  const p = S.products.find((x) => x.code === code);
+  return p && p.tiers && p.tiers.length ? cleanTiers(p.tiers) : cleanTiers(priceBook().tiers);
+}
+function tierPct(code, qty) {
+  let pct = 0;
+  tiersFor(code).forEach((t) => {
+    if (qty >= t.min) pct = t.pct;
+  });
+  return pct;
+}
+// the biggest discount that still keeps the unit price at or above the product's minimum price
+function maxDiscountFor(code, listPrice) {
+  const p = S.products.find((x) => x.code === code);
+  if (!p || !p.minPrice || !listPrice) return 100;
+  return Math.max(0, Math.floor((1 - p.minPrice / listPrice) * 1000) / 10);
+}
+
+// Replaces the fixed 5% / 10% tiers.
+applyTieredDiscount = function () {
+  if (!canGiveDiscount()) return toast('Only Admin and CEO can give discounts');
+  let capped = 0;
+  S.qd.items.forEach((i) => {
+    if (i.bundle) return; // bundle lines keep their bundle price
+    const want = tierPct(i.c, i.q),
+      cap = maxDiscountFor(i.c, i.p);
+    i.d = Math.min(want, cap);
+    if (want > cap) capped++;
+  });
+  toast('Volume tiers applied' + (capped ? ` · ${capped} line(s) held at the minimum price` : ''));
+  render();
+};
+
+function addQuoteBundle(id) {
+  const b = priceBook().bundles.find((x) => x.id === id);
+  if (!b || !S.qd) return;
+  b.items.forEach((bi) => {
+    const p = S.products.find((x) => x.code === bi.c);
+    if (!p) return;
+    const pct = Math.min(+b.pct || 0, maxDiscountFor(p.code, p.listPrice)),
+      ex = S.qd.items.find((i) => i.c === p.code && i.bundle === b.name);
+    if (ex) ex.q += bi.q;
+    else S.qd.items.push({ n: p.name, c: p.code, p: p.listPrice, q: bi.q, d: pct, bundle: b.name });
+  });
+  toast(`Bundle “${b.name}” added`);
+  render();
+}
+const quoteLinesCardBeforePB = quoteLinesCard;
+quoteLinesCard = function (q) {
+  let html = quoteLinesCardBeforePB.apply(this, arguments);
+  const bundles = priceBook().bundles.filter((b) => b.active !== false);
+  if (bundles.length && html.includes('onclick="calculateQuotePricing()"'))
+    html = html.replace(
+      '<button class="btn qt-tool" onclick="calculateQuotePricing()"',
+      `<select class="btn qt-tool" aria-label="Add bundle" onchange="addQuoteBundle(this.value);this.value=''"><option value="">+ Add Bundle</option>${bundles.map((b) => `<option value="${E(b.id)}">${E(b.name)} (${b.pct}% off)</option>`).join('')}</select><button class="btn qt-tool" onclick="calculateQuotePricing()"`
+    );
+  return html;
+};
+const quoteLineRowsBeforePB = quoteLineRows;
+quoteLineRows = function () {
+  const q = arguments[0];
+  let html = quoteLineRowsBeforePB.apply(this, arguments);
+  // tag bundle lines under the product name
+  q.items.forEach((i) => {
+    if (i.bundle)
+      html = html.replace(
+        `<b class="qt-link">${E(i.n)}</b>`,
+        `<b class="qt-link">${E(i.n)}</b> <span class="chip">Bundle: ${E(i.bundle)}</span>`
+      );
+  });
+  return html;
+};
+
+// ---------- settings ----------
+const SETTINGS_SECTIONS_BeforePB = SETTINGS_SECTIONS;
+SETTINGS_SECTIONS = function () {
+  const base = SETTINGS_SECTIONS_BeforePB.apply(this, arguments),
+    ix = base.findIndex((s) => s[0] === 'limits');
+  if (S.role !== 'rep' && !base.some((s) => s[0] === 'pricebook'))
+    base.splice(ix < 0 ? base.length : ix, 0, ['pricebook', 'Price book', 'sell']);
+  return base;
+};
+const tiersText = (arr) =>
+  cleanTiers(arr)
+    .map((t) => `${t.min}:${t.pct}`)
+    .join(', ');
+const parseTiersText = (s) =>
+  cleanTiers(
+    String(s || '')
+      .split(/[,;\n]/)
+      .map((x) => x.split(':'))
+      .filter((a) => a.length === 2)
+      .map(([m, p]) => ({ min: m, pct: p }))
+  );
+function pbTierRows() {
+  const t = priceBook().tiers;
+  return t
+    .map(
+      (r, k) =>
+        `<tr><td><input class="inp" type="number" min="2" value="${r.min}" aria-label="From quantity" onchange="pbSetTier(${k},'min',this.value)"></td><td><input class="inp" type="number" min="0" max="100" step="0.1" value="${r.pct}" aria-label="Discount percent" onchange="pbSetTier(${k},'pct',this.value)"></td><td><button class="btn" onclick="pbDelTier(${k})" aria-label="Remove tier"><span class="ms">delete</span></button></td></tr>`
+    )
+    .join('');
+}
+function pbSetTier(k, f, v) {
+  if (!canManagePriceBook()) return;
+  const t = priceBook().tiers[k];
+  if (!t) return;
+  t[f] = +v;
+  save();
+  render();
+}
+function pbAddTier() {
+  if (!canManagePriceBook()) return;
+  const t = priceBook().tiers,
+    last = t.length ? Math.max(...t.map((x) => +x.min || 0)) : 1;
+  t.push({ min: last + 2, pct: 0 });
+  save();
+  render();
+}
+function pbDelTier(k) {
+  if (!canManagePriceBook()) return;
+  priceBook().tiers.splice(k, 1);
+  save();
+  render();
+}
+function pbSaveTiers() {
+  if (!canManagePriceBook()) return;
+  const pb = priceBook(),
+    clean = cleanTiers(pb.tiers);
+  if (clean.length !== pb.tiers.length)
+    return toast('Each tier needs a quantity of 2 or more and a discount of 0–100%');
+  const qs = clean.map((t) => t.min);
+  if (new Set(qs).size !== qs.length) return toast('Two tiers cannot start at the same quantity');
+  pb.tiers = clean;
+  save();
+  toast('Volume tiers saved');
+  render();
+}
+function pbSetProduct(code, f, v) {
+  if (!canManagePriceBook()) return;
+  const p = S.products.find((x) => x.code === code);
+  if (!p) return;
+  const n = f === 'tiers' ? parseTiersText(v) : +v;
+  const next = { ...p, [f]: n };
+  if (
+    f !== 'tiers' &&
+    !(next.minPrice > 0 && next.minPrice <= next.listPrice && next.listPrice <= next.maxPrice)
+  ) {
+    toast('Prices must satisfy minimum ≤ list ≤ maximum');
+    return render();
+  }
+  Object.assign(p, next);
+  if (f === 'tiers' && !n.length) delete p.tiers;
+  save();
+  toast('Price book updated');
+  render();
+}
+function openBundleForm(id = '') {
+  if (!canManagePriceBook()) return toast('Only Admin and CEO can manage bundles');
+  const b = priceBook().bundles.find((x) => x.id === id) || {},
+    qty = (c) => (b.items || []).find((i) => i.c === c)?.q || 0;
+  $('#modal').innerHTML =
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><form class="card p-5 w-full max-w-lg max-h-full overflow-auto space-y-3" onsubmit="saveBundle(event,'${E(id)}')"><h2 class="text-lg font-bold">${id ? 'Edit' : 'New'} bundle</h2>` +
+    `<label class="block">Bundle name *<input class="inp" name="name" required value="${E(b.name || '')}"></label>` +
+    `<label class="block">Bundle discount % *<input class="inp" name="pct" type="number" min="0" max="100" step="0.1" required value="${b.pct ?? 10}"></label>` +
+    `<div><b>Products and quantity</b><div class="grid gap-1 mt-1">${S.products
+      .filter((p) => p.active !== false)
+      .map(
+        (p) =>
+          `<label class="flex items-center gap-2"><input class="inp" style="width:80px" type="number" min="0" name="q_${E(p.code)}" value="${qty(p.code)}"><span>${E(p.name)} <span class="mut text-xs">${E(p.code)} · ${M(p.listPrice)}</span></span></label>`
+      )
+      .join(
+        ''
+      )}</div><p class="mut text-xs">Leave the quantity at 0 to leave a product out.</p></div>` +
+    `<label class="flex items-center gap-2"><input type="checkbox" name="active" ${b.active !== false ? 'checked' : ''}> Available on quotes</label>` +
+    `<div class="flex justify-end gap-2"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">Save bundle</button></div></form></div>`;
+}
+function saveBundle(e, id) {
+  e.preventDefault();
+  if (!canManagePriceBook()) return;
+  const fd_ = new FormData(e.target),
+    name = (fd_.get('name') || '').trim(),
+    pct = Math.round(+fd_.get('pct') * 10) / 10,
+    items = S.products
+      .map((p) => ({ c: p.code, q: Math.floor(+fd_.get('q_' + p.code) || 0) }))
+      .filter((i) => i.q > 0);
+  if (!name) return toast('Name the bundle');
+  if (items.length < 2) return toast('A bundle needs at least two products');
+  if (!(pct >= 0 && pct <= 100)) return toast('Discount must be 0–100%');
+  const pb = priceBook();
+  if (pb.bundles.some((b) => b.name.toLowerCase() === name.toLowerCase() && b.id !== id))
+    return toast('A bundle with this name already exists');
+  const rec = {
+    id: id || 'b' + Date.now().toString(36),
+    name,
+    pct,
+    items,
+    active: !!fd_.get('active'),
+  };
+  const ix = pb.bundles.findIndex((b) => b.id === id);
+  if (ix >= 0) pb.bundles[ix] = rec;
+  else pb.bundles.push(rec);
+  $('#modal').innerHTML = '';
+  save();
+  toast('Bundle saved');
+  render();
+}
+function deleteBundle(id) {
+  if (!canManagePriceBook()) return;
+  const pb = priceBook();
+  pb.bundles = pb.bundles.filter((b) => b.id !== id);
+  save();
+  render();
+}
+SETTINGS_PANELS.pricebook = function () {
+  const ok = canManagePriceBook(),
+    pb = priceBook(),
+    dis = ok ? '' : 'disabled';
+  const bundleList = pb.bundles.length
+    ? pb.bundles
+        .map((b) => {
+          const list = b.items.reduce(
+            (s, i) => s + ((S.products.find((p) => p.code === i.c) || {}).listPrice || 0) * i.q,
+            0
+          );
+          return `<tr><td><b>${E(b.name)}</b>${b.active === false ? ' <span class="chip">Off</span>' : ''}</td><td>${b.items.map((i) => `${i.q}× ${E(i.c)}`).join(', ')}</td><td class="text-right">${b.pct}%</td><td class="text-right">${M(list * (1 - b.pct / 100))}</td><td class="text-right">${ok ? `<button class="btn" onclick="openBundleForm('${E(b.id)}')">Edit</button> <button class="btn" onclick="deleteBundle('${E(b.id)}')" aria-label="Delete bundle"><span class="ms">delete</span></button>` : ''}</td></tr>`;
+        })
+        .join('')
+    : '<tr><td colspan="5" class="mut">No bundles yet</td></tr>';
+  const prodRows = S.products
+    .map(
+      (p) =>
+        `<tr><td><b>${E(p.name)}</b><div class="mut text-xs">${E(p.code)}</div></td><td><input class="inp" type="number" min="0.01" step="0.01" value="${p.minPrice}" ${dis} aria-label="Minimum price" onchange="pbSetProduct('${E(p.code)}','minPrice',this.value)"></td><td><input class="inp" type="number" min="0.01" step="0.01" value="${p.listPrice}" ${dis} aria-label="List price" onchange="pbSetProduct('${E(p.code)}','listPrice',this.value)"></td><td><input class="inp" type="number" min="0.01" step="0.01" value="${p.maxPrice}" ${dis} aria-label="Maximum price" onchange="pbSetProduct('${E(p.code)}','maxPrice',this.value)"></td><td><input class="inp" placeholder="uses global tiers" value="${E(tiersText(p.tiers))}" ${dis} aria-label="Product tiers" onchange="pbSetProduct('${E(p.code)}','tiers',this.value)"></td></tr>`
+    )
+    .join('');
+  return (
+    secHead('sell', 'Price book', 'Volume tiers, bundles and price limits used on every quote.') +
+    (ok ? '' : '<p class="mut">Only Admin and CEO can change the price book.</p>') +
+    `<h3 class="font-bold mt-2">Volume tiers (all products)</h3><p class="mut text-xs mb-2">Used by “Apply Tiered Discount”. A line gets the discount of the highest tier its quantity reaches, but never below the product's minimum price.</p><div class="overflow-x-auto"><table class="w-full"><thead><tr><th class="text-left">From quantity</th><th class="text-left">Discount %</th><th></th></tr></thead><tbody>${pbTierRows()}</tbody></table></div>${ok ? '<div class="flex gap-2 mt-2"><button class="btn" onclick="pbAddTier()"><span class="ms">add</span>Add tier</button><button class="btn btn-p" onclick="pbSaveTiers()">Save tiers</button></div>' : ''}` +
+    `<h3 class="font-bold mt-5">Bundles</h3><div class="overflow-x-auto"><table class="w-full"><thead><tr><th class="text-left">Name</th><th class="text-left">Contents</th><th class="text-right">Discount</th><th class="text-right">Bundle price</th><th></th></tr></thead><tbody>${bundleList}</tbody></table></div>${ok ? '<button class="btn mt-2" onclick="openBundleForm()"><span class="ms">add</span>New bundle</button>' : ''}` +
+    `<h3 class="font-bold mt-5">Price limits &amp; product tiers</h3><p class="mut text-xs mb-2">Minimum ≤ list ≤ maximum. Type tiers for one product as <code>quantity:percent</code>, e.g. <code>3:8, 10:15</code>. Leave empty to use the global tiers.</p><div class="overflow-x-auto"><table class="w-full"><thead><tr><th class="text-left">Product</th><th class="text-left">Min ₹</th><th class="text-left">List ₹</th><th class="text-left">Max ₹</th><th class="text-left">Tiers</th></tr></thead><tbody>${prodRows}</tbody></table></div>`
+  );
+};
+
+// Billing: GST-ready invoices, partial payments and balance due, overdue reminders,
+// invoice PDF (print), and the Close Won prompt once an invoice is paid in full.
+
+// ---------- company & GST settings ----------
+const INDIAN_STATES = {
+  '01': 'Jammu & Kashmir',
+  '02': 'Himachal Pradesh',
+  '03': 'Punjab',
+  '04': 'Chandigarh',
+  '05': 'Uttarakhand',
+  '06': 'Haryana',
+  '07': 'Delhi',
+  '08': 'Rajasthan',
+  '09': 'Uttar Pradesh',
+  10: 'Bihar',
+  11: 'Sikkim',
+  12: 'Arunachal Pradesh',
+  13: 'Nagaland',
+  14: 'Manipur',
+  15: 'Mizoram',
+  16: 'Tripura',
+  17: 'Meghalaya',
+  18: 'Assam',
+  19: 'West Bengal',
+  20: 'Jharkhand',
+  21: 'Odisha',
+  22: 'Chhattisgarh',
+  23: 'Madhya Pradesh',
+  24: 'Gujarat',
+  26: 'Dadra & Nagar Haveli and Daman & Diu',
+  27: 'Maharashtra',
+  29: 'Karnataka',
+  30: 'Goa',
+  31: 'Lakshadweep',
+  32: 'Kerala',
+  33: 'Tamil Nadu',
+  34: 'Puducherry',
+  35: 'Andaman & Nicobar',
+  36: 'Telangana',
+  37: 'Andhra Pradesh',
+  38: 'Ladakh',
+};
+const GSTIN_RX = /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+const stateOfGstin = (g) => INDIAN_STATES[String(g || '').slice(0, 2)] || '';
+const stateOptions = (sel) =>
+  `<option value="">Select state…</option>` +
+  Object.values(INDIAN_STATES)
+    .sort()
+    .map((s) => `<option ${s === sel ? 'selected' : ''}>${E(s)}</option>`)
+    .join('');
+function companyInfo() {
+  S.settings = S.settings || {};
+  const c = S.settings.company || (S.settings.company = {});
+  if (c.defaultGst === undefined) c.defaultGst = 18;
+  if (!c.priceMode) c.priceMode = 'inclusive';
+  if (c.gstEnabled === undefined) c.gstEnabled = true;
+  if (c.reminderEveryDays === undefined) c.reminderEveryDays = 3;
+  return c;
+}
+const canManageBilling = () => ['admin', 'ceo'].includes(S.role);
+
+SETTINGS_PANELS.company = function () {
+  const c = companyInfo(),
+    ok = canManageBilling(),
+    dis = ok ? '' : 'disabled',
+    f = (label, name, val, extra = '') =>
+      settingsField(
+        label,
+        `<input class="inp" name="${name}" value="${E(val || '')}" ${dis} ${extra}>`
+      );
+  return (
+    secHead(
+      'receipt_long',
+      'Company & GST',
+      'Printed on every invoice. Needed for GST-ready tax invoices.'
+    ) +
+    `<form class="grid md:grid-cols-2 gap-3" onsubmit="saveCompany(event)">` +
+    f('Company name *', 'name', c.name, 'required') +
+    f(
+      'GSTIN',
+      'gstin',
+      c.gstin,
+      'maxlength="15" placeholder="27ABCDE1234F1Z5" style="text-transform:uppercase"'
+    ) +
+    f('PAN', 'pan', c.pan, 'maxlength="10"') +
+    settingsField(
+      'State (place of supply for your business) *',
+      `<select class="inp" name="state" ${dis}>${stateOptions(c.state)}</select>`
+    ) +
+    `<div class="md:col-span-2">${settingsField('Registered address', `<textarea class="inp" name="address" rows="3" ${dis}>${E(c.address || '')}</textarea>`)}</div>` +
+    f('Email', 'email', c.email, 'type="email"') +
+    f('Phone', 'phone', c.phone) +
+    settingsField(
+      'GST on invoices',
+      `<select class="inp" name="gstEnabled" ${dis}><option value="yes" ${c.gstEnabled ? 'selected' : ''}>Charge GST</option><option value="no" ${!c.gstEnabled ? 'selected' : ''}>No GST (plain invoice)</option></select>`
+    ) +
+    settingsField(
+      'Default GST rate % (when a product has none)',
+      `<input class="inp" name="defaultGst" type="number" min="0" max="40" step="0.01" value="${c.defaultGst}" ${dis}>`
+    ) +
+    settingsField(
+      'Prices on quotes are',
+      `<select class="inp" name="priceMode" ${dis}><option value="inclusive" ${c.priceMode === 'inclusive' ? 'selected' : ''}>GST inclusive (invoice total = quote total)</option><option value="exclusive" ${c.priceMode === 'exclusive' ? 'selected' : ''}>GST exclusive (GST added on top)</option></select>`
+    ) +
+    settingsField(
+      'Remind about overdue invoices every (days)',
+      `<input class="inp" name="reminderEveryDays" type="number" min="1" max="60" value="${c.reminderEveryDays}" ${dis}>`
+    ) +
+    `<div class="md:col-span-2">${settingsField('Bank details (shown on invoice)', `<textarea class="inp" name="bank" rows="3" ${dis} placeholder="Bank, A/c no., IFSC, UPI">${E(c.bank || '')}</textarea>`)}</div>` +
+    (ok
+      ? `<div class="md:col-span-2 flex justify-end"><button class="btn btn-p">Save company details</button></div>`
+      : '<p class="mut md:col-span-2">Only Admin and CEO can change these details.</p>') +
+    `</form>`
+  );
+};
+function saveCompany(e) {
+  e.preventDefault();
+  if (!canManageBilling()) return toast('Only Admin and CEO can change company details');
+  const v = Object.fromEntries(new FormData(e.target)),
+    gstin = (v.gstin || '').trim().toUpperCase();
+  if (!(v.name || '').trim()) return toast('Enter the company name');
+  if (gstin && !GSTIN_RX.test(gstin))
+    return toast('That GSTIN does not look right (15 characters)');
+  const state = v.state || stateOfGstin(gstin);
+  if (gstin && stateOfGstin(gstin) && state && stateOfGstin(gstin) !== state)
+    return toast('GSTIN state code does not match the selected state');
+  const rate = +v.defaultGst;
+  if (!(rate >= 0 && rate <= 40)) return toast('Enter a GST rate between 0 and 40');
+  Object.assign(companyInfo(), {
+    name: v.name.trim(),
+    gstin,
+    pan: (v.pan || '').trim().toUpperCase(),
+    state,
+    address: (v.address || '').trim(),
+    email: (v.email || '').trim(),
+    phone: (v.phone || '').trim(),
+    bank: (v.bank || '').trim(),
+    gstEnabled: v.gstEnabled === 'yes',
+    defaultGst: rate,
+    priceMode: v.priceMode,
+    reminderEveryDays: Math.max(1, Math.floor(+v.reminderEveryDays || 3)),
+  });
+  save();
+  toast('Company details saved');
+  render();
+}
+const SETTINGS_SECTIONS_BeforeBilling = SETTINGS_SECTIONS;
+SETTINGS_SECTIONS = function () {
+  const base = SETTINGS_SECTIONS_BeforeBilling.apply(this, arguments);
+  if (S.role !== 'rep' && !base.some((s) => s[0] === 'company'))
+    base.splice(
+      Math.max(
+        0,
+        base.findIndex((s) => s[0] === 'limits')
+      ),
+      0,
+      ['company', 'Company & GST', 'receipt_long']
+    );
+  return base;
+};
+
+// ---------- account GSTIN / state ----------
+const accountGst = (name) => {
+  const a = (S.accountInfo || {})[name] || {};
+  return { gstin: a.gstin || '', state: a.state || stateOfGstin(a.gstin) };
+};
+const openAccountEditorBeforeGst = openAccountEditor;
+openAccountEditor = function (name) {
+  openAccountEditorBeforeGst.apply(this, arguments);
+  const form = $('#modal form');
+  if (!form) return;
+  const g = accountGst(name),
+    block = document.createElement('div');
+  block.className = 'grid grid-cols-2 gap-3';
+  block.innerHTML = `<label class="block">GSTIN<input class="inp mt-1" name="gstin" maxlength="15" value="${E(g.gstin)}" placeholder="Customer GSTIN" style="text-transform:uppercase"></label><label class="block">State<select class="inp mt-1" name="state">${stateOptions(g.state)}</select></label>`;
+  form.querySelector('.flex.justify-end').before(block);
+};
+const saveAccountAddressBeforeGst = saveAccountAddress;
+saveAccountAddress = function (e, name) {
+  if (!canEditAddress()) return saveAccountAddressBeforeGst.apply(this, arguments);
+  const v = Object.fromEntries(new FormData(e.target)),
+    gstin = (v.gstin || '').trim().toUpperCase();
+  if (gstin && !GSTIN_RX.test(gstin)) {
+    e.preventDefault();
+    return toast('That GSTIN does not look right (15 characters)');
+  }
+  saveAccountAddressBeforeGst.apply(this, arguments);
+  if (S.accountInfo[name]) {
+    S.accountInfo[name].gstin = gstin;
+    S.accountInfo[name].state = v.state || stateOfGstin(gstin);
+    save();
+  }
+};
+
+// ---------- tax calculation ----------
+const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+function liveGst(i) {
+  const c = companyInfo(),
+    a = accountGst(i.account),
+    info = (S.accountInfo || {})[i.account] || {},
+    rates = {},
+    hsn = {};
+  (i.items || []).forEach((it) => {
+    const p = S.products.find((x) => x.code === it.c) || {};
+    rates[it.c] = c.gstEnabled
+      ? p.gst !== undefined && p.gst !== '' && p.gst !== null
+        ? +p.gst
+        : +c.defaultGst || 0
+      : 0;
+    hsn[it.c] = p.hsn || '';
+  });
+  return {
+    enabled: !!c.gstEnabled,
+    mode: c.priceMode,
+    intra: !(c.state && a.state) || c.state === a.state,
+    rates,
+    hsn,
+    company: {
+      name: c.name,
+      gstin: c.gstin,
+      pan: c.pan,
+      state: c.state,
+      address: c.address,
+      email: c.email,
+      phone: c.phone,
+      bank: c.bank,
+    },
+    customer: {
+      gstin: a.gstin,
+      state: a.state,
+      address: info.address || '',
+      shipping: info.shipping || '',
+    },
+  };
+}
+const invGst = (i) => i.gst || liveGst(i);
+function invoiceCalc(i) {
+  const g = invGst(i);
+  const lines = (i.items || []).map((it) => {
+    const net = it.p * (1 - (it.d || 0) / 100) * it.q,
+      rate = +g.rates[it.c] || 0,
+      taxable = g.mode === 'inclusive' ? net / (1 + rate / 100) : net,
+      tax = (taxable * rate) / 100;
+    return {
+      it,
+      rate,
+      hsn: g.hsn[it.c] || '',
+      taxable: r2(taxable),
+      cgst: g.intra ? r2(tax / 2) : 0,
+      sgst: g.intra ? r2(tax / 2) : 0,
+      igst: g.intra ? 0 : r2(tax),
+      amount: r2(taxable + tax),
+    };
+  });
+  const sum = (k) => r2(lines.reduce((s, l) => s + l[k], 0)),
+    gross = sum('amount'),
+    payable = Math.round(gross),
+    byRate = {};
+  lines.forEach((l) => {
+    const k = l.hsn + '|' + l.rate,
+      r =
+        byRate[k] ||
+        (byRate[k] = { hsn: l.hsn, rate: l.rate, taxable: 0, cgst: 0, sgst: 0, igst: 0 });
+    ['taxable', 'cgst', 'sgst', 'igst'].forEach((f) => (r[f] = r2(r[f] + l[f])));
+  });
+  return {
+    g,
+    lines,
+    taxable: sum('taxable'),
+    cgst: sum('cgst'),
+    sgst: sum('sgst'),
+    igst: sum('igst'),
+    gross,
+    roundOff: r2(payable - gross),
+    payable,
+    summary: Object.values(byRate),
+  };
+}
+function rupeesInWords(n) {
+  n = Math.round(Number(n) || 0);
+  if (n === 0) return 'Zero Rupees Only';
+  const ones = [
+      '',
+      'One',
+      'Two',
+      'Three',
+      'Four',
+      'Five',
+      'Six',
+      'Seven',
+      'Eight',
+      'Nine',
+      'Ten',
+      'Eleven',
+      'Twelve',
+      'Thirteen',
+      'Fourteen',
+      'Fifteen',
+      'Sixteen',
+      'Seventeen',
+      'Eighteen',
+      'Nineteen',
+    ],
+    tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'],
+    two = (x) => (x < 20 ? ones[x] : tens[Math.floor(x / 10)] + (x % 10 ? ' ' + ones[x % 10] : '')),
+    three = (x) =>
+      x >= 100
+        ? ones[Math.floor(x / 100)] + ' Hundred' + (x % 100 ? ' ' + two(x % 100) : '')
+        : two(x);
+  const parts = [];
+  [
+    [1e7, 'Crore'],
+    [1e5, 'Lakh'],
+    [1e3, 'Thousand'],
+  ].forEach(([d, name]) => {
+    const q = Math.floor(n / d);
+    if (q) parts.push(three(q) + ' ' + name);
+    n %= d;
+  });
+  if (n) parts.push(three(n));
+  return parts.join(' ') + ' Rupees Only';
+}
+
+// ---------- payments ----------
+const PAY_METHODS = ['Bank transfer (NEFT/RTGS/IMPS)', 'UPI', 'Cheque', 'Cash', 'Card', 'Other'];
+const invPayable = (i) => invoiceCalc(i).payable;
+function invPaid(i) {
+  if (!(i.payments || []).length) return i.status === 'Paid' ? invPayable(i) : 0;
+  return r2(i.payments.reduce((s, p) => s + p.amount, 0));
+}
+const invBalance = (i) => Math.max(0, r2(invPayable(i) - invPaid(i)));
+function invDueDate(i) {
+  if (i.dueDate) return i.dueDate;
+  const t = String(i.terms || ''),
+    n = /receipt|immediate/i.test(t) ? 0 : (t.match(/(\d+)/) || [0, 30])[1],
+    base = new Date(i.sentAt || i.generatedAt || Date.now());
+  return new Date(base.getTime() + n * 864e5).toISOString().slice(0, 10);
+}
+const invIsOpen = (i) => ['Submitted to client', 'Partially paid'].includes(i.status);
+const invOverdueDays = (i) =>
+  invIsOpen(i) && invBalance(i) > 0 ? Math.max(0, -days(invDueDate(i))) : 0;
+const invStatusChip = (i) => {
+  const od = invOverdueDays(i);
+  return i.status === 'Paid'
+    ? '<span class="chip ok">Paid</span>'
+    : od
+      ? `<span class="chip" style="background:var(--err);color:#fff">Overdue ${od}d</span>`
+      : i.status === 'Partially paid'
+        ? '<span class="chip wr">Partially paid</span>'
+        : `<span class="chip">${E(i.status)}</span>`;
+};
+function openPaymentForm(id) {
+  const i = S.invoices.find((x) => x.id === id);
+  if (!i) return;
+  if (!canManageBilling()) return toast('Only Admin and CEO can record payments');
+  if (!invIsOpen(i))
+    return toast(
+      i.status === 'Paid'
+        ? 'This invoice is already paid'
+        : 'Submit the invoice to the client first'
+    );
+  $('#modal').innerHTML =
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><form class="card p-5 w-full max-w-md max-h-full overflow-auto space-y-3" onsubmit="recordPayment(event,'${E(id)}')"><h2 class="text-lg font-bold">Record payment — ${E(i.invoiceNo)}</h2>` +
+    `<div class="p-3 rounded text-sm" style="background:var(--hov)">Invoice total <b>${M(invPayable(i))}</b> · Received <b>${M(invPaid(i))}</b> · Balance due <b>${M(invBalance(i))}</b></div>` +
+    `<label class="block">Amount received (₹) *<input class="inp" name="amount" type="number" min="1" max="${invBalance(i)}" step="0.01" required value="${invBalance(i)}"></label>` +
+    `<label class="block">Date received *<input class="inp" name="date" type="date" required value="${D(0)}" max="${D(0)}"></label>` +
+    `<label class="block">Method<select class="inp" name="method">${PAY_METHODS.map((m) => `<option>${m}</option>`).join('')}</select></label>` +
+    `<label class="block">Reference (UTR / cheque no.)<input class="inp" name="ref"></label>` +
+    `<label class="block">Note<input class="inp" name="note"></label>` +
+    `<div class="flex justify-end gap-2"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">Record payment</button></div></form></div>`;
+  $('#modal [name=amount]').focus();
+}
+function recordPayment(e, id) {
+  e.preventDefault();
+  const i = S.invoices.find((x) => x.id === id),
+    v = Object.fromEntries(new FormData(e.target)),
+    amt = r2(v.amount);
+  if (!i || !canManageBilling() || !invIsOpen(i)) return;
+  if (!(amt > 0)) return toast('Enter the amount received');
+  if (amt > invBalance(i) + 0.001)
+    return toast(`Amount is more than the balance due (${M(invBalance(i))})`);
+  if (!v.date || v.date > D(0)) return toast('Payment date cannot be in the future');
+  i.gst = i.gst || liveGst(i); // freeze the tax figures once money is received
+  if (!(i.payments || []).length && i.status === 'Paid') i.payments = [];
+  i.payments = [
+    ...(i.payments || []),
+    {
+      id: 'pay' + Date.now().toString(36),
+      amount: amt,
+      date: v.date,
+      method: v.method,
+      ref: (v.ref || '').trim(),
+      note: (v.note || '').trim(),
+      by: roleNow().name,
+      at: Date.now(),
+    },
+  ];
+  const left = invBalance(i);
+  i.status = left <= 0.5 ? 'Paid' : 'Partially paid';
+  logOpp(
+    i.opp,
+    'sync',
+    `Payment of ${M(amt)} recorded on ${i.invoiceNo} by ${roleNow().name}${left > 0.5 ? ` · balance ${M(left)}` : ' · paid in full'}`
+  );
+  if (i.status === 'Paid') {
+    i.paidAt = Date.now();
+    const q = S.quotes.find((x) => x.no === i.quoteNo);
+    if (q) q.status = 'Paid';
+    const o = S.opps.find((x) => x.id == i.opp);
+    if (o && !(o.stage === 5 && !o.lost))
+      queuePopup({ kind: 'bill-paidfull', inv: i.id, toRole: 'admin', by: S.authUser });
+  }
+  $('#modal').innerHTML = '';
+  save();
+  if (i.status === 'Paid') setTimeout(() => showBillPopup({ kind: 'bill-paidfull', inv: i.id }), 0);
+  toast(i.status === 'Paid' ? 'Paid in full' : `Payment recorded · balance ${M(left)}`);
+  render();
+}
+function deletePayment(id, pid) {
+  const i = S.invoices.find((x) => x.id === id);
+  if (!i || !canManageBilling() || !confirm('Remove this payment entry?')) return;
+  const o = S.opps.find((x) => x.id == i.opp);
+  if (o && o.stage === 5 && !o.lost) return toast('The deal is already Closed Won');
+  i.payments = (i.payments || []).filter((p) => p.id !== pid);
+  i.status = !i.payments.length
+    ? 'Submitted to client'
+    : invBalance(i) <= 0.5
+      ? 'Paid'
+      : 'Partially paid';
+  if (i.status !== 'Paid') {
+    delete i.paidAt;
+    const q = S.quotes.find((x) => x.no === i.quoteNo);
+    if (q && q.status === 'Paid') q.status = 'Sent to client';
+  }
+  logOpp(i.opp, 'sync', `A payment entry was removed from ${i.invoiceNo} by ${roleNow().name}`);
+  save();
+  render();
+}
+// the old "Mark as paid" now records the full balance
+markInvoicePaid = function (id) {
+  const i = S.invoices.find((x) => x.id === id);
+  if (!i) return;
+  openPaymentForm(id);
+};
+const sendInvoiceBeforeBilling = sendInvoice;
+sendInvoice = function (id) {
+  const i = S.invoices.find((x) => x.id === id);
+  if (i && !i.gst) {
+    i.gst = liveGst(i); // tax details are fixed once the invoice goes to the client
+    i.dueDate = undefined;
+  }
+  sendInvoiceBeforeBilling.apply(this, arguments);
+  if (i) {
+    i.dueDate = invDueDate(i);
+    save();
+  }
+};
+
+// ---------- Close Won prompt ----------
+function showBillPopup(p) {
+  const i = S.invoices.find((x) => x.id === p.inv),
+    o = i && S.opps.find((x) => x.id == i.opp);
+  if (!i && p.kind !== 'bill-overdue') return;
+  if (p.kind === 'bill-paidfull')
+    return showPopup({
+      tone: 'ok',
+      icon: 'paid',
+      title: `${E(i.invoiceNo)} is paid in full`,
+      lines: [
+        `${E(i.account)} has paid ${M(invPayable(i))}.`,
+        o ? `Mark <b>${E(o.name)}</b> as Closed Won?` : '',
+      ],
+      actions:
+        o && !(o.stage === 5 && !o.lost)
+          ? [{ label: 'Mark Closed Won', js: `openClosedWon(S.opps.find(x=>x.id==${o.id}))` }]
+          : [],
+    });
+  if (p.kind === 'bill-overdue') {
+    const list = S.invoices
+      .filter((x) => invOverdueDays(x) > 0)
+      .sort((a, b) => invOverdueDays(b) - invOverdueDays(a));
+    return showPopup({
+      tone: 'err',
+      icon: 'schedule',
+      title: `${list.length} overdue invoice${list.length === 1 ? '' : 's'}`,
+      lines: list
+        .slice(0, 5)
+        .map(
+          (x) =>
+            `<b>${E(x.invoiceNo)}</b> · ${E(x.account)} · ${M(invBalance(x))} · ${invOverdueDays(x)} days late`
+        )
+        .concat(list.length > 5 ? [`and ${list.length - 5} more`] : []),
+      actions: [{ label: 'View overdue', js: `S.invFilter='overdue';nav('invoices')` }],
+    });
+  }
+}
+// One overdue digest per person per day.
+function queueOverdueDigest() {
+  if (!S.authUser || !canSeeInvoices()) return;
+  const k = S.authUser + '|' + D(0);
+  S.overdueSeen = S.overdueSeen || {};
+  if (S.overdueSeen[k] || !S.invoices.some((x) => invOverdueDays(x) > 0)) return;
+  S.overdueSeen[k] = 1;
+  queuePopup({ kind: 'bill-overdue', toUser: S.authUser, id_: k });
+  save();
+  setTimeout(showNextPopup, 0);
+}
+// Safety net: an invoice paid in full whose deal is still open reminds Admin / CEO on the deal and invoice pages.
+const needsCloseWon = (i) => {
+  const o = S.opps.find((x) => x.id == i.opp);
+  return i.status === 'Paid' && o && !(o.stage === 5 && !o.lost) && canManageBilling();
+};
+
+// ---------- reminders ----------
+function reminderText(i) {
+  const c = companyInfo(),
+    od = invOverdueDays(i);
+  return `Hello,\n\nThis is a friendly reminder that invoice ${i.invoiceNo} for ${i.account} ${od ? `was due on ${fd(invDueDate(i))} and is now ${od} day${od === 1 ? '' : 's'} overdue` : `is due on ${fd(invDueDate(i))}`}.\n\nInvoice total: ${M(invPayable(i))}\nReceived: ${M(invPaid(i))}\nBalance due: ${M(invBalance(i))}\n\nKindly arrange the payment at the earliest.${c.bank ? '\n\nBank details:\n' + c.bank : ''}\n\nThank you,\n${roleNow().name}\n${c.name || ''}`;
+}
+function openReminder(id) {
+  const i = S.invoices.find((x) => x.id === id);
+  if (!i || !canManageBilling()) return toast('Only Admin and CEO can send reminders');
+  const q = S.quotes.find((x) => x.no === i.quoteNo) || {},
+    ch = S.sendChan === 'whatsapp' ? 'whatsapp' : 'email';
+  $('#modal').innerHTML =
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><form class="card p-5 w-full max-w-lg max-h-full overflow-auto space-y-3" onsubmit="sendReminder(event,'${E(id)}')"><h2 class="text-lg font-bold">Payment reminder — ${E(i.invoiceNo)}</h2>` +
+    `<div class="flex gap-2"><button type="button" class="btn ${ch === 'email' ? 'btn-p' : ''}" onclick="S.sendChan='email';openReminder('${E(id)}')"><span class="ms">mail</span>Email</button><button type="button" class="btn ${ch === 'whatsapp' ? 'btn-p' : ''}" onclick="S.sendChan='whatsapp';openReminder('${E(id)}')"><span class="ms">chat</span>WhatsApp</button></div><input type="hidden" name="chan" value="${ch}">` +
+    (ch === 'email'
+      ? `<label class="block">To (email) *<input class="inp" type="email" name="to" required value="${E(q.toEmail || '')}"></label><label class="block">Subject<input class="inp" name="subject" value="${E(`Payment reminder – ${i.invoiceNo}`)}"></label>`
+      : `<label class="block">WhatsApp number *<input class="inp" type="tel" name="to" required value="${E(q.toPhone || '')}"></label>`) +
+    `<label class="block">Message<textarea class="inp" name="msg" rows="9">${E(reminderText(i))}</textarea></label>` +
+    `<div class="flex justify-end gap-2"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">${ch === 'email' ? 'Open email' : 'Open WhatsApp'}</button></div></form></div>`;
+}
+function sendReminder(e, id) {
+  e.preventDefault();
+  const i = S.invoices.find((x) => x.id === id),
+    v = Object.fromEntries(new FormData(e.target)),
+    to = (v.to || '').trim();
+  if (!i || !to) return;
+  if (v.chan === 'email' && !/^\S+@\S+\.\S+$/.test(to)) return toast('Enter a valid email address');
+  if (v.chan === 'whatsapp' && phoneDigits(to).length < 11)
+    return toast('Enter the number with country code');
+  const url =
+    v.chan === 'email'
+      ? `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(v.subject || '')}&body=${encodeURIComponent(v.msg || '')}`
+      : `https://wa.me/${phoneDigits(to)}?text=${encodeURIComponent(v.msg || '')}`;
+  i.reminders = [
+    ...(i.reminders || []),
+    { channel: v.chan, to, at: Date.now(), by: roleNow().name },
+  ];
+  logOpp(
+    i.opp,
+    v.chan === 'email' ? 'mail' : 'sync',
+    `Payment reminder for ${i.invoiceNo} sent to ${to} (${roleNow().name})`
+  );
+  save();
+  $('#modal').innerHTML = '';
+  const a = document.createElement('a');
+  a.href = url;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  toast('Reminder ready to send');
+  render();
+}
+const lastReminder = (i) => (i.reminders || []).slice(-1)[0];
+const reminderDue = (i) =>
+  invOverdueDays(i) > 0 &&
+  (!lastReminder(i) || Date.now() - lastReminder(i).at > companyInfo().reminderEveryDays * 864e5);
+
+// notifications: overdue and due-soon invoices
+const allNotificationItemsBeforeBilling = allNotificationItems;
+allNotificationItems = function () {
+  const items = allNotificationItemsBeforeBilling.apply(this, arguments);
+  if (!canSeeInvoices()) return items;
+  const extra = [];
+  S.invoices.forEach((i) => {
+    if (!invIsOpen(i)) {
+      if (needsCloseWon(i))
+        extra.push({
+          icon: 'paid',
+          text: `${i.invoiceNo} is paid – close the deal`,
+          sub: E(i.account),
+          go: `openInvoice('${E(i.id)}')`,
+        });
+      return;
+    }
+    const od = invOverdueDays(i),
+      left = days(invDueDate(i));
+    if (od)
+      extra.push({
+        icon: 'schedule',
+        text: `${i.invoiceNo} is ${od} day${od === 1 ? '' : 's'} overdue`,
+        sub: `${E(i.account)} · balance ${M(invBalance(i))}`,
+        go: `openInvoice('${E(i.id)}')`,
+      });
+    else if (left <= 3)
+      extra.push({
+        icon: 'event',
+        text: `${i.invoiceNo} is due ${left === 0 ? 'today' : 'in ' + left + ' days'}`,
+        sub: `${E(i.account)} · balance ${M(invBalance(i))}`,
+        go: `openInvoice('${E(i.id)}')`,
+      });
+  });
+  return extra.concat(items);
+};
+const renderBeforeBilling = render;
+render = function () {
+  renderBeforeBilling.apply(this, arguments);
+  queueOverdueDigest();
+};
+
+// ---------- invoice pages ----------
+V.invoices = () => {
+  const all = S.invoices.filter(
+      (i) => S.role !== 'rep' || visibleOpps().some((o) => o.id == i.opp)
+    ),
+    f = S.invFilter || 'all',
+    open = all.filter(invIsOpen),
+    od = all.filter((i) => invOverdueDays(i) > 0),
+    pass = {
+      all: () => true,
+      unpaid: (i) => i.status !== 'Paid',
+      overdue: (i) => invOverdueDays(i) > 0,
+      paid: (i) => i.status === 'Paid',
+    },
+    list = all.filter(pass[f] || pass.all),
+    tile = (label, val, sub = '') =>
+      `<div class="card p-3 flex-1 min-w-[150px]"><div class="mut text-xs">${label}</div><div class="text-xl font-bold">${val}</div><div class="mut text-xs">${sub}</div></div>`,
+    chip = (k, l) =>
+      `<button class="btn ${f === k ? 'btn-p' : ''}" onclick="S.invFilter='${k}';render()">${l}</button>`;
+  return (
+    `<h1 class="text-xl font-bold mb-3">Invoices</h1><div class="flex gap-3 flex-wrap mb-3">${tile('Outstanding', M(open.reduce((s, i) => s + invBalance(i), 0)), open.length + ' open invoices')}${tile('Overdue', `<span style="color:var(--err)">${M(od.reduce((s, i) => s + invBalance(i), 0))}</span>`, od.length + ' invoices')}${tile('Received', M(all.reduce((s, i) => s + invPaid(i), 0)))}</div>` +
+    `<div class="flex gap-2 flex-wrap mb-3">${chip('all', 'All')}${chip('unpaid', 'Unpaid')}${chip('overdue', 'Overdue')}${chip('paid', 'Paid')}</div>` +
+    table(
+      ['Invoice no.', 'Quotation no.', 'Customer', 'Total', 'Paid', 'Balance', 'Due', 'Status'],
+      list
+        .map(
+          (i) =>
+            `<tr class="r" onclick="openInvoice('${i.id}')"><td><b>${i.invoiceNo}</b></td><td>${i.quoteNo}</td><td>${E(i.account)}</td><td>${M(invPayable(i))}</td><td>${M(invPaid(i))}</td><td><b>${M(invBalance(i))}</b></td><td>${invIsOpen(i) ? fd(invDueDate(i)) : '–'}</td><td>${invStatusChip(i)}</td></tr>`
+        )
+        .join('')
+    )
+  );
+};
+V['invoice-detail'] = () => {
+  const i = S.invoices.find((x) => x.id === S.currentInvoice);
+  if (!i) return V.invoices();
+  const c = invoiceCalc(i),
+    admin = canManageBilling(),
+    od = invOverdueDays(i),
+    last = lastReminder(i);
+  const pays = (i.payments || []).length
+    ? `<table class="w-full text-sm"><thead><tr><th class="text-left">Date</th><th class="text-left">Method</th><th class="text-left">Reference</th><th class="text-right">Amount</th><th class="text-left">By</th><th></th></tr></thead><tbody>${i.payments.map((p) => `<tr><td>${fd(p.date)}</td><td>${E(p.method)}</td><td>${E(p.ref || '–')}</td><td class="text-right"><b>${M(p.amount)}</b></td><td>${E(p.by)}</td><td>${admin ? `<button class="btn" aria-label="Remove payment" onclick="deletePayment('${E(i.id)}','${E(p.id)}')"><span class="ms">delete</span></button>` : ''}</td></tr>`).join('')}</tbody></table>`
+    : i.status === 'Paid'
+      ? '<p class="mut">Marked as paid.</p>'
+      : '<p class="mut">No payments recorded yet.</p>';
+  return (
+    `<div class="mut cursor-pointer mb-2" onclick="nav('invoices')">‹ Back to invoices</div><div class="card p-5"><div class="flex gap-3 flex-wrap items-start"><div style="flex:1 1 220px"><h1 class="text-xl font-bold">Invoice ${E(i.invoiceNo)} ${invStatusChip(i)}</h1><p class="mut">From quotation ${E(i.quoteNo)} · Terms ${E(i.terms)}${invIsOpen(i) || i.status === 'Paid' ? ' · Due ' + fd(invDueDate(i)) : ''}</p></div><div class="flex gap-2 flex-wrap"><button class="btn" onclick="openInvoiceSheet('${E(i.id)}')"><span class="ms">description</span>View GST invoice</button><button class="btn" onclick="printInvoice('${E(i.id)}')"><span class="ms">picture_as_pdf</span>Download PDF</button></div></div>` +
+    (needsCloseWon(i)
+      ? `<div class="qt-banner ok mt-3"><span class="ms">paid</span><div><b>Paid in full</b><div>Close the deal once the payment has cleared.</div></div><button class="btn btn-p" onclick="openClosedWon(S.opps.find(x=>x.id==${i.opp}))">Mark Closed Won</button></div>`
+      : '') +
+    (od
+      ? `<div class="qt-banner wr mt-3"><span class="ms">schedule</span><div><b>${od} day${od === 1 ? '' : 's'} overdue</b><div>${last ? `Last reminder ${ago(last.at)} to ${E(last.to)}` : 'No reminder sent yet'}</div></div>${admin ? `<button class="btn btn-p" onclick="openReminder('${E(i.id)}')">Send reminder</button>` : ''}</div>`
+      : '') +
+    `<div class="mt-4"><b>${E(i.account)}</b><div class="mut">${E(i.opportunity)}</div></div><div class="overflow-x-auto">${billLinesTable(i.items, !!i.showDiscount)}</div>` +
+    `<div class="grid sm:grid-cols-2 gap-4 mt-3"><div>${invoiceTermsBlock(i)}</div><div class="text-sm"><div class="flex justify-between"><span>Taxable value</span><span>${M(c.taxable)}</span></div>${c.g.intra ? `<div class="flex justify-between"><span>CGST</span><span>${M(c.cgst)}</span></div><div class="flex justify-between"><span>SGST</span><span>${M(c.sgst)}</span></div>` : `<div class="flex justify-between"><span>IGST</span><span>${M(c.igst)}</span></div>`}<div class="flex justify-between text-lg font-bold mt-1"><span>Grand total</span><span>${M(c.payable)}</span></div><div class="flex justify-between"><span>Received</span><span>${M(invPaid(i))}</span></div><div class="flex justify-between text-lg font-bold" style="color:${invBalance(i) ? 'var(--err)' : 'var(--ok)'}"><span>Balance due</span><span>${M(invBalance(i))}</span></div></div></div>` +
+    `<div class="mt-4"><b>Payments</b><div class="overflow-x-auto">${pays}</div></div>` +
+    `<div class="flex justify-end gap-2 mt-4 flex-wrap">${!invIsOpen(i) && i.status !== 'Paid' ? `<button class="btn btn-p" onclick="sendInvoice('${E(i.id)}')">Submit to client</button>` : ''}${admin && invIsOpen(i) ? `<button class="btn btn-p" onclick="openPaymentForm('${E(i.id)}')"><span class="ms">add_card</span>Record payment</button>` : ''}${admin && invIsOpen(i) ? `<button class="btn" onclick="openReminder('${E(i.id)}')"><span class="ms">notifications_active</span>Send reminder</button>` : ''}</div></div>`
+  );
+};
+
+// ---------- the printable GST invoice ----------
+function invoiceSheetHtml(i) {
+  const c = invoiceCalc(i),
+    g = c.g,
+    co = g.company,
+    cu = g.customer,
+    tax = g.enabled,
+    intra = g.intra,
+    th = (t, r) => `<th class="${r ? 'text-right' : 'text-left'}">${t}</th>`,
+    head = [
+      '#',
+      'Description',
+      tax ? 'HSN/SAC' : '',
+      'Qty',
+      'Rate',
+      'Disc %',
+      'Taxable',
+      ...(tax ? (intra ? ['CGST', 'SGST'] : ['IGST']) : []),
+      'Amount',
+    ].filter((x, k) => x !== '' || k === 0);
+  const rows = c.lines
+    .map(
+      (l, k) =>
+        `<tr><td>${k + 1}</td><td>${E(l.it.n)}<div class="mut text-xs">${E(l.it.c)}</div></td>${tax ? `<td>${E(l.hsn || '–')}</td>` : ''}<td class="text-right">${l.it.q}</td><td class="text-right">${M(l.it.p)}</td><td class="text-right">${l.it.d || 0}%</td><td class="text-right">${M(l.taxable)}</td>${tax ? (intra ? `<td class="text-right">${M(l.cgst)}<div class="mut text-xs">${l.rate / 2}%</div></td><td class="text-right">${M(l.sgst)}<div class="mut text-xs">${l.rate / 2}%</div></td>` : `<td class="text-right">${M(l.igst)}<div class="mut text-xs">${l.rate}%</div></td>`) : ''}<td class="text-right"><b>${M(l.amount)}</b></td></tr>`
+    )
+    .join('');
+  const sumRows = c.summary
+    .map(
+      (s) =>
+        `<tr><td>${E(s.hsn || '–')}</td><td class="text-right">${M(s.taxable)}</td><td class="text-right">${s.rate}%</td><td class="text-right">${M(s.cgst + s.sgst + s.igst)}</td></tr>`
+    )
+    .join('');
+  const addr = (t) => `<div style="white-space:pre-wrap">${E(t || '–')}</div>`;
+  return (
+    `<div class="inv-sheet text-sm"><div class="flex justify-between gap-3 flex-wrap"><div><div class="text-xl font-bold">${E(co.name || 'Your company')}</div>${addr(co.address)}${co.gstin ? `<div>GSTIN: <b>${E(co.gstin)}</b></div>` : ''}${co.pan ? `<div>PAN: ${E(co.pan)}</div>` : ''}${co.state ? `<div>State: ${E(co.state)}</div>` : ''}${co.email || co.phone ? `<div>${E(co.email || '')} ${E(co.phone || '')}</div>` : ''}</div>` +
+    `<div class="text-right"><div class="text-xl font-bold">${tax ? 'TAX INVOICE' : 'INVOICE'}</div><div>No: <b>${E(i.invoiceNo)}</b></div><div>Date: ${fd(new Date(i.sentAt || i.generatedAt || Date.now()).toISOString().slice(0, 10))}</div><div>Due: ${fd(invDueDate(i))}</div><div class="mut">Quotation ${E(i.quoteNo)}</div></div></div>` +
+    `<div class="grid sm:grid-cols-2 gap-3 mt-3"><div><div class="mut text-xs">Bill to</div><b>${E(i.account)}</b>${addr(cu.address)}${cu.gstin ? `<div>GSTIN: <b>${E(cu.gstin)}</b></div>` : ''}</div><div><div class="mut text-xs">Ship to</div>${addr(cu.shipping || cu.address)}${tax ? `<div class="mt-1">Place of supply: <b>${E(cu.state || co.state || '–')}</b> (${intra ? 'intra-state: CGST + SGST' : 'inter-state: IGST'})</div>` : ''}</div></div>` +
+    `<div class="overflow-x-auto mt-3"><table class="w-full inv-table"><thead><tr>${head.map((h, k) => th(h, k > 2)).join('')}</tr></thead><tbody>${rows}</tbody></table></div>` +
+    `<div class="grid sm:grid-cols-2 gap-4 mt-3"><div>${tax ? `<table class="w-full text-xs"><thead><tr><th class="text-left">HSN/SAC</th><th class="text-right">Taxable</th><th class="text-right">Rate</th><th class="text-right">Tax</th></tr></thead><tbody>${sumRows}</tbody></table>` : ''}</div><div><div class="flex justify-between"><span>Taxable value</span><span>${M(c.taxable)}</span></div>${tax ? (intra ? `<div class="flex justify-between"><span>CGST</span><span>${M(c.cgst)}</span></div><div class="flex justify-between"><span>SGST</span><span>${M(c.sgst)}</span></div>` : `<div class="flex justify-between"><span>IGST</span><span>${M(c.igst)}</span></div>`) : ''}${c.roundOff ? `<div class="flex justify-between"><span>Round off</span><span>${c.roundOff > 0 ? '+' : '−'}₹${Math.abs(c.roundOff).toFixed(2)}</span></div>` : ''}<div class="flex justify-between text-lg font-bold" style="border-top:1px solid var(--bd);margin-top:4px;padding-top:4px"><span>Total</span><span>${M(c.payable)}</span></div>${invPaid(i) ? `<div class="flex justify-between"><span>Received</span><span>${M(invPaid(i))}</span></div><div class="flex justify-between font-bold"><span>Balance due</span><span>${M(invBalance(i))}</span></div>` : ''}</div></div>` +
+    `<div class="mt-2"><span class="mut">Amount in words:</span> <b>${rupeesInWords(c.payable)}</b></div>` +
+    (co.bank ? `<div class="mt-3"><b>Bank details</b>${addr(co.bank)}</div>` : '') +
+    `<div class="mt-3"><b>Terms &amp; conditions</b><div style="white-space:pre-wrap" class="text-xs">${E(i.tnc || effectiveTnc(S.quotes.find((q) => q.no === i.quoteNo) || {}))}</div></div>` +
+    `<div class="flex justify-between mt-6 text-xs"><span class="mut">This is a computer generated invoice.</span><span style="text-align:center">For ${E(co.name || 'the company')}<br><br><br>Authorised signatory</span></div></div>`
+  );
+}
+function openInvoiceSheet(id) {
+  const i = S.invoices.find((x) => x.id === id);
+  if (!i) return;
+  if (!companyInfo().name) toast('Add your company & GSTIN in Settings → Company & GST');
+  $('#modal').innerHTML =
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><div class="card p-6 w-full max-w-4xl max-h-full overflow-auto">${invoiceSheetHtml(i)}<div class="flex justify-end gap-2 mt-4 no-print"><button class="btn" onclick="$('#modal').innerHTML=''">Close</button><button class="btn btn-p" onclick="printInvoice('${E(id)}',true)"><span class="ms">picture_as_pdf</span>Download PDF</button></div></div></div>`;
+}
+// Opens the invoice and the browser's print dialog, with the file name set to the invoice number
+// (choose "Save as PDF" as the printer).
+function printInvoice(id, already) {
+  const i = S.invoices.find((x) => x.id === id);
+  if (!i) return;
+  if (!already) openInvoiceSheet(id);
+  const t = document.title;
+  document.title = i.invoiceNo;
+  const back = () => {
+    document.title = t;
+    removeEventListener('afterprint', back);
+  };
+  addEventListener('afterprint', back);
+  window.print();
+}
+
 // Who may create opportunities: Admin, CEO and Senior Reps. Regular reps cannot.
 // "Senior rep" is a rep account with senior = true: same portal and data access, plus permission to add opportunities.
 
@@ -4189,6 +6182,613 @@ addEventListener('hashchange', () => {
   hideInvoiceUi();
   showNextPopup();
 });
+
+// Activity text mentions invoice numbers; people who cannot see invoices only see "invoice".
+function hideInvoiceRefs(text) {
+  return canSeeInvoices()
+    ? text
+    : String(text)
+        .replace(/invoice\s+INV-[\w-]+/gi, 'invoice')
+        .replace(/INV-[\w-]+/g, 'invoice');
+}
+
+// Opportunity record page (Details tab): collapsible field sections on the left, related-list cards on the right.
+
+const BASIC_RIGHT = RIGHT.filter((f) => !['won', 'lost', 'notes', 'desc', 'next'].includes(f[0]));
+const addrRow = (label, key) => (o) => {
+  const info = accountInfo(o.account),
+    pen = canEditAddress()
+      ? `<span class="ms" title="Edit addresses" onclick="openAccountEditor(${E(JSON.stringify(o.account))})">edit</span>`
+      : '';
+  return sfRow(
+    label,
+    `<div style="white-space:pre-wrap">${info[key] ? E(info[key]) : '–'}</div>`,
+    pen
+  );
+};
+const checkRow = (label, ok) =>
+  sfRow(
+    label,
+    `<span class="sf-cb-ro ${ok ? 'on' : ''}" role="img" aria-label="${ok ? 'Yes' : 'No'}">${ok ? '✓' : ''}</span>`
+  );
+const approvedQuote = (o) =>
+  S.quotes.some((q) => q.opp == o.id && ['Approved', 'Sent to client', 'Paid'].includes(q.status));
+const discounts = (o) => o.items.map((i) => +i.d || 0);
+
+const QUAL_KEYS = [
+  'valDriver',
+  'pain',
+  'champion',
+  'decisionCrit',
+  'procProcess',
+  'econBuyer',
+  'demo',
+  'nextDate',
+];
+const CHECK_KEYS = [
+  'ckEula',
+  'ckSec',
+  'ckBudget',
+  'ckMulti',
+  'ckExec',
+  'ckWorkback',
+  'ckBiz',
+  'ckQuote',
+  'ckCLevel',
+  'ckExec2',
+];
+// Money / number fields are stored as numbers.
+const NUM_KEYS = new Set([
+  'priorAmt',
+  'priorArr',
+  'totalFyc',
+  'totalArr',
+  'currentAcv',
+  'priorMyr',
+  'churnAmt',
+  'priceLimit',
+  'longestTerm',
+  'y1',
+  'y2',
+  'y3',
+  'y4',
+  'y5',
+  'avgContract',
+  'arrOrig',
+  'bestCase',
+  'pullFwd',
+  'renewalUsd',
+  'ltcLength',
+]);
+const YESNO = ['', 'Yes', 'No'];
+
+const SF_SECTIONS = [
+  {
+    id: 'info',
+    title: 'Opportunity Information',
+    left: [
+      ...LEFT,
+      ['chNotes', 'Channel initiated notes', 'ta'],
+      ['potMatch', 'Potential matches button', 'b'],
+    ],
+    right: [...BASIC_RIGHT, ['yoy', 'Original YoY', 'n'], ['reasonWon', 'Reason won', 't']],
+  },
+  {
+    id: 'address',
+    title: 'Address Information',
+    left: [addrRow('Billing Address', 'address'), ['acctNs', 'Account NS info', 'ta']],
+    right: [addrRow('Shipping Address', 'shipping')],
+  },
+  {
+    id: 'checklist',
+    title: 'BIG Deal Check List',
+    left: [
+      ['ckEula', 'EULA / Contract signed', 'b'],
+      ['ckSec', 'Security signed off', 'b'],
+      ['ckBudget', 'Budget confirmed', 'b'],
+      ['ckMulti', 'Multi-year presented to finance', 'b'],
+      ['ckExec', 'Executive summary', 'b'],
+    ],
+    right: [
+      ['ckWorkback', 'Workback plan', 'b'],
+      ['ckBiz', 'Business impacted if close date not met', 'b'],
+      ['ckQuote', 'Quote submitted in customer system', 'b'],
+      ['ckCLevel', 'Exec (C-level) approver aware of request', 'b'],
+      ['ckExec2', 'Executive summary', 'b'],
+    ],
+  },
+  {
+    id: 'renewal',
+    title: 'Renewal Opportunity Information',
+    left: [
+      ['priorOpp', 'Prior opportunity', 't'],
+      ['renewalOpp', 'Renewal opportunity', 't'],
+      ['priorInv', 'Prior opp invoice number', 't'],
+      ['priorAmt', 'Prior opportunity amount', 'n'],
+      ['priorArr', 'Prior ARR total', 'n'],
+      ['totalFyc', 'Total FYC value', 'n'],
+      ['totalArr', 'Total ARR value', 'n'],
+      ['currentAcv', 'Current ACV total – quote', 'n'],
+    ],
+    right: [
+      ['renewalDate', 'Renewal date', 'd'],
+      [
+        'renewalStatus',
+        'Renewal status',
+        's',
+        ['Not started', 'In Progress', 'Quoted', 'Renewed', 'Churned'],
+      ],
+      (o) => {
+        const d = gv(o, 'renewalDate');
+        return sfRow('Days left before maint renewal date', d ? days(d) : '–');
+      },
+      ['renewalTag', 'Renewal hashtag', 't'],
+      ['priorMyr', 'Prior opp MYR', 'n'],
+      ['churnAmt', 'Churn', 'n'],
+      ['renewalOptOut', 'Renewal automation opt out', 'b'],
+      ['priceLimit', 'Prior opp renewal price increase limit', 'n'],
+    ],
+  },
+  {
+    id: 'orders',
+    title: 'Discount and Order Processing Info',
+    left: [
+      ['po', 'PO / Reference number', 't'],
+      (o) => {
+        if (!canSeeInvoices()) return '';
+        const nos = S.quotes
+          .filter((q) => q.opp == o.id && q.invoiceId)
+          .map((q) => (S.invoices.find((i) => i.id === q.invoiceId) || {}).invoiceNo)
+          .filter(Boolean);
+        return sfRow('Invoice #', nos.length ? E(nos.join(', ')) : '–');
+      },
+      ['bookedFin', 'Booked by finance', 'b'],
+      ['licDelivered', 'License info delivered', 'b'],
+    ],
+    right: [
+      (o) =>
+        sfRow(
+          'Average opportunity discount',
+          `${(discounts(o).reduce((a, b) => a + b, 0) / (o.items.length || 1)).toFixed(2)}%`
+        ),
+      (o) => sfRow('Largest line item discount', `${Math.max(0, ...discounts(o)).toFixed(2)}%`),
+      ['longestTerm', 'Longest line item term', 'n'],
+      (o) => checkRow('Discount has been approved', approvedQuote(o)),
+    ],
+  },
+  {
+    id: 'multiyear',
+    title: 'Multi Year Billing Information',
+    left: [
+      ['y1', 'Year 1', 'n'],
+      ['y2', 'Year 2', 'n'],
+      ['y3', 'Year 3', 'n'],
+      ['y4', 'Year 4', 'n'],
+      ['y5', 'Year 5', 'n'],
+      ['avgContract', 'Average contract value', 'n'],
+      ['ltcStart', 'LTC contract start date', 'd'],
+      ['ltcEnd', 'LTC contract end date', 'd'],
+      ['ltcLength', 'LTC contract length', 'n'],
+    ],
+    right: [
+      ['payType', 'Payment type', 's', ['PO', 'Credit card', 'Wire', 'Invoice']],
+      ['arrOrig', 'ARR original amount', 'n'],
+      ['flexInit', 'FlexPay (initial)', 'b'],
+      ['flexSub', 'FlexPay (subsequent)', 'b'],
+      ['priorPo', 'Prior opp PO number', 't'],
+    ],
+  },
+  {
+    id: 'extra',
+    title: 'Additional Deal Information',
+    left: [
+      ['aceId', 'AWS ACE opportunity ID', 't'],
+      ['aceStatus', 'AWS ACE status', 't'],
+      ['bitbar', 'BitBar device pending', 'b'],
+      ['mgrName', 'Manager name', 't'],
+      ['planhat', 'Planhat opp sync', 'b'],
+      ['salesPlays', 'Sales plays', 't'],
+      ['notes', 'At-risk notes', 'ta'],
+      ['sdrShadow', 'SDR deal shadow', 't'],
+      ['closedRole', 'Closed owner role', 't'],
+      ['forecastBig', 'Forecasted big deal', 'b'],
+    ],
+    right: [
+      ['bestCase', 'Best case', 'n'],
+      ['m2s', 'M2S', 'b'],
+      ['m2sDisp', 'M2S disposition', 't'],
+      ['entDisp', 'ENT support disposition', 't'],
+      ['commit', 'Commit', 't'],
+      ['jep', 'JEP', 't'],
+      ['pullFwd', 'Pull forward', 'n'],
+      ['renewalUsd', 'Renewal total amount USD', 'n'],
+      ['awsOffer', 'AWS private offer generated', 'b'],
+      ['awsOfferId', 'AWS private offer ID', 't'],
+      ['awsContact', 'Date of first contact with AWS rep', 'd'],
+      ['awsNext', 'Next steps with AWS', 't'],
+      ['slmPlan', 'SLM / K8 plan', 't'],
+      ['slmDate', 'SLM / K8 plan date', 'd'],
+      ['deskStatus', 'Deal desk status', 't'],
+      ['deskNotes', 'Deal desk notes', 't'],
+      ['apiHub', 'API Hub upgraded customer', 't'],
+      ['churn12', 'Risk / churn last 12 months', 'b'],
+      ['coSell', 'Reflect / Atlassian co-sell', 'b'],
+      ['dsrLink', 'Digital sales room page link', 't'],
+    ],
+  },
+  {
+    id: 'exit',
+    title: 'Exit Criteria',
+    left: [
+      ['xValue', 'Value driver', 't'],
+      ['xPain', 'Identified pain', 't'],
+      ['xMap', 'MAP', 't'],
+      ['xChampion', 'Champion', 't'],
+      ['xTech', 'Technical fit confirmed', 'b'],
+      ['xPoc', 'POC pack', 't'],
+      ['competitor2', 'Competitors', 't'],
+      ['xBudget', 'Prospect budget process', 't'],
+      ['xEcon', 'Economic buyer', 't'],
+      ['xTechWin', 'Technical win confirmed', 'b'],
+    ],
+    right: [
+      ['procContact', 'Procurement contact', 't'],
+      ['xCriteria', 'Decision criteria', 't'],
+      ['xVendor', 'Vendor of choice confirmed', 'b'],
+      ['xPaperwork', 'Backend paperwork started', 'b'],
+    ],
+  },
+  {
+    id: 'qual',
+    title: 'Qualification Criteria',
+    left: [
+      ['demo', 'Most recent demo', 'd'],
+      ['valDriver', 'Value driver', 't'],
+      ['pain', 'Identified pain', 'ta'],
+      ['decisionCrit', 'Decision criteria', 't'],
+      ['procProcess', 'Procurement process', 't'],
+      ['champion', 'Champion', 't'],
+      ['genNotes', 'General notes', 'ta'],
+      ['desc', 'Description', 'ta'],
+    ],
+    right: [
+      (o) => {
+        const filled = [...QUAL_KEYS, ...CHECK_KEYS].filter((k) => gv(o, k)).length;
+        return sfRow(
+          'Qualification score',
+          Math.round((filled / (QUAL_KEYS.length + CHECK_KEYS.length)) * 100)
+        );
+      },
+      ['urgency', 'Urgency', 's', ['Low', 'Medium', 'High', 'Immediate']],
+      ['urgencyNote', 'Urgency details', 't'],
+      ['next', 'Next step', 't'],
+      ['nextDate', 'Next step date', 'd'],
+      ['econBuyer', 'Economic buyer', 't'],
+      ['callBrief', 'Most recent call brief – Gong', 't'],
+      ['nextGong', 'Next steps – Gong', 't'],
+    ],
+  },
+  {
+    id: 'notes',
+    title: 'Win / Loss',
+    left: [['won', 'Why we won', 'ta']],
+    right: [['lost', 'Why we lost', 'ta']],
+  },
+];
+
+// Every field label, for the field-history card.
+const SF_LABELS = Object.fromEntries(
+  [
+    ...LEFT,
+    ...RIGHT,
+    ...SF_SECTIONS.flatMap((s) => [...s.left, ...s.right].filter(Array.isArray)),
+  ].map((f) => [f[0], f[1]])
+);
+function recordFieldChange(o, k, from, to) {
+  (o.fh = o.fh || []).unshift({
+    t: Date.now(),
+    f: SF_LABELS[k] || k,
+    by: roleNow().name,
+    from,
+    to,
+  });
+  o.fh = o.fh.slice(0, 100);
+}
+
+function toggleSec(id, open) {
+  S.secClosed = S.secClosed || {};
+  if (!!S.secClosed[id] === !open) return;
+  S.secClosed[id] = !open;
+  save();
+}
+function toggleRel(id) {
+  S.relClosed = S.relClosed || {};
+  S.relClosed[id] = !S.relClosed[id];
+  const b = document.getElementById('rel-' + id);
+  if (b) b.style.display = S.relClosed[id] ? 'none' : '';
+  save();
+}
+
+const sectionHtml = (o, s) => {
+  const col = (list) => list.map((f) => (typeof f === 'function' ? f(o) : fld(o, f))).join('');
+  return `<details class="sf-sec" ${(S.secClosed || {})[s.id] ? '' : 'open'} ontoggle="toggleSec('${s.id}',this.open)"><summary><span class="ms sf-chev">expand_more</span>${s.title}</summary><div class="sf-grid"><div>${col(s.left)}</div><div>${col(s.right)}</div></div></details>`;
+};
+
+// ----- right-hand related list cards -----
+const kv = (label, v) => `<div class="sf-kv"><div>${label}</div><div>${v}</div></div>`;
+function relCard(id, icon, color, title, count, body, viewAll, plus, addJs, addLabel) {
+  const closed = (S.relClosed || {})[id];
+  return `<div class="sf-rel"><div class="sf-rel-h"><span class="sf-ic" style="background:${color}"><span class="ms">${icon}</span></span><b class="flex-1">${title} (${count}${plus ? '+' : ''})</b>${addJs ? `<button type="button" class="btn" onclick="${addJs}">${addLabel || 'Add'}</button>` : ''}<button type="button" class="hdr-ic" style="width:28px;height:28px" aria-label="Show or hide ${title}" onclick="toggleRel('${id}')"><span class="ms">arrow_drop_down</span></button></div><div id="rel-${id}" style="${closed ? 'display:none' : ''}"><div class="sf-rel-b">${body || '<p class="mut py-2">Nothing here yet.</p>'}</div>${viewAll ? `<a class="sf-viewall" onclick="${viewAll}">View All</a>` : ''}</div></div>`;
+}
+const histVal = (v) => (v === true ? '✓' : v === false || v === '' || v == null ? '–' : E(v));
+
+function sidebarHtml(o) {
+  const Q = S.quotes.filter((q) => q.opp == o.id),
+    R = roles(o),
+    P = (o.partners = o.partners || []),
+    acts = S.acts[o.id] || [],
+    files = o.attachments || [],
+    last = acts[0],
+    stageRows = (
+      o.sh && o.sh.length
+        ? o.sh
+        : [
+            {
+              stage: o.lost ? 'Closed Lost' : ST[o.stage],
+              amount: o.amount,
+              close: o.close,
+              by: '',
+              t: last ? last.t : 0,
+            },
+          ]
+    ).slice(0, 3),
+    fh = o.fh || [],
+    links = [
+      ['Contact roles', R.length, 'rel-contacts'],
+      ['Products', o.items.length, 'rel-products'],
+      ['Quotes', Q.length, 'rel-quotes'],
+      ['Partners', P.length, 'rel-partners'],
+      ['Files', files.length, 'rel-files'],
+      ['Activities', acts.length, 'rel-acts'],
+    ];
+  return [
+    `<div class="sf-rel"><div class="sf-rel-h"><b class="flex-1">Related List Quick Links</b></div><div class="sf-rel-b grid grid-cols-2 gap-1 py-2">${links
+      .map(
+        (l) =>
+          `<a class="rep-link" onclick="document.getElementById('${l[2]}').scrollIntoView({block:'center',behavior:'smooth'})">${l[0]} (${l[1]})</a>`
+      )
+      .join('')}</div></div>`,
+    relCard(
+      'contacts',
+      'groups',
+      '#0b63c5',
+      'Contact Roles',
+      R.length,
+      R.map((r) => {
+        const c = S.contacts.find((x) => x[0] == r.name) || [];
+        return `<div class="sf-rec"><b>${E(r.name)}</b>${r.primary ? ' <span class="chip ok">Primary</span>' : ''}${kv('Role', E(r.role))}${kv('Title', E(c[1] || '–'))}${kv('Phone', E(c[4] || '–'))}</div>`;
+      }).join(''),
+      null,
+      false,
+      "modal('role')"
+    ),
+    relCard(
+      'partners',
+      'handshake',
+      '#c2410c',
+      'Opportunity Partners',
+      P.length,
+      P.map(
+        (p) =>
+          `<div class="sf-rec"><b>${E(p.name)}</b>${kv('Partner Type', E(p.type || '–'))}</div>`
+      ).join(''),
+      null,
+      false,
+      "modal('partner')"
+    ),
+    relCard(
+      'quotes',
+      'request_quote',
+      '#2e9e5b',
+      'Quotes',
+      Q.length,
+      Q.map(
+        (q) =>
+          `<div class="sf-rec"><a class="rep-link" onclick="openQuoteRecord('${E(q.no)}')">${E(q.no)}</a>${q.isDefault ? ' <span class="chip">Default</span>' : ''}${kv('Quote Name', E(q.name || '–'))}${kv('Status', quoteStatusChip(q))}${kv('Price', `<b>${M(quoteTotal(q))}</b>`)}${(q.sends || []).length ? kv('Sent', E(q.sends[q.sends.length - 1].channel === 'email' ? 'Email · ' + q.sends[q.sends.length - 1].to : 'WhatsApp · ' + q.sends[q.sends.length - 1].to)) : ''}${(q.views || []).length ? kv('Opened', `${q.views.length}× · ${ago(q.views[q.views.length - 1].at)}`) : ''}${q.customer ? kv('Customer', E(q.customer.status)) : ''}${kv('Expiration Date', q.exp ? fd(q.exp) : '–')}</div>`
+      ).join(''),
+      "tab('related')",
+      false,
+      `openQuote(${o.id})`,
+      'New quote'
+    ),
+    relCard(
+      'products',
+      'inventory_2',
+      '#d9480f',
+      'Products',
+      o.items.length,
+      o.items
+        .map(
+          (i) =>
+            `<div class="sf-rec"><a class="rep-link" onclick="openQuote(${o.id})">${E(i.n)}</a>${kv('Product Code', E(i.c))}${kv('Quantity', i.q)}${kv('List Price', M(i.p))}${+i.d ? kv('Discount', (+i.d).toFixed(2) + '%') : ''}</div>`
+        )
+        .join(''),
+      "tab('related')"
+    ),
+    relCard(
+      'stage',
+      'timeline',
+      '#13a38a',
+      'Stage History',
+      (o.sh || []).length || 1,
+      stageRows
+        .map(
+          (s) =>
+            `<div class="sf-rec">${kv('Stage', E(s.stage))}${kv('Amount', M(s.amount))}${kv('Close Date', s.close ? fd(s.close) : '–')}${kv('Last Modified By', E(s.by || '–'))}${kv('Last Modified', s.t ? whenText(s.t) : '–')}</div>`
+        )
+        .join(''),
+      "tab('activity')",
+      (o.sh || []).length > 3
+    ),
+    relCard(
+      'fieldhist',
+      'history',
+      '#e8590c',
+      'Opportunity Field History',
+      Math.min(fh.length, 3),
+      fh
+        .slice(0, 3)
+        .map(
+          (h) =>
+            `<div class="sf-rec">${kv('Date', whenText(h.t))}${kv('Field', E(h.f))}${kv('User', E(h.by))}${kv('Original Value', histVal(h.from))}${kv('New Value', histVal(h.to))}</div>`
+        )
+        .join(''),
+      "tab('activity')",
+      fh.length > 3
+    ),
+    relCard(
+      'files',
+      'attach_file',
+      '#6b7a90',
+      'Files',
+      files.length,
+      filesCardBody(files),
+      "tab('related')"
+    ),
+    relCard(
+      'acts',
+      'event_note',
+      '#7c4dff',
+      'Activities',
+      acts.length,
+      acts
+        .slice(0, 3)
+        .map(
+          (a) =>
+            `<div class="sf-rec flex gap-2"><span class="ms mut">${E(a.k || 'sync')}</span><div><div>${E(hideInvoiceRefs(a.x))}</div><div class="mut text-xs">${ago(a.t)}</div></div></div>`
+        )
+        .join(''),
+      "tab('activity')",
+      acts.length > 3
+    ),
+  ].join('');
+}
+
+function recordPage(o) {
+  return `<div class="space-y-3">${SF_SECTIONS.map((s) => sectionHtml(o, s)).join('')}</div>`;
+}
+
+// Files card: several ways to add a file (choose files, take a photo / scan, drag and drop, add a link),
+// a category for each file, and a list that can be filtered and downloaded.
+
+const FILE_CATS = [
+  'General',
+  'Proposal',
+  'Contract',
+  'Customer PO',
+  'Payment proof',
+  'Photo',
+  'Other',
+];
+const MAX_FILE_BYTES = 100 * 1024 * 1024;
+
+const uploadOppFilesBeforeCats = uploadOppFiles;
+uploadOppFiles = async function (fileList) {
+  const o = cur();
+  if (!o) return;
+  const files = Array.from(fileList || []),
+    big = files.filter((f) => f.size > MAX_FILE_BYTES),
+    ok = files.filter((f) => f.size <= MAX_FILE_BYTES);
+  if (big.length) toast(`${big.map((f) => f.name).join(', ')} is over 100 MB and was skipped`);
+  if (!ok.length) return;
+  const before = (o.attachments || []).length,
+    cat = FILE_CATS.includes(S.fileCat) ? S.fileCat : 'General';
+  await uploadOppFilesBeforeCats.call(this, ok);
+  (o.attachments || []).slice(before).forEach((f) => {
+    f.cat = cat;
+    f.by = roleNow().name;
+  });
+  if ((o.attachments || []).length > before) {
+    logOpp(
+      o.id,
+      'sync',
+      `${ok.length} file${ok.length === 1 ? '' : 's'} uploaded (${cat}) by ${roleNow().name}`
+    );
+    save();
+    render();
+  }
+};
+
+const downloadOppFileBeforeLinks = downloadOppFile;
+downloadOppFile = function (id) {
+  const f = ((cur() || {}).attachments || []).find((x) => x.id === id);
+  if (f && f.link) return window.open(f.link, '_blank', 'noopener');
+  return downloadOppFileBeforeLinks.apply(this, arguments);
+};
+
+function openFileLinkForm() {
+  $('#modal').innerHTML =
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><form class="card p-5 w-full max-w-md space-y-3" onsubmit="saveFileLink(event)"><h2 class="text-lg font-bold">Add a link</h2><p class="mut text-xs">For a file kept in Google Drive, OneDrive, Dropbox or anywhere else.</p>` +
+    `<label class="block">Link *<input class="inp" name="url" type="url" required placeholder="https://"></label><label class="block">Name *<input class="inp" name="name" required></label>` +
+    `<label class="block">Category<select class="inp" name="cat">${FILE_CATS.map((c) => `<option ${c === S.fileCat ? 'selected' : ''}>${c}</option>`).join('')}</select></label>` +
+    `<div class="flex justify-end gap-2"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">Add link</button></div></form></div>`;
+  $('#modal [name=url]').focus();
+}
+function saveFileLink(e) {
+  e.preventDefault();
+  const o = cur(),
+    v = Object.fromEntries(new FormData(e.target)),
+    url = (v.url || '').trim();
+  if (!o) return;
+  if (!/^https?:\/\//i.test(url)) return toast('Links must start with http:// or https://');
+  (o.attachments = o.attachments || []).push({
+    id: 'link-' + Date.now() + Math.random().toString(36).slice(2, 6),
+    name: (v.name || '').trim() || url,
+    link: url,
+    size: 0,
+    type: 'Link',
+    cat: FILE_CATS.includes(v.cat) ? v.cat : 'General',
+    addedAt: Date.now(),
+    by: roleNow().name,
+  });
+  logOpp(o.id, 'sync', `Link “${(v.name || url).trim()}” added by ${roleNow().name}`);
+  $('#modal').innerHTML = '';
+  save();
+  toast('Link added');
+  render();
+}
+function setFileCat(c) {
+  S.fileCat = c;
+  const sel = document.querySelectorAll('select.file-cat');
+  sel.forEach((s) => (s.value = c));
+}
+function setFileFilter(c) {
+  S.fileFilter = c;
+  render();
+}
+function fileRow(f) {
+  return `<div class="sf-rec flex items-center gap-2"><span class="ms mut">${f.link ? 'link' : attachmentIcon(f.name)}</span><div class="min-w-0 flex-1"><a class="rep-link break-words" onclick="downloadOppFile('${E(f.id)}')">${E(f.name)}</a><div class="mut text-xs">${f.cat ? `<span class="chip">${E(f.cat)}</span> ` : ''}${f.addedAt ? whenText(f.addedAt) + ' · ' : ''}${f.link ? 'Link' : formatFileSize(f.size)}${f.by ? ' · ' + E(f.by) : ''}</div></div><button class="hdr-ic" style="width:28px;height:28px" title="${f.link ? 'Open link' : 'Download'}" aria-label="Download ${E(f.name)}" onclick="downloadOppFile('${E(f.id)}')"><span class="ms" style="font-size:18px">${f.link ? 'open_in_new' : 'download'}</span></button><button class="hdr-ic" style="width:28px;height:28px" title="Remove" aria-label="Remove ${E(f.name)}" onclick="removeOppFile('${E(f.id)}')"><span class="ms" style="font-size:18px">delete</span></button></div>`;
+}
+function filesCardBody(files) {
+  const flt = S.fileFilter || 'All',
+    cats = [...new Set(files.map((f) => f.cat).filter(Boolean))],
+    shown = files.filter((f) => flt === 'All' || f.cat === flt);
+  return (
+    `<div class="file-drop" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="event.preventDefault();this.classList.remove('over');uploadOppFiles(event.dataTransfer.files)">` +
+    `<div class="flex gap-2 flex-wrap justify-center"><label class="btn btn-p cursor-pointer"><span class="ms">upload_file</span>Upload files<input type="file" multiple class="hidden" onchange="uploadOppFiles(this.files);this.value=''"></label>` +
+    `<label class="btn cursor-pointer"><span class="ms">photo_camera</span>Take photo<input type="file" accept="image/*" capture="environment" class="hidden" onchange="uploadOppFiles(this.files);this.value=''"></label>` +
+    `<button type="button" class="btn" onclick="openFileLinkForm()"><span class="ms">link</span>Add link</button></div>` +
+    `<div class="mut text-xs mt-2 text-center">or drop files here · up to 100 MB each</div>` +
+    `<label class="block mt-2 text-xs"><span class="mut">Category for new files</span><select class="inp file-cat" onchange="setFileCat(this.value)">${FILE_CATS.map((c) => `<option ${c === (S.fileCat || 'General') ? 'selected' : ''}>${c}</option>`).join('')}</select></label></div>` +
+    (cats.length > 1
+      ? `<div class="flex gap-1 flex-wrap my-2">${['All', ...cats].map((c) => `<button type="button" class="btn ${c === flt ? 'btn-p' : ''}" style="padding:2px 10px;font-size:12px" onclick="setFileFilter('${E(c)}')">${E(c)}</button>`).join('')}</div>`
+      : '') +
+    shown.slice(0, 8).map(fileRow).join('') +
+    (shown.length > 8
+      ? `<div class="mut text-xs mt-1">and ${shown.length - 8} more · View All</div>`
+      : '')
+  );
+}
 
 // Rep details page for Admin / CEO: click a rep's name anywhere to open their stats, deals, quotes and activity log.
 // Also owns the global Esc behaviour (close dialog, then menus, then step back out of a detail page).
