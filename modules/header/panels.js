@@ -5,7 +5,7 @@
 // user administration and invoice payment. Prototype/localStorage implementation.
 // ---------------------------------------------------------------------------
 const logOpp = (id, k, x) => {
-  (S.acts[id] = S.acts[id] || []).unshift({ k, x, t: Date.now() });
+  (S.acts[id] = S.acts[id] || []).unshift({ k, x, t: Date.now(), by: roleNow().name });
 };
 const currentUser = () => S.users.find((u) => u.id === S.authUser) || {};
 const initials = (n) =>
@@ -90,7 +90,12 @@ function allNotificationItems() {
         items.unshift({
           icon: q.status === 'Approved' ? 'check_circle' : 'cancel',
           text: `Quotation ${q.no} was ${q.status.toLowerCase()}`,
-          sub: q.status === 'Approved' ? 'Invoice generated' : 'Review and resubmit',
+          sub:
+            q.status === 'Approved'
+              ? canSeeInvoices()
+                ? 'Invoice generated'
+                : 'Approved'
+              : 'Review and resubmit',
           go: `openQuoteRecord('${q.no}')`,
         })
       );
@@ -153,7 +158,7 @@ function toggleUserMenu() {
   const u = currentUser();
   openPanel(
     'user-avatar',
-    `<div class="p-4" style="border-bottom:1px solid var(--bd)"><b>${E(u.name)}</b><div class="mut">${E(u.username || '')} · ${String(u.role || '').toUpperCase()}</div></div><div class="p-2"><button class="btn w-full justify-center" onclick="closePanels();logoutUser()"><span class="ms">logout</span>Sign out</button></div>`
+    `<div class="p-4" style="border-bottom:1px solid var(--bd)"><b>${E(u.name)}</b><div class="mut">${E(u.username || '')} · ${roleTitle(u)}</div></div><div class="p-2"><button class="btn w-full justify-center" onclick="closePanels();logoutUser()"><span class="ms">logout</span>Sign out</button></div>`
   );
 }
 function updateHeader() {

@@ -47,6 +47,73 @@ function setPriority(id, value) {
   render();
 }
 
+// Team + Assigned rep: picking a team narrows the rep list to that team's reps.
+function newOppTeamAndRep() {
+  const reps = assignableReps(),
+    def = defaultRepCode(),
+    defTeam = (reps.find((u) => u.ownerCode === def) || {}).teamId || '',
+    teams = (S.teams || []).filter((t) => reps.some((u) => u.teamId === t.id)),
+    teamSel = `<select class="inp" name="teamId" onchange="newOppTeamChanged(this)"><option value="">All teams</option>${teams
+      .map(
+        (t) =>
+          `<option value="${E(t.id)}" ${t.id === defTeam ? 'selected' : ''}>${E(t.name)}</option>`
+      )
+      .join('')}</select>`,
+    repSel = `<select class="inp" name="owner" required>${reps
+      .map(
+        (u) =>
+          `<option value="${E(u.ownerCode)}" data-team="${E(u.teamId || '')}" ${u.ownerCode === def ? 'selected' : ''}>${E(u.name)}</option>`
+      )
+      .join('')}</select>`;
+  setTimeout(() => {
+    const t = document.querySelector('#modal [name=teamId]');
+    if (t) newOppTeamChanged(t);
+  }, 0);
+  return `<label class="block">Team${teamSel}</label><label class="block">Assigned rep${repSel}</label>`;
+}
+function newOppTeamChanged(sel) {
+  const rep = sel.form.elements.owner;
+  let first = null;
+  [...rep.options].forEach((o) => {
+    const show = !sel.value || o.dataset.team === sel.value;
+    o.hidden = !show;
+    o.disabled = !show;
+    if (show && !first) first = o;
+  });
+  if (rep.selectedOptions[0] && rep.selectedOptions[0].disabled && first) rep.value = first.value;
+}
+
+// Products: tick one or more, set a quantity for each. The amount is then worked out from them.
+function newOppProducts() {
+  const rows = S.products
+    .filter((p) => p.active !== false)
+    .map(
+      (p) =>
+        `<label class="flex items-center gap-2 py-1"><input type="checkbox" name="prod" value="${E(p.code)}" onchange="newOppProductsChanged(this.form)"><span class="flex-1 min-w-0"><b>${E(p.name)}</b> <span class="mut text-xs">${E(p.code)} · ${M(p.listPrice)}</span></span><input class="inp" style="width:72px" type="number" min="1" step="1" value="1" name="qty_${E(p.code)}" aria-label="Quantity for ${E(p.name)}" disabled onchange="newOppProductsChanged(this.form)"></label>`
+    )
+    .join('');
+  return `<div class="sm:col-span-2"><div class="font-semibold">Products <span class="mut text-xs font-normal">(optional — choose one or more)</span></div><div class="card p-2 mt-1 overflow-auto" style="max-height:180px">${rows || '<span class="mut">No active products.</span>'}</div></div>`;
+}
+function newOppProductsChanged(form) {
+  let total = 0,
+    n = 0;
+  S.products.forEach((p) => {
+    const box = [...form.querySelectorAll('[name=prod]')].find((b) => b.value === p.code);
+    const qty = form.elements['qty_' + p.code];
+    if (!box || !qty) return;
+    qty.disabled = !box.checked;
+    if (box.checked) {
+      n++;
+      total += p.listPrice * Math.max(1, Math.floor(+qty.value || 1));
+    }
+  });
+  const amt = form.elements.amount,
+    note = form.querySelector('#amt-note');
+  amt.readOnly = n > 0;
+  if (n > 0) amt.value = total;
+  if (note) note.textContent = n > 0 ? `Calculated from ${n} product${n > 1 ? 's' : ''}` : '';
+}
+
 const originalModal = modal;
 modal = function (k) {
   if (k === 'role') return openOppContactForm();
@@ -62,7 +129,10 @@ modal = function (k) {
         .map((a) => `<option value="${E(a)}">`)
         .join('')}</datalist>`
     ) +
-    field('Amount (₹) *', '<input class="inp" name="amount" type="number" min="0" required>') +
+    field(
+      'Amount (₹) *',
+      '<input class="inp" name="amount" type="number" min="0" required><span class="mut text-xs" id="amt-note"></span>'
+    ) +
     field(
       'Close date *',
       `<input class="inp" name="close" type="date" value="${D(30)}" required>`
@@ -75,10 +145,8 @@ modal = function (k) {
       'Priority level',
       `<select class="inp" name="priority">${prioOptions('Medium')}</select>`
     ) +
-    field(
-      'Assigned rep',
-      `<select class="inp" name="owner" required>${repOptions(defaultRepCode()) || `<option value="${E(defaultRepCode())}">${E(ownerLabel(defaultRepCode()))}</option>`}</select>`
-    ) +
+    newOppTeamAndRep() +
+    newOppProducts() +
     field('Opportunity type', formOtherSelect('type', OPP_TYPES, OPP_TYPES[0])) +
     field('Lead source', formOtherSelect('source', LEAD_SOURCES, LEAD_SOURCES[0])) +
     field(
@@ -95,9 +163,20 @@ modal = function (k) {
 };
 function saveOpportunityExtended(e) {
   e.preventDefault();
-  const v = Object.fromEntries(new FormData(e.target)),
+  const fd0 = new FormData(e.target),
+    v = Object.fromEntries(fd0),
     id = Math.max(0, ...S.opps.map((o) => o.id)) + 1,
-    a = +v.amount;
+    picked = fd0
+      .getAll('prod')
+      .map((code) => {
+        const p = S.products.find((x) => x.code === code);
+        const q = Math.max(1, Math.floor(+v['qty_' + code] || 1));
+        return p && { n: p.name, c: p.code, p: p.listPrice, q, d: 0 };
+      })
+      .filter(Boolean),
+    a = picked.length ? picked.reduce((s, i) => s + i.p * i.q, 0) : +v.amount,
+    ownerCode = v.owner || defaultRepCode(),
+    ownerRep = activeReps().find((u) => u.ownerCode === ownerCode);
   S.opps.push({
     id,
     name: v.name.trim(),
@@ -105,14 +184,15 @@ function saveOpportunityExtended(e) {
     amount: a,
     stage: +v.stage,
     close: v.close,
-    owner: v.owner || defaultRepCode(),
+    owner: ownerCode,
+    teamId: (ownerRep && ownerRep.teamId) || '',
     priority: PRIORITIES.includes(v.priority) ? v.priority : 'Medium',
     type: pickOther(v, 'type'),
     source: pickOther(v, 'source'),
     description: (v.description || '').trim(),
     next: (v.next || '').trim(),
     socials: { linkedin: '', instagram: '', facebook: '', x: '' },
-    items: [{ n: 'Platform licence', c: 'GEN-100', p: a, q: 1, d: 0 }],
+    items: picked.length ? picked : [{ n: 'Platform licence', c: 'GEN-100', p: a, q: 1, d: 0 }],
   });
   S.cur = id;
   $('#modal').innerHTML = '';

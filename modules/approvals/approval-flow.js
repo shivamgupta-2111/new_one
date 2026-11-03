@@ -12,7 +12,7 @@ function approvalBanner(q, inv) {
       `Approved by <b>${E(q.approvedBy || '')}</b> on ${whenText(q.approvedAt)}`,
       q.approvedNotes ? `Approval notes: ${E(q.approvedNotes)}` : '',
       q.tnc ? `Terms &amp; conditions: ${E(q.tnc)}` : '',
-      inv ? `Invoice ${E(inv.invoiceNo)} generated` : '',
+      inv && canSeeInvoices() ? `Invoice ${E(inv.invoiceNo)} generated` : '',
     ]);
   if (q.status === 'Rejected')
     return box('err', 'cancel', 'Approval rejected', [
@@ -39,7 +39,7 @@ function approvalSection(q, floor, locked) {
         `<div class="qt-hist"><b>${E(h.action)}</b> · ${E(h.by)} · <span class="mut">${whenText(h.t)}</span><div>${E(h.note || '')}</div></div>`
     )
     .join('');
-  return `<section class="qt-section"><div class="qt-section-head"><span class="ms">approval</span><b>Approval Authority</b></div><div class="qt-body"><p>Rep up to <b>2%</b> · Admin up to <b>5%</b> · CEO any discount. Any line priced below the product minimum always needs CEO approval.</p><p class="mut" style="margin-top:6px">${floor.length ? `Lines below minimum: ${floor.map((i) => E(i.c)).join(', ')}` : 'No lines are below their product minimum.'}</p></div></section>
+  return `<section class="qt-section"><div class="qt-section-head"><span class="ms">approval</span><b>Approval Authority</b></div><div class="qt-body"><p>Reps cannot give discounts · Admin up to <b>${adminDiscountLimit()}%</b> (set by the CEO) · CEO any discount. Any line priced below the product minimum always needs CEO approval.</p><p class="mut" style="margin-top:6px">${floor.length ? `Lines below minimum: ${floor.map((i) => E(i.c)).join(', ')}` : 'No lines are below their product minimum.'}</p></div></section>
 <section class="qt-section"><div class="qt-section-head"><span class="ms">edit_note</span><b>Notes for approval <i class="qt-req">*</i></b></div><div class="qt-body"><textarea class="inp" rows="3" ${locked ? 'disabled' : ''} placeholder="Explain the discount or pricing so the approver can decide. Required before submitting." oninput="S.qd.notes=this.value">${E(q.notes || '')}</textarea></div></section>
 <section class="qt-section"><div class="qt-section-head"><span class="ms">gavel</span><b>Terms &amp; conditions</b>${canEditTnc ? '' : '<span class="mut text-xs">Added by Admin / CEO</span>'}</div><div class="qt-body">${canEditTnc ? `<textarea class="inp" rows="4" placeholder="e.g. Pricing valid until the expiry date. Payment as per the terms above." oninput="S.qd.tnc=this.value">${E(q.tnc || '')}</textarea>` : `<p style="white-space:pre-wrap">${q.tnc ? E(q.tnc) : '<span class="mut">None added yet.</span>'}</p>`}</div></section>${history ? `<section class="qt-section"><div class="qt-section-head"><span class="ms">history</span><b>Approval history</b></div><div class="qt-body">${history}</div></section>` : ''}`;
 }
@@ -51,7 +51,8 @@ function approveQuote(no) {
   if (!['admin', 'ceo'].includes(S.role)) return toast('Only Admin or CEO can approve');
   if (q.status === 'Pending CEO Approval' && S.role !== 'ceo')
     return toast('CEO approval is required');
-  if (S.role === 'admin' && quoteDiscount(q) > 5) return toast('Discount exceeds Admin limit');
+  if (S.role === 'admin' && quoteDiscount(q) > adminDiscountLimit())
+    return toast(`Discount exceeds the Admin limit of ${adminDiscountLimit()}%`);
   if (belowProductFloor(q).length && S.role !== 'ceo')
     return toast('Below-minimum product pricing requires CEO approval');
   if (!['Pending Admin Approval', 'Pending CEO Approval'].includes(q.status))

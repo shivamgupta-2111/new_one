@@ -37,7 +37,7 @@ function ownerLabel(code) {
   return user ? user.name : OWN[code] || code || 'Unassigned';
 }
 function assignableReps() {
-  return S.role === 'rep'
+  return S.role === 'rep' && !canEditOwner()
     ? activeReps().filter((u) => u.ownerCode === roleNow().owner)
     : activeReps();
 }
@@ -274,7 +274,7 @@ V.opps = () => {
   const bar = `<div class="flex flex-wrap items-center gap-2 mb-3"><div><div class="mut">Opportunities</div><h1 class="text-xl font-bold">${S.mine ? 'My opportunities' : 'All opportunities'}</h1></div><span class="mut ml-2">${L.length} items · Total ${M(tot)}</span><span class="flex-1"></span>
  <input class="inp" style="width:200px" placeholder="Filter this list" value="${E(S.q || '')}" oninput="S.q=this.value;clearTimeout(window.ft);window.ft=setTimeout(()=>{render();const i=document.querySelector('[placeholder=\\'Filter this list\\']');i.focus();i.setSelectionRange(99,99)},250)">
  <button class="btn" onclick="S.mine=!S.mine;render()">${S.mine ? 'Show everyone' : 'Only mine'}</button>
- <button class="btn" onclick="S.view='${S.view == 'kanban' ? 'list' : 'kanban'}';render()"><span class="ms">${S.view == 'kanban' ? 'table_rows' : 'view_kanban'}</span>${S.view == 'kanban' ? 'List' : 'Board'}</button><button class="btn btn-p" onclick="modal('opp')"><span class="ms">add</span>New</button></div>`;
+ <button class="btn" onclick="S.view='${S.view == 'kanban' ? 'list' : 'kanban'}';render()"><span class="ms">${S.view == 'kanban' ? 'table_rows' : 'view_kanban'}</span>${S.view == 'kanban' ? 'List' : 'Board'}</button>${canAddOpportunity() ? `<button class="btn btn-p" onclick="modal('opp')"><span class="ms">add</span>New</button>` : ''}</div>`;
   if (S.view == 'list')
     return (
       bar +
@@ -282,7 +282,7 @@ V.opps = () => {
         ['Name', 'Account', 'Stage', 'Amount', 'Close date', 'Assigned rep'],
         L.map(
           (o) =>
-            `<tr class="r" onclick="nav('opp-detail',${o.id})"><td><b>${E(o.name)}</b></td><td>${E(o.account)}</td><td>${ST[o.stage]}</td><td>${M(o.amount)}</td><td>${fd(o.close)}</td><td>${E(ownerLabel(o.owner))}</td></tr>`
+            `<tr class="r" onclick="nav('opp-detail',${o.id})"><td><b>${E(o.name)}</b></td><td>${E(o.account)}</td><td>${ST[o.stage]}</td><td>${M(o.amount)}</td><td>${fd(o.close)}</td><td>${repLink(o.owner)}</td></tr>`
         ).join('')
       )
     );
@@ -397,6 +397,7 @@ const riskOf = (o) => {
           : 'Low';
 };
 const fld = (o, [k, l, t, op]) => {
+  if (k === 'owner' && !canEditOwner()) t = 'ro';
   const v = gv(o, k),
     ed = S.ed == k && t != 'ro' && t != 'b';
   let b;
@@ -411,7 +412,7 @@ const fld = (o, [k, l, t, op]) => {
           ? `<textarea class="inp" rows="3" ${a}>${E(v)}</textarea>`
           : `<input class="inp" type="${t == 'n' ? 'number' : t == 'd' ? 'date' : 'text'}" value="${E(v)}" ${a}>`;
   } else
-    b = `<div class="font-semibold break-words">${t == 'n' ? M(v) : t == 'd' ? fd(v) : k == 'amount' ? M(v) : k == 'owner' ? E(ownerLabel(v)) : E(v) || '–'}</div>`;
+    b = `<div class="font-semibold break-words">${t == 'n' ? M(v) : t == 'd' ? fd(v) : k == 'amount' ? M(v) : k == 'owner' ? repLink(v) : k == 'account' ? acctSpan(v) + acctEditBtn(v) : E(v) || '–'}</div>`;
   return `<div class="py-2 border-b flex justify-between gap-2" style="border-color:var(--bd)"><div class="min-w-0 flex-1"><div class="mut text-[11px]">${l}</div>${b}</div>${t == 'ro' || t == 'b' ? '' : `<span class="ms mut" style="font-size:16px;cursor:pointer" title="Edit" onclick="S.ed='${k}';render()">edit</span>`}</div>`;
 };
 function sf(k, v) {
@@ -604,8 +605,8 @@ V['opp-detail'] = () => {
   }[T];
   return `<div class="card p-4 mb-3"><div class="flex flex-wrap items-start gap-2"><span class="ms" style="color:var(--warn);font-size:32px">handshake</span><div class="flex-1 min-w-[220px]"><div class="mut cursor-pointer" onclick="nav('opps')">Opportunity ›</div><h1 class="text-xl font-bold">${E(o.name)}</h1></div>
  <button class="btn" onclick="o_f()">${cur().fol ? '✓ Following' : '+ Follow'}</button><button class="btn" onclick="shareToSlack()">Send to Slack</button><button class="btn" onclick="window.print()">Printable view</button><button class="btn" onclick="cloneOpp(0)">Clone</button><button class="btn" onclick="modal('edit')">Edit</button><button class="btn btn-p" onclick="openQuote(${o.id})">Generate quote</button>
- <details class="relative"><summary class="btn list-none">▾</summary><div class="card absolute right-0 mt-1 w-52 z-20 p-1 shadow-lg"><button class="${mi}" onclick="cloneOpp(1)">Clone with related</button><button class="${mi}" onclick="S.tab='details';S.ed='refRep';render()">Add referral</button><button class="${mi}" onclick="S.ed='owner';S.tab='details';render()">Change owner</button><button class="${mi}" onclick="o_s()">${cur().slack ? 'Turn off Slack alerts' : 'Turn on Slack alerts'}</button><button class="${mi}" style="color:var(--err)" onclick="if(confirm('Delete this opportunity?')){S.opps=S.opps.filter(x=>x.id!=${o.id});save();toast('Opportunity deleted');nav('opps')}">Delete</button></div></details></div>
- <div class="grid grid-cols-2 md:grid-cols-7 gap-4 mt-4">${hd('Account name', `<a class="cursor-pointer" style="color:var(--pr)" onclick="S.q='${E(o.account).replace(/'/g, '')}';nav('opps')">${E(o.account)}</a>`)}${hd('Close date', fd(o.close))}${hd('Amount', M(o.amount))}${hd('Assigned rep', E(ownerLabel(o.owner)))}${hd('Quotation', quoteHeaderStatus(o))}${hd('Priority', `<select class="inp" style="width:auto;padding:2px 6px" aria-label="Priority" onchange="setPriority(${o.id},this.value)">${prioOptions(o.priority)}</select>`)}${hd('Risk flag', `<span class="chip ${rk == 'High' ? 'wr' : rk == 'Low' || rk == 'None' ? 'ok' : ''}">${rk}</span>`)}</div></div>
+ <details class="relative"><summary class="btn list-none">▾</summary><div class="card absolute right-0 mt-1 w-52 z-20 p-1 shadow-lg"><button class="${mi}" onclick="cloneOpp(1)">Clone with related</button><button class="${mi}" onclick="S.tab='details';S.ed='refRep';render()">Add referral</button>${canEditOwner() ? `<button class="${mi}" onclick="S.ed='owner';S.tab='details';render()">Change owner</button>` : ''}<button class="${mi}" onclick="o_s()">${cur().slack ? 'Turn off Slack alerts' : 'Turn on Slack alerts'}</button><button class="${mi}" style="color:var(--err)" onclick="if(confirm('Delete this opportunity?')){S.opps=S.opps.filter(x=>x.id!=${o.id});save();toast('Opportunity deleted');nav('opps')}">Delete</button></div></details></div>
+ <div class="grid grid-cols-2 md:grid-cols-7 gap-4 mt-4">${hd('Account name', `<a class="cursor-pointer" style="color:var(--pr)" ${acctAttr(o.account)} onclick="S.q='${E(o.account).replace(/'/g, '')}';nav('opps')">${E(o.account)}</a>${acctEditBtn(o.account)}`)}${hd('Close date', fd(o.close))}${hd('Amount', M(o.amount))}${hd('Assigned rep', repLink(o.owner))}${hd('Quotation', quoteHeaderStatus(o))}${hd('Priority', `<select class="inp" style="width:auto;padding:2px 6px" aria-label="Priority" onchange="setPriority(${o.id},this.value)">${prioOptions(o.priority)}</select>`)}${hd('Risk flag', `<span class="chip ${rk == 'High' ? 'wr' : rk == 'Low' || rk == 'None' ? 'ok' : ''}">${rk}</span>`)}</div></div>
  <div class="card p-3 mb-3 flex items-center gap-3"><div class="flex flex-1 overflow-x-auto gap-1">${ST.map((s, i) => `<div class="step ${i < o.stage || o.stage == 5 ? 'done' : i == o.stage ? 'cur' : ''}" ${i == 5 && o.lost ? 'style="background:var(--err)"' : ''} onclick="setStage(cur(),${i})">${i < o.stage || o.stage == 5 ? '✓ ' : ''}${i == 5 && o.lost ? 'Closed Lost' : s}</div>`).join('')}</div>${o.stage < 5 ? `<button class="btn btn-p" onclick="setStage(cur(),${o.stage + 1})">Mark stage as complete</button>` : `<button class="btn btn-p" onclick="const x=cur();x.lost=!x.lost;save();toast('Marked '+(x.lost?'closed lost':'closed won'));render()">Change closed stage</button>`}</div>
  <div class="flex gap-4 border-b mb-3" style="border-color:var(--bd)">${[
    ['details', 'Details'],
@@ -672,7 +673,7 @@ V.leads = () =>
     S.leads
       .map(
         (l, i) =>
-          `<tr><td><b>${E(l[0])}</b></td><td>${E(l[1])}</td><td>${E(l[2])}</td><td><span class="chip ${l[3] == 'New' ? '' : 'wr'}">${l[3]}</span></td><td class="text-right"><button class="btn" onclick="convert(${i})">Convert to deal</button></td></tr>`
+          `<tr><td><b>${E(l[0])}</b></td><td>${E(l[1])}</td><td>${E(l[2])}</td><td><span class="chip ${l[3] == 'New' ? '' : 'wr'}">${l[3]}</span></td><td class="text-right">${canAddOpportunity() ? `<button class="btn" onclick="convert(${i})">Convert to deal</button>` : ''}</td></tr>`
       )
       .join('')
   );
@@ -988,7 +989,7 @@ try {
 
 // Ceph CRM extensions: portals, price controls, approvals, invoice history.
 const ROLE_CFG = {
-  rep: { label: 'Rep portal', owner: 'AL', limit: 2, name: 'Alex Lee' },
+  rep: { label: 'Rep portal', owner: 'AL', limit: 0, name: 'Alex Lee' },
   admin: { label: 'Admin portal', owner: 'SC', limit: 5, name: 'Sara Chen' },
   ceo: { label: 'CEO portal', owner: 'TS', limit: 100, name: 'Tony Stark' },
 };
@@ -1091,10 +1092,11 @@ function quoteRoute(q) {
     };
   if (S.role === 'ceo') return { status: 'Approved', approver: roleNow().name };
   if (S.role === 'admin')
-    return pct <= 5
+    return pct <= adminDiscountLimit()
       ? { status: 'Approved', approver: roleNow().name }
       : { status: 'Pending CEO Approval', approver: ROLE_CFG.ceo.name };
-  if (pct > 5) return { status: 'Pending CEO Approval', approver: ROLE_CFG.ceo.name };
+  if (pct > adminDiscountLimit())
+    return { status: 'Pending CEO Approval', approver: ROLE_CFG.ceo.name };
   return { status: 'Pending Admin Approval', approver: ROLE_CFG.admin.name };
 }
 function storeQuote(q) {
@@ -1248,7 +1250,7 @@ V.home = () => {
     invCount = S.invoices.filter((i) => all.some((o) => o.id == i.opp)).length;
   const kp = (l, v, s) =>
     `<div class="card p-4"><div class="mut font-semibold">${l}</div><div class="text-2xl font-bold mt-1">${v}</div><div class="mut mt-1">${s}</div></div>`;
-  return `<div class="mb-4"><h1 class="text-2xl font-bold">Good ${new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}, ${roleNow().name}</h1><p class="mut">${open.length} active deals · ${S.tasks.length} open tasks · ${pending.length} quotations awaiting approval.</p></div><div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">${kp('Open pipeline', M(pipe), open.length + ' active deals')}${kp('Weighted forecast', M(weighted), 'Stage-weighted expected revenue')}${kp('Closed won revenue', M(won), 'Won opportunities')}${kp('Win rate', Math.round((all.filter((o) => o.stage === 5 && !o.lost).length / Math.max(all.length, 1)) * 100) + '%', 'Across visible opportunities')}${kp('Top deal', top[0] ? M(top[0].amount) : '—', top[0] ? E(top[0].name) : 'No open deals')}${kp('Churn watchlist', risk.length, 'Accounts needing attention')}${kp('Revenue at risk', M(riskValue), 'Risk / renewal exposure')}${kp('Invoices generated', invCount, 'Approved quotations')}</div><div class="grid lg:grid-cols-2 gap-3"><div class="card p-4"><b>Top opportunities</b>${table(['Opportunity', 'Account', 'Amount'], top.map((o) => `<tr class="r" onclick="nav('opp-detail',${o.id})"><td>${E(o.name)}</td><td>${E(o.account)}</td><td><b>${M(o.amount)}</b></td></tr>`).join(''))}</div><div class="card p-4"><b>Churn watchlist</b>${table(['Account', 'Opportunity', 'Revenue at risk'], risk.map((o) => `<tr class="r" onclick="nav('opp-detail',${o.id})"><td>${E(o.account)}</td><td>${E(o.name)}</td><td>${M(o.amount)}</td></tr>`).join(''))}</div><div class="card p-4"><b>Closing soon</b>${table(
+  return `<div class="mb-4"><h1 class="text-2xl font-bold">Good ${new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}, ${roleNow().name}</h1><p class="mut">${open.length} active deals · ${S.tasks.length} open tasks · ${pending.length} quotations awaiting approval.</p></div><div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">${kp('Open pipeline', M(pipe), open.length + ' active deals')}${kp('Weighted forecast', M(weighted), 'Stage-weighted expected revenue')}${kp('Closed won revenue', M(won), 'Won opportunities')}${kp('Win rate', Math.round((all.filter((o) => o.stage === 5 && !o.lost).length / Math.max(all.length, 1)) * 100) + '%', 'Across visible opportunities')}${kp('Top deal', top[0] ? M(top[0].amount) : '—', top[0] ? E(top[0].name) : 'No open deals')}${kp('Churn watchlist', risk.length, 'Accounts needing attention')}${kp('Revenue at risk', M(riskValue), 'Risk / renewal exposure')}${canSeeInvoices() ? kp('Invoices generated', invCount, 'Approved quotations') : ''}</div><div class="grid lg:grid-cols-2 gap-3"><div class="card p-4"><b>Top opportunities</b>${table(['Opportunity', 'Account', 'Amount'], top.map((o) => `<tr class="r" onclick="nav('opp-detail',${o.id})"><td>${E(o.name)}</td><td>${E(o.account)}</td><td><b>${M(o.amount)}</b></td></tr>`).join(''))}</div><div class="card p-4"><b>Churn watchlist</b>${table(['Account', 'Opportunity', 'Revenue at risk'], risk.map((o) => `<tr class="r" onclick="nav('opp-detail',${o.id})"><td>${E(o.account)}</td><td>${E(o.name)}</td><td>${M(o.amount)}</td></tr>`).join(''))}</div><div class="card p-4"><b>Closing soon</b>${table(
     ['Deal', 'Account', 'Amount', 'Close'],
     [...open]
       .sort((a, b) => a.close.localeCompare(b.close))
@@ -1276,7 +1278,7 @@ V.opps = () => {
 V.quotes = () => {
   const list = S.quotes.filter((q) => S.role !== 'rep' || visibleOpps().some((o) => o.id == q.opp));
   return (
-    `<h1 class="text-xl font-bold mb-3">Quotations</h1><p class="mut mb-3">Rep authority 2% · Admin authority 5% · CEO unlimited. Below-minimum product prices always require CEO approval.</p>` +
+    `<h1 class="text-xl font-bold mb-3">Quotations</h1><p class="mut mb-3">Only Admin and CEO can give discounts · Admin authority ${adminDiscountLimit()}% · CEO unlimited. Below-minimum product prices always require CEO approval.</p>` +
     table(
       ['Quotation no.', 'Opportunity', 'Total', 'Discount', 'Status', 'Invoice no.'],
       list
@@ -1303,7 +1305,13 @@ const QUOTE_STEPS = [
 ];
 const PAYMENT_TERMS = ['Net 30', 'Net 45', 'Net 60', 'Due on receipt'];
 // Highest blended discount each role can approve on their own (CEO is unlimited).
-const ROLE_DISCOUNT_LIMIT = { rep: 2, admin: 5, ceo: null };
+const ROLE_DISCOUNT_LIMIT = {
+  rep: 0,
+  get admin() {
+    return adminDiscountLimit();
+  },
+  ceo: null,
+};
 
 // Defaults shown in the form until the user edits a field.
 function quoteDefaults(q, o) {
@@ -1311,7 +1319,9 @@ function quoteDefaults(q, o) {
   return {
     name: q.name ?? `${q.no} - ${o.name}`,
     preparedFor: q.preparedFor ?? (contact ? `${contact[0]} (${contact[1]})` : ''),
-    address: q.address ?? '',
+    // Billing and shipping addresses fill in from the account until the user edits them.
+    address: q.address ?? ((S.accountInfo || {})[o.account] || {}).address ?? '',
+    shipping: q.shipping ?? ((S.accountInfo || {})[o.account] || {}).shipping ?? '',
     primary: q.primary !== false,
   };
 }
@@ -1322,7 +1332,7 @@ function quoteLineRows(q, locked, withActions) {
       const net = i.p * (1 - i.d / 100);
       const saved = (i.p * i.q * i.d) / 100;
       const discountCell = withActions
-        ? `<input class="inp qt-num" type="number" min="0" max="100" step="0.1" value="${i.d}" ${locked ? 'disabled' : ''} aria-label="Discount percent" onchange="changeQuoteItem(${k},'d',this.value)"><span class="qt-sub">${i.d ? `−${M(saved)}` : ''}</span>`
+        ? `<input class="inp qt-num" type="number" min="0" max="100" step="0.1" value="${i.d}" ${locked || !canGiveDiscount() ? 'disabled' : ''} title="${canGiveDiscount() ? '' : 'Only Admin and CEO can give discounts'}" aria-label="Discount percent" onchange="changeQuoteItem(${k},'d',this.value)"><span class="qt-sub">${i.d ? `−${M(saved)}` : ''}</span>`
         : `${i.d}%`;
       const qtyCell = withActions
         ? `<input class="inp qt-num" type="number" min="1" value="${i.q}" ${locked ? 'disabled' : ''} aria-label="Quantity" onchange="changeQuoteItem(${k},'q',this.value)">`
@@ -1346,7 +1356,7 @@ function quoteLinesCard(q, locked, withActions) {
     .join('');
   const tools =
     withActions && !locked
-      ? `<select class="btn qt-tool" aria-label="Add products" onchange="addQuoteProduct(this.value);this.value=''"><option value="">+ Add Products</option>${products}</select><button class="btn qt-tool" onclick="applyTieredDiscount()"><span class="ms">percent</span>Apply Tiered Discount</button><button class="btn qt-tool" onclick="calculateQuotePricing()"><span class="ms">sync</span>Calculate Pricing</button>`
+      ? `<select class="btn qt-tool" aria-label="Add products" onchange="addQuoteProduct(this.value);this.value=''"><option value="">+ Add Products</option>${products}</select>${canGiveDiscount() ? '<button class="btn qt-tool" onclick="applyTieredDiscount()"><span class="ms">percent</span>Apply Tiered Discount</button>' : ''}<button class="btn qt-tool" onclick="calculateQuotePricing()"><span class="ms">sync</span>Calculate Pricing</button>`
       : '';
   return `<section class="qt-section"><div class="qt-section-head"><span class="ms">inventory_2</span><b>Line Items &amp; Product Bundling</b><span class="chip ok">${q.items.length} ${q.items.length === 1 ? 'Item' : 'Items'}</span><span class="flex-1"></span>${tools}</div><div class="overflow-x-auto"><table class="qt-table"><thead><tr>${head}</tr></thead><tbody>${quoteLineRows(q, locked, withActions)}</tbody></table></div></section>`;
 }
@@ -1379,16 +1389,21 @@ V.quote = () => {
   const floor = belowProductFloor(q);
   const route = quoteRoute(q);
   const d = quoteDefaults(q, o);
+  if (!locked) {
+    // keep the autofilled addresses on the quote so they are saved with it
+    if (q.address === undefined) q.address = d.address;
+    if (q.shipping === undefined) q.shipping = d.shipping;
+  }
   const dis = locked ? 'disabled' : '';
 
   const field = (label, control, required) =>
     `<label class="qt-field"><span>${label}${required ? ' <i class="qt-req">*</i>' : ''}</span>${control}</label>`;
 
-  const infoCard = `<section class="qt-section"><div class="qt-section-head"><span class="ms">badge</span><b>Quote Information</b></div><div class="qt-grid">${field('Quote Name', `<input class="inp" value="${E(d.name)}" ${dis} onchange="S.qd.name=this.value">`, true)}<label class="qt-check"><input type="checkbox" ${d.primary ? 'checked' : ''} ${dis} onchange="S.qd.primary=this.checked"> Primary Quote (Syncs to Opportunity)</label>${field('Expiration Date', `<input type="date" class="inp" value="${q.exp}" ${dis} onchange="S.qd.exp=this.value">`)}${field('Status', q.status === 'Draft' ? quoteOtherSelect('label', QUOTE_STATUS_CHOICES, q.label || 'Draft', false) : `<select class="inp" disabled><option>${E(q.status)}</option></select>`)}${field('Prepared For', `<input class="inp" value="${E(d.preparedFor)}" ${dis} onchange="S.qd.preparedFor=this.value">`)}${field('Sales Rep / Owner', `<input class="inp" value="${E(ownerLabel(o.owner))}" disabled>`)}${field('Payment Terms', quoteOtherSelect('terms', PAYMENT_TERMS, q.terms, locked))}${field('Billing / Shipping Address', `<input class="inp" value="${E(d.address)}" placeholder="Street, city, state, PIN" ${dis} onchange="S.qd.address=this.value">`)}</div></section>`;
+  const infoCard = `<section class="qt-section"><div class="qt-section-head"><span class="ms">badge</span><b>Quote Information</b></div><div class="qt-grid">${field('Quote Name', `<input class="inp" value="${E(d.name)}" ${dis} onchange="S.qd.name=this.value">`, true)}<label class="qt-check"><input type="checkbox" ${d.primary ? 'checked' : ''} ${dis} onchange="S.qd.primary=this.checked"> Primary Quote (Syncs to Opportunity)</label>${field('Expiration Date', `<input type="date" class="inp" value="${q.exp}" ${dis} onchange="S.qd.exp=this.value">`)}${field('Status', q.status === 'Draft' ? quoteOtherSelect('label', QUOTE_STATUS_CHOICES, q.label || 'Draft', false) : `<select class="inp" disabled><option>${E(q.status)}</option></select>`)}${field('Prepared For', `<input class="inp" value="${E(d.preparedFor)}" ${dis} onchange="S.qd.preparedFor=this.value">`)}${field('Sales Rep / Owner', `<input class="inp" value="${E(ownerLabel(o.owner))}" disabled>`)}${field('Payment Terms', quoteOtherSelect('terms', PAYMENT_TERMS, q.terms, locked))}${field('Billing Address', `<input class="inp" value="${E(d.address)}" placeholder="Street, city, state, PIN" ${dis} onchange="S.qd.address=this.value">`)}${field('Shipping Address', `<input class="inp" value="${E(d.shipping)}" placeholder="Street, city, state, PIN" ${dis} onchange="S.qd.shipping=this.value">`)}</div></section>`;
 
   const approvalCard = approvalSection(q, floor, locked);
 
-  const previewCard = `<section class="qt-section"><div class="qt-section-head"><span class="ms">visibility</span><b>Preview</b></div><div class="qt-body"><p><b>${E(d.name)}</b></p><p class="mut">Prepared for ${E(d.preparedFor || '—')} · Expires ${fd(q.exp)} · ${E(q.terms)}</p>${d.address ? `<p class="mut">${E(d.address)}</p>` : ''}<p style="margin-top:8px"><b>Terms &amp; conditions</b></p><p style="white-space:pre-wrap">${q.tnc ? E(q.tnc) : '<span class="mut">None added.</span>'}</p></div></section>`;
+  const previewCard = `<section class="qt-section"><div class="qt-section-head"><span class="ms">visibility</span><b>Preview</b></div><div class="qt-body"><p><b>${E(d.name)}</b></p><p class="mut">Prepared for ${E(d.preparedFor || '—')} · Expires ${fd(q.exp)} · ${E(q.terms)}</p>${d.address ? `<p class="mut">Billing: ${E(d.address)}</p>` : ''}${d.shipping ? `<p class="mut">Shipping: ${E(d.shipping)}</p>` : ''}<p style="margin-top:8px"><b>Terms &amp; conditions</b></p><p style="white-space:pre-wrap">${q.tnc ? E(q.tnc) : '<span class="mut">None added.</span>'}</p></div></section>`;
 
   const body =
     step === 1
@@ -1404,9 +1419,9 @@ V.quote = () => {
       `<button class="qt-step ${n + 1 === step ? 'on' : ''} ${n + 1 < step ? 'done' : ''}" onclick="S.qstep=${n + 1};render()">${n + 1}. ${label}</button>`
   ).join('');
 
-  const footer = `<div class="qt-foot">${locked ? '<span></span>' : `<button class="btn" onclick="saveQuoteDraft()">Save as Draft</button>`}<span class="flex-1"></span><button class="btn" onclick="nav('opp-detail')">Cancel</button><button class="btn" ${step === 1 ? 'disabled' : ''} onclick="S.qstep=${step - 1};render()">Back</button>${step < 4 ? `<button class="btn" onclick="S.qstep=${step + 1};render()">Next</button>` : ''}${canReview(q) ? `<button class="btn" style="color:var(--err)" onclick="rejectQuote('${E(q.no)}')">Reject</button><button class="btn btn-p" onclick="approveQuote('${E(q.no)}')">Approve</button>` : ''}${inv ? `<button class="btn btn-p" onclick="openInvoice('${inv.id}')">Open ${E(inv.invoiceNo)}</button>` : ''}${locked ? '' : `<button class="btn btn-p" onclick="submitQuote()">Save &amp; Generate PDF Quote<span class="ms">chevron_right</span></button>`}</div>`;
+  const footer = `<div class="qt-foot">${locked ? '<span></span>' : `<button class="btn" onclick="saveQuoteDraft()">Save as Draft</button>`}<span class="flex-1"></span><button class="btn" onclick="nav('opp-detail')">Cancel</button><button class="btn" ${step === 1 ? 'disabled' : ''} onclick="S.qstep=${step - 1};render()">Back</button>${step < 4 ? `<button class="btn" onclick="S.qstep=${step + 1};render()">Next</button>` : ''}${canReview(q) ? `<button class="btn" style="color:var(--err)" onclick="rejectQuote('${E(q.no)}')">Reject</button><button class="btn btn-p" onclick="approveQuote('${E(q.no)}')">Approve</button>` : ''}${inv && canSeeInvoices() ? `<button class="btn btn-p" onclick="openInvoice('${inv.id}')">Open ${E(inv.invoiceNo)}</button>` : ''}${locked ? '' : `<button class="btn btn-p" onclick="submitQuote()">Save &amp; Generate PDF Quote<span class="ms">chevron_right</span></button>`}</div>`;
 
-  return `<div class="qt-wrap card"><header class="qt-head"><span class="qt-head-icon"><span class="ms">description</span></span><div><h1>Generate Quote — ${E(o.name)}</h1><p>Primary Opportunity: <b>${E(o.name)}</b> &nbsp;|&nbsp; Account: <b>${E(o.account)}</b> &nbsp;|&nbsp; Stage: <b>${E(ST[o.stage] || '—')}</b></p></div></header><nav class="qt-steps">${stepper}</nav><div class="qt-content">${approvalBanner(q, inv)}${body}</div>${footer}</div>`;
+  return `<div class="qt-wrap card"><header class="qt-head"><span class="qt-head-icon"><span class="ms">description</span></span><div><h1>Generate Quote — ${E(o.name)}</h1><p>Primary Opportunity: <b>${E(o.name)}</b> &nbsp;|&nbsp; Account: <b>${acctSpan(o.account)}</b> &nbsp;|&nbsp; Stage: <b>${E(ST[o.stage] || '—')}</b></p></div></header><nav class="qt-steps">${stepper}</nav><div class="qt-content">${approvalBanner(q, inv)}${body}</div>${footer}</div>`;
 };
 function removeQuoteItem(k) {
   S.qd.items.splice(k, 1);
@@ -1641,6 +1656,73 @@ function setPriority(id, value) {
   render();
 }
 
+// Team + Assigned rep: picking a team narrows the rep list to that team's reps.
+function newOppTeamAndRep() {
+  const reps = assignableReps(),
+    def = defaultRepCode(),
+    defTeam = (reps.find((u) => u.ownerCode === def) || {}).teamId || '',
+    teams = (S.teams || []).filter((t) => reps.some((u) => u.teamId === t.id)),
+    teamSel = `<select class="inp" name="teamId" onchange="newOppTeamChanged(this)"><option value="">All teams</option>${teams
+      .map(
+        (t) =>
+          `<option value="${E(t.id)}" ${t.id === defTeam ? 'selected' : ''}>${E(t.name)}</option>`
+      )
+      .join('')}</select>`,
+    repSel = `<select class="inp" name="owner" required>${reps
+      .map(
+        (u) =>
+          `<option value="${E(u.ownerCode)}" data-team="${E(u.teamId || '')}" ${u.ownerCode === def ? 'selected' : ''}>${E(u.name)}</option>`
+      )
+      .join('')}</select>`;
+  setTimeout(() => {
+    const t = document.querySelector('#modal [name=teamId]');
+    if (t) newOppTeamChanged(t);
+  }, 0);
+  return `<label class="block">Team${teamSel}</label><label class="block">Assigned rep${repSel}</label>`;
+}
+function newOppTeamChanged(sel) {
+  const rep = sel.form.elements.owner;
+  let first = null;
+  [...rep.options].forEach((o) => {
+    const show = !sel.value || o.dataset.team === sel.value;
+    o.hidden = !show;
+    o.disabled = !show;
+    if (show && !first) first = o;
+  });
+  if (rep.selectedOptions[0] && rep.selectedOptions[0].disabled && first) rep.value = first.value;
+}
+
+// Products: tick one or more, set a quantity for each. The amount is then worked out from them.
+function newOppProducts() {
+  const rows = S.products
+    .filter((p) => p.active !== false)
+    .map(
+      (p) =>
+        `<label class="flex items-center gap-2 py-1"><input type="checkbox" name="prod" value="${E(p.code)}" onchange="newOppProductsChanged(this.form)"><span class="flex-1 min-w-0"><b>${E(p.name)}</b> <span class="mut text-xs">${E(p.code)} · ${M(p.listPrice)}</span></span><input class="inp" style="width:72px" type="number" min="1" step="1" value="1" name="qty_${E(p.code)}" aria-label="Quantity for ${E(p.name)}" disabled onchange="newOppProductsChanged(this.form)"></label>`
+    )
+    .join('');
+  return `<div class="sm:col-span-2"><div class="font-semibold">Products <span class="mut text-xs font-normal">(optional — choose one or more)</span></div><div class="card p-2 mt-1 overflow-auto" style="max-height:180px">${rows || '<span class="mut">No active products.</span>'}</div></div>`;
+}
+function newOppProductsChanged(form) {
+  let total = 0,
+    n = 0;
+  S.products.forEach((p) => {
+    const box = [...form.querySelectorAll('[name=prod]')].find((b) => b.value === p.code);
+    const qty = form.elements['qty_' + p.code];
+    if (!box || !qty) return;
+    qty.disabled = !box.checked;
+    if (box.checked) {
+      n++;
+      total += p.listPrice * Math.max(1, Math.floor(+qty.value || 1));
+    }
+  });
+  const amt = form.elements.amount,
+    note = form.querySelector('#amt-note');
+  amt.readOnly = n > 0;
+  if (n > 0) amt.value = total;
+  if (note) note.textContent = n > 0 ? `Calculated from ${n} product${n > 1 ? 's' : ''}` : '';
+}
+
 const originalModal = modal;
 modal = function (k) {
   if (k === 'role') return openOppContactForm();
@@ -1656,7 +1738,10 @@ modal = function (k) {
         .map((a) => `<option value="${E(a)}">`)
         .join('')}</datalist>`
     ) +
-    field('Amount (₹) *', '<input class="inp" name="amount" type="number" min="0" required>') +
+    field(
+      'Amount (₹) *',
+      '<input class="inp" name="amount" type="number" min="0" required><span class="mut text-xs" id="amt-note"></span>'
+    ) +
     field(
       'Close date *',
       `<input class="inp" name="close" type="date" value="${D(30)}" required>`
@@ -1669,10 +1754,8 @@ modal = function (k) {
       'Priority level',
       `<select class="inp" name="priority">${prioOptions('Medium')}</select>`
     ) +
-    field(
-      'Assigned rep',
-      `<select class="inp" name="owner" required>${repOptions(defaultRepCode()) || `<option value="${E(defaultRepCode())}">${E(ownerLabel(defaultRepCode()))}</option>`}</select>`
-    ) +
+    newOppTeamAndRep() +
+    newOppProducts() +
     field('Opportunity type', formOtherSelect('type', OPP_TYPES, OPP_TYPES[0])) +
     field('Lead source', formOtherSelect('source', LEAD_SOURCES, LEAD_SOURCES[0])) +
     field(
@@ -1689,9 +1772,20 @@ modal = function (k) {
 };
 function saveOpportunityExtended(e) {
   e.preventDefault();
-  const v = Object.fromEntries(new FormData(e.target)),
+  const fd0 = new FormData(e.target),
+    v = Object.fromEntries(fd0),
     id = Math.max(0, ...S.opps.map((o) => o.id)) + 1,
-    a = +v.amount;
+    picked = fd0
+      .getAll('prod')
+      .map((code) => {
+        const p = S.products.find((x) => x.code === code);
+        const q = Math.max(1, Math.floor(+v['qty_' + code] || 1));
+        return p && { n: p.name, c: p.code, p: p.listPrice, q, d: 0 };
+      })
+      .filter(Boolean),
+    a = picked.length ? picked.reduce((s, i) => s + i.p * i.q, 0) : +v.amount,
+    ownerCode = v.owner || defaultRepCode(),
+    ownerRep = activeReps().find((u) => u.ownerCode === ownerCode);
   S.opps.push({
     id,
     name: v.name.trim(),
@@ -1699,14 +1793,15 @@ function saveOpportunityExtended(e) {
     amount: a,
     stage: +v.stage,
     close: v.close,
-    owner: v.owner || defaultRepCode(),
+    owner: ownerCode,
+    teamId: (ownerRep && ownerRep.teamId) || '',
     priority: PRIORITIES.includes(v.priority) ? v.priority : 'Medium',
     type: pickOther(v, 'type'),
     source: pickOther(v, 'source'),
     description: (v.description || '').trim(),
     next: (v.next || '').trim(),
     socials: { linkedin: '', instagram: '', facebook: '', x: '' },
-    items: [{ n: 'Platform licence', c: 'GEN-100', p: a, q: 1, d: 0 }],
+    items: picked.length ? picked : [{ n: 'Platform licence', c: 'GEN-100', p: a, q: 1, d: 0 }],
   });
   S.cur = id;
   $('#modal').innerHTML = '';
@@ -1911,7 +2006,7 @@ V.users = () => {
       u
         .map(
           (x) =>
-            `<tr><td><b>${E(x.name)}</b></td><td>${E(x.username)}</td><td>${x.role.toUpperCase()}</td><td>${E(x.ownerCode || '—')}</td><td><span class="chip ok">Active</span></td></tr>`
+            `<tr><td><b>${E(x.name)}</b></td><td>${E(x.username)}</td><td>${roleTitle(x)}</td><td>${E(x.ownerCode || '—')}</td><td><span class="chip ok">Active</span></td></tr>`
         )
         .join('')
     ) +
@@ -1921,14 +2016,19 @@ V.users = () => {
 // teamId is optional: pass it to open the form already set to "Rep" on that team.
 function openUserForm(teamId = '') {
   const role = S.role,
-    allowed = role === 'ceo' ? ['admin', 'rep'] : role === 'admin' ? ['rep'] : [];
+    allowed =
+      role === 'ceo'
+        ? ['admin', 'rep', 'senior_rep']
+        : role === 'admin'
+          ? ['rep', 'senior_rep']
+          : [];
   if (!allowed.length) return toast('You do not have permission to create accounts');
   $('#modal').innerHTML =
     `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><form class="card p-5 w-full max-w-md space-y-3" onsubmit="createUser(event)"><h2 class="text-lg font-bold">Create user account</h2>
  <label class="block">Full name<input class="inp mt-1" name="name" required></label>
  <label class="block">Username<input class="inp mt-1" name="username" required></label>
  <label class="block">Temporary password<input class="inp mt-1" name="password" type="password" minlength="8" required></label>
- <label class="block">Portal role<select class="inp mt-1" name="role">${(teamId ? ['rep'] : allowed).map((r) => `<option value="${r}">${r === 'admin' ? 'Admin' : 'Rep'}</option>`).join('')}</select></label>
+ <label class="block">Portal role<select class="inp mt-1" name="role">${(teamId ? ['rep', 'senior_rep'] : allowed).map((r) => `<option value="${r}">${r === 'admin' ? 'Admin' : r === 'senior_rep' ? 'Senior Rep' : 'Rep'}</option>`).join('')}</select></label>
  <label class="block">Team (reps only)<select class="inp mt-1" name="teamId"><option value="">Unassigned</option>${S.teams.map((t) => `<option value="${t.id}" ${t.id === teamId ? 'selected' : ''}>${E(t.name)}</option>`).join('')}</select></label>
  <div class="mut text-xs">${role === 'ceo' ? 'CEO can create Admin and Rep accounts.' : 'Admin can create Rep accounts only.'}</div>
  <div class="flex justify-end gap-2"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">Create account</button></div></form></div>`;
@@ -1936,8 +2036,15 @@ function openUserForm(teamId = '') {
 function createUser(e) {
   e.preventDefault();
   const v = Object.fromEntries(new FormData(e.target)),
-    allowed = S.role === 'ceo' ? ['admin', 'rep'] : S.role === 'admin' ? ['rep'] : [];
+    allowed =
+      S.role === 'ceo'
+        ? ['admin', 'rep', 'senior_rep']
+        : S.role === 'admin'
+          ? ['rep', 'senior_rep']
+          : [];
   if (!allowed.includes(v.role)) return toast('Not authorised to create this role');
+  const senior = v.role === 'senior_rep';
+  if (senior) v.role = 'rep';
   if (S.users.some((u) => u.username.toLowerCase() === v.username.trim().toLowerCase()))
     return toast('Username already exists');
   const id = 'u-' + Date.now();
@@ -1955,6 +2062,7 @@ function createUser(e) {
   if (v.role === 'rep') {
     user.teamId = v.teamId || null;
     user.teamLocked = true;
+    user.senior = senior;
     user.target = DEFAULT_TARGET;
   }
   S.users.push(user);
@@ -2018,7 +2126,7 @@ render = function () {
             `<a href="#${k}" class="px-3 py-2 font-semibold whitespace-nowrap" style="${v === k || (v === 'quote' && k === 'quotes') || (v === 'invoice-detail' && k === 'invoices') || (v === 'opp-detail' && k === 'opps') ? 'border-bottom:3px solid var(--pr);color:var(--pr)' : 'color:var(--mut)'}">${l}</a>`
         )
         .join('') +
-      `<span class="flex-1"></span><span class="mut self-center px-2">${E(user.name)} · ${user.role.toUpperCase()}</span><a href="#" class="px-3 py-2 mut" onclick="logoutUser();return false">Sign out</a>`;
+      `<span class="flex-1"></span><span class="mut self-center px-2">${E(user.name)} · ${roleTitle(user)}</span><a href="#" class="px-3 py-2 mut" onclick="logoutUser();return false">Sign out</a>`;
   }
   const sw = $('#role-switch');
   if (sw) sw.style.display = 'none';
@@ -2059,7 +2167,7 @@ addEventListener('storage', (e) => {
 // user administration and invoice payment. Prototype/localStorage implementation.
 // ---------------------------------------------------------------------------
 const logOpp = (id, k, x) => {
-  (S.acts[id] = S.acts[id] || []).unshift({ k, x, t: Date.now() });
+  (S.acts[id] = S.acts[id] || []).unshift({ k, x, t: Date.now(), by: roleNow().name });
 };
 const currentUser = () => S.users.find((u) => u.id === S.authUser) || {};
 const initials = (n) =>
@@ -2144,7 +2252,12 @@ function allNotificationItems() {
         items.unshift({
           icon: q.status === 'Approved' ? 'check_circle' : 'cancel',
           text: `Quotation ${q.no} was ${q.status.toLowerCase()}`,
-          sub: q.status === 'Approved' ? 'Invoice generated' : 'Review and resubmit',
+          sub:
+            q.status === 'Approved'
+              ? canSeeInvoices()
+                ? 'Invoice generated'
+                : 'Approved'
+              : 'Review and resubmit',
           go: `openQuoteRecord('${q.no}')`,
         })
       );
@@ -2207,7 +2320,7 @@ function toggleUserMenu() {
   const u = currentUser();
   openPanel(
     'user-avatar',
-    `<div class="p-4" style="border-bottom:1px solid var(--bd)"><b>${E(u.name)}</b><div class="mut">${E(u.username || '')} · ${String(u.role || '').toUpperCase()}</div></div><div class="p-2"><button class="btn w-full justify-center" onclick="closePanels();logoutUser()"><span class="ms">logout</span>Sign out</button></div>`
+    `<div class="p-4" style="border-bottom:1px solid var(--bd)"><b>${E(u.name)}</b><div class="mut">${E(u.username || '')} · ${roleTitle(u)}</div></div><div class="p-2"><button class="btn w-full justify-center" onclick="closePanels();logoutUser()"><span class="ms">logout</span>Sign out</button></div>`
   );
 }
 function updateHeader() {
@@ -2248,7 +2361,7 @@ V.leads = () =>
     S.leads
       .map(
         (l, i) =>
-          `<tr><td><b>${E(l[0])}</b></td><td>${E(l[1])}</td><td>${E(l[2])}</td><td><select class="inp" style="width:auto" aria-label="Lead status" onchange="setLeadStatus(${i},this.value)">${LEAD_STATUS.map((s) => `<option ${s === l[3] ? 'selected' : ''}>${s}</option>`).join('')}</select></td><td class="text-right whitespace-nowrap"><button class="btn" onclick="convert(${i})">Convert to deal</button> <button class="btn" style="color:var(--err)" onclick="deleteLead(${i})">Delete</button></td></tr>`
+          `<tr><td><b>${E(l[0])}</b></td><td>${E(l[1])}</td><td>${E(l[2])}</td><td><select class="inp" style="width:auto" aria-label="Lead status" onchange="setLeadStatus(${i},this.value)">${LEAD_STATUS.map((s) => `<option ${s === l[3] ? 'selected' : ''}>${s}</option>`).join('')}</select></td><td class="text-right whitespace-nowrap">${canAddOpportunity() ? `<button class="btn" onclick="convert(${i})">Convert to deal</button>` : ''} <button class="btn" style="color:var(--err)" onclick="deleteLead(${i})">Delete</button></td></tr>`
       )
       .join('')
   );
@@ -2338,7 +2451,7 @@ V.users = () =>
       .map((x) => {
         const can = manageableRoles().includes(x.role) && x.id !== S.authUser,
           on = x.active !== false;
-        return `<tr><td><b>${E(x.name)}</b></td><td>${E(x.username)}</td><td>${x.role.toUpperCase()}</td><td>${E(x.ownerCode || '—')}</td><td><span class="chip ${on ? 'ok' : 'wr'}">${on ? 'Active' : 'Inactive'}</span></td><td class="text-right whitespace-nowrap">${can ? `<button class="btn" onclick="openResetPassword('${x.id}')">Reset password</button> <button class="btn" onclick="toggleUserActive('${x.id}')">${on ? 'Deactivate' : 'Activate'}</button>` : ''}</td></tr>`;
+        return `<tr><td><b>${E(x.name)}</b></td><td>${E(x.username)}</td><td>${roleTitle(x)}</td><td>${E(x.ownerCode || '—')}</td><td><span class="chip ${on ? 'ok' : 'wr'}">${on ? 'Active' : 'Inactive'}</span></td><td class="text-right whitespace-nowrap">${can ? `${x.role === 'rep' ? `<button class="btn" onclick="toggleSeniorRep('${x.id}')">${isSeniorRep(x) ? 'Remove senior' : 'Make senior'}</button> ` : ''}<button class="btn" onclick="openResetPassword('${x.id}')">Reset password</button> <button class="btn" onclick="toggleUserActive('${x.id}')">${on ? 'Deactivate' : 'Activate'}</button>` : ''}</td></tr>`;
       })
       .join('')
   ) +
@@ -2439,7 +2552,8 @@ const APP_LABELS = {
   users: 'User accounts',
   settings: 'Settings',
 };
-const appsForRole = () =>
+const appsForRole = () => appsForRoleAll().filter((k) => k !== 'invoices' || canSeeInvoices());
+const appsForRoleAll = () =>
   S.role === 'rep'
     ? ['home', 'leads', 'accounts', 'contacts', 'opps', 'quotes', 'invoices', 'settings']
     : [
@@ -2567,7 +2681,7 @@ function toggleHelp() {
   openPanel(
     'help',
     panelTitle('Help') +
-      `<div class="p-3"><div class="mut font-semibold mb-1">Keyboard shortcuts</div>${row('Search', 'Ctrl + K')}${row('Close menus', 'Esc')}</div><div class="p-3" style="border-top:1px solid var(--bd)"><div class="mut font-semibold mb-1">Quote to invoice</div><p>Open an opportunity and choose <b>Generate quote</b>. Submit it for approval; once approved, an invoice is generated that you can submit to the client and mark as paid.</p><p class="mut mt-2">Approval limits: Rep 2% · Admin 5% · CEO unlimited. Prices below a product minimum always need CEO approval.</p></div>`
+      `<div class="p-3"><div class="mut font-semibold mb-1">Keyboard shortcuts</div>${row('Search', 'Ctrl + K')}${row('Close dialogs and menus, go back', 'Esc')}${row('Switch opportunity tab', 'Alt + 1-9')}${row('Rename opportunity tab', 'F2')}</div><div class="p-3" style="border-top:1px solid var(--bd)"><div class="mut font-semibold mb-1">Quote to invoice</div><p>Open an opportunity and choose <b>Generate quote</b>. Submit it for approval; once approved, an invoice is generated that you can submit to the client and mark as paid.</p><p class="mut mt-2">Approval limits: Reps cannot discount · Admin ${adminDiscountLimit()}% · CEO unlimited. Prices below a product minimum always need CEO approval.</p></div>`
   );
 }
 addEventListener('keydown', (e) => {
@@ -2607,8 +2721,8 @@ function opportunityDocuments(o) {
   });
 }
 function reassignOpportunity(id, ownerCode) {
-  if (!['admin', 'ceo'].includes(S.role)) {
-    toast('Only Admin and CEO can change the assigned rep');
+  if (!canEditOwner()) {
+    toast('Only Senior Reps, Admin and CEO can change the assigned rep');
     render();
     return;
   }
@@ -2628,8 +2742,8 @@ function reassignOpportunity(id, ownerCode) {
 }
 const previousOpportunityFieldSave = sf;
 sf = function (k, v) {
-  if (k === 'owner' && !['admin', 'ceo'].includes(S.role)) {
-    toast('Only Admin and CEO can change the assigned rep');
+  if (k === 'owner' && !canEditOwner()) {
+    toast('Only Senior Reps, Admin and CEO can change the assigned rep');
     S.ed = null;
     return render();
   }
@@ -2639,14 +2753,15 @@ V.opps = () => {
   const query = (S.q || '').toLowerCase();
   const all = visibleOpps().filter((o) => (o.name + ' ' + o.account).toLowerCase().includes(query));
   const total = all.reduce((sum, o) => sum + (+o.amount || 0), 0);
-  const canReassign = ['admin', 'ceo'].includes(S.role);
+  const canReassign = canEditOwner();
   const docMeta = (o) => {
     const docs = opportunityDocuments(o);
-    if (!docs.length) return '<span class="mut text-xs">Quote: — · Invoice: —</span>';
+    if (!docs.length)
+      return `<span class="mut text-xs">Quote: —${canSeeInvoices() ? ' · Invoice: —' : ''}</span>`;
     return docs
       .map(
         (d) =>
-          `<span class="text-xs inline-flex flex-wrap gap-1 items-center"><b>Quote:</b> ${E(d.quoteNo)} <span class="mut">·</span> <b>Invoice:</b> ${d.invoiceNo ? E(d.invoiceNo) : '—'}</span>`
+          `<span class="text-xs inline-flex flex-wrap gap-1 items-center"><b>Quote:</b> ${E(d.quoteNo)} ${canSeeInvoices() ? `<span class="mut">·</span> <b>Invoice:</b> ${d.invoiceNo ? E(d.invoiceNo) : '—'}` : ''}</span>`
       )
       .join('<br>');
   };
@@ -2657,9 +2772,9 @@ V.opps = () => {
             (u) =>
               `<option value="${E(u.ownerCode)}" ${u.ownerCode === o.owner ? 'selected' : ''}>${E(u.name)}</option>`
           )
-          .join('')}</select>`
-      : `<span>${E(ownerLabel(o.owner))}</span>`;
-  const top = `<div class="flex flex-wrap items-center gap-2 mb-3"><div><div class="mut">Opportunities</div><h1 class="text-xl font-bold">${S.role === 'rep' ? 'My opportunities' : 'All opportunities'}</h1></div><span class="mut ml-2">${all.length} items · Total ${M(total)}</span><span class="flex-1"></span><input class="inp" style="width:200px" placeholder="Filter this list" value="${E(S.q || '')}" oninput="S.q=this.value;clearTimeout(window.ft);window.ft=setTimeout(()=>{render();const i=document.querySelector('[placeholder=\\'Filter this list\\']');if(i){i.focus();i.setSelectionRange(99,99)}},250)"><button class="btn" onclick="S.view='${S.view === 'kanban' ? 'list' : 'kanban'}';render()"><span class="ms">${S.view === 'kanban' ? 'table_rows' : 'view_kanban'}</span>${S.view === 'kanban' ? 'List' : 'Board'}</button><button class="btn btn-p" onclick="modal('opp')"><span class="ms">add</span>New</button></div>`;
+          .join('')}</select>${repOpenBtn(o.owner)}`
+      : `<span>${repLink(o.owner)}</span>`;
+  const top = `<div class="flex flex-wrap items-center gap-2 mb-3"><div><div class="mut">Opportunities</div><h1 class="text-xl font-bold">${S.role === 'rep' ? 'My opportunities' : 'All opportunities'}</h1></div><span class="mut ml-2">${all.length} items · Total ${M(total)}</span><span class="flex-1"></span><input class="inp" style="width:200px" placeholder="Filter this list" value="${E(S.q || '')}" oninput="S.q=this.value;clearTimeout(window.ft);window.ft=setTimeout(()=>{render();const i=document.querySelector('[placeholder=\\'Filter this list\\']');if(i){i.focus();i.setSelectionRange(99,99)}},250)"><button class="btn" onclick="S.view='${S.view === 'kanban' ? 'list' : 'kanban'}';render()"><span class="ms">${S.view === 'kanban' ? 'table_rows' : 'view_kanban'}</span>${S.view === 'kanban' ? 'List' : 'Board'}</button>${canAddOpportunity() ? `<button class="btn btn-p" onclick="modal('opp')"><span class="ms">add</span>New</button>` : ''}</div>`;
   if (S.view === 'list') {
     return (
       top +
@@ -2680,7 +2795,7 @@ V.opps = () => {
             const docs = opportunityDocuments(o);
             const quoteNumbers = docs.map((d) => E(d.quoteNo)).join('<br>') || '—';
             const invoiceNumbers = docs.map((d) => E(d.invoiceNo || '—')).join('<br>') || '—';
-            return `<tr class="r" onclick="nav('opp-detail',${o.id})"><td><b>${E(o.name)}</b></td><td>${E(o.account)}</td><td>${E(ST[o.stage] || '—')}</td><td onclick="event.stopPropagation()"><select class="inp text-xs" style="width:auto;padding:4px 24px 4px 8px" aria-label="Priority" onchange="setPriority(${o.id},this.value)">${prioOptions(o.priority)}</select></td><td>${M(o.amount)}</td><td>${fd(o.close)}</td><td onclick="event.stopPropagation()">${repCell(o)}</td><td>${quoteNumbers}</td><td>${invoiceNumbers}</td></tr>`;
+            return `<tr class="r" onclick="nav('opp-detail',${o.id})"><td><b>${E(o.name)}</b></td><td>${acctSpan(o.account)}</td><td>${E(ST[o.stage] || '—')}</td><td onclick="event.stopPropagation()"><select class="inp text-xs" style="width:auto;padding:4px 24px 4px 8px" aria-label="Priority" onchange="setPriority(${o.id},this.value)">${prioOptions(o.priority)}</select></td><td>${M(o.amount)}</td><td>${fd(o.close)}</td><td onclick="event.stopPropagation()">${repCell(o)}</td><td>${quoteNumbers}</td><td>${invoiceNumbers}</td></tr>`;
           })
           .join('')
       )
@@ -2694,7 +2809,7 @@ V.opps = () => {
         return `<div class="kcol card shrink-0 w-80 p-2" style="background:var(--hov)" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="drop(event,${index})"><div class="px-1 pb-2"><b>${stage}</b><div class="mut">${deals.length} deals · ${M(deals.reduce((sum, o) => sum + (+o.amount || 0), 0))}</div></div><div class="space-y-2">${deals
           .map(
             (o) =>
-              `<div class="kc card p-3" draggable="true" ondragstart="event.dataTransfer.setData('t',${o.id})" onclick="nav('opp-detail',${o.id})"><b style="color:var(--pr)">${E(o.name)}</b><div class="mut">${E(o.account)}</div><div class="mt-1" onclick="event.stopPropagation()"><select class="inp text-xs" style="width:auto;padding:2px 22px 2px 6px" aria-label="Priority" onchange="setPriority(${o.id},this.value)">${prioOptions(o.priority)}</select></div><div class="flex justify-between mt-2"><b>${M(o.amount)}</b><span class="mut">${PR[index]}%</span></div>${o.next ? `<div class="mut mt-1">Next: ${E(o.next)}</div>` : ''}<div class="flex justify-between items-center mt-2"><span class="chip ${chipC(o)}">${fd(o.close)}</span><span class="text-xs mut" title="Assigned rep">${E(ownerLabel(o.owner))}</span></div><div class="mt-2 pt-2 border-t" style="border-color:var(--bd)" onclick="event.stopPropagation()">${docMeta(o)}</div>${
+              `<div class="kc card p-3" draggable="true" ondragstart="event.dataTransfer.setData('t',${o.id})" onclick="nav('opp-detail',${o.id})"><b style="color:var(--pr)">${E(o.name)}</b><div class="mut">${acctSpan(o.account)}</div><div class="mt-1" onclick="event.stopPropagation()"><select class="inp text-xs" style="width:auto;padding:2px 22px 2px 6px" aria-label="Priority" onchange="setPriority(${o.id},this.value)">${prioOptions(o.priority)}</select></div><div class="flex justify-between mt-2"><b>${M(o.amount)}</b><span class="mut">${PR[index]}%</span></div>${o.next ? `<div class="mut mt-1">Next: ${E(o.next)}</div>` : ''}<div class="flex justify-between items-center mt-2"><span class="chip ${chipC(o)}">${fd(o.close)}</span><span class="text-xs mut" title="Assigned rep">${repLink(o.owner)}</span></div><div class="mt-2 pt-2 border-t" style="border-color:var(--bd)" onclick="event.stopPropagation()">${docMeta(o)}</div>${
                 canReassign
                   ? `<div class="mt-2" onclick="event.stopPropagation()"><label class="mut text-xs">Change assigned rep<select class="inp mt-1" style="width:100%" onchange="reassignOpportunity(${o.id},this.value)">${activeReps()
                       .map(
@@ -2732,7 +2847,7 @@ V.quotes = () => {
         .map((q) => {
           const o = S.opps.find((x) => x.id == q.opp) || {};
           const inv = q.invoiceId && S.invoices.find((x) => x.id === q.invoiceId);
-          return `<tr class="r" onclick="openQuoteRecord('${E(q.no)}')"><td><b>${E(q.no)}</b></td><td>${E(o.name || '')}</td><td>${E(ownerLabel(o.owner))}</td><td>${M(quoteTotal(q))}</td><td>${quoteDiscount(q).toFixed(2)}%</td><td>${E(q.status)}</td><td>${inv ? E(inv.invoiceNo) : '—'}</td></tr>`;
+          return `<tr class="r" onclick="openQuoteRecord('${E(q.no)}')"><td><b>${E(q.no)}</b></td><td>${E(o.name || '')}</td><td>${repLink(o.owner)}</td><td>${M(quoteTotal(q))}</td><td>${quoteDiscount(q).toFixed(2)}%</td><td>${E(q.status)}</td><td>${inv ? E(inv.invoiceNo) : '—'}</td></tr>`;
         })
         .join('')
     )
@@ -2757,7 +2872,7 @@ V.invoices = () => {
       list
         .map((i) => {
           const o = S.opps.find((x) => x.id == i.opp) || {};
-          return `<tr class="r" onclick="openInvoice('${E(i.id)}')"><td><b>${E(i.invoiceNo)}</b></td><td>${E(i.quoteNo)}</td><td>${E(i.opportunity)}</td><td>${E(ownerLabel(o.owner))}</td><td>${E(i.account)}</td><td>${M(i.total)}</td><td>${E(i.status)}</td></tr>`;
+          return `<tr class="r" onclick="openInvoice('${E(i.id)}')"><td><b>${E(i.invoiceNo)}</b></td><td>${E(i.quoteNo)}</td><td>${E(i.opportunity)}</td><td>${repLink(o.owner)}</td><td>${E(i.account)}</td><td>${M(i.total)}</td><td>${E(i.status)}</td></tr>`;
         })
         .join('')
     )
@@ -2911,7 +3026,7 @@ function approvalBanner(q, inv) {
       `Approved by <b>${E(q.approvedBy || '')}</b> on ${whenText(q.approvedAt)}`,
       q.approvedNotes ? `Approval notes: ${E(q.approvedNotes)}` : '',
       q.tnc ? `Terms &amp; conditions: ${E(q.tnc)}` : '',
-      inv ? `Invoice ${E(inv.invoiceNo)} generated` : '',
+      inv && canSeeInvoices() ? `Invoice ${E(inv.invoiceNo)} generated` : '',
     ]);
   if (q.status === 'Rejected')
     return box('err', 'cancel', 'Approval rejected', [
@@ -2938,7 +3053,7 @@ function approvalSection(q, floor, locked) {
         `<div class="qt-hist"><b>${E(h.action)}</b> · ${E(h.by)} · <span class="mut">${whenText(h.t)}</span><div>${E(h.note || '')}</div></div>`
     )
     .join('');
-  return `<section class="qt-section"><div class="qt-section-head"><span class="ms">approval</span><b>Approval Authority</b></div><div class="qt-body"><p>Rep up to <b>2%</b> · Admin up to <b>5%</b> · CEO any discount. Any line priced below the product minimum always needs CEO approval.</p><p class="mut" style="margin-top:6px">${floor.length ? `Lines below minimum: ${floor.map((i) => E(i.c)).join(', ')}` : 'No lines are below their product minimum.'}</p></div></section>
+  return `<section class="qt-section"><div class="qt-section-head"><span class="ms">approval</span><b>Approval Authority</b></div><div class="qt-body"><p>Reps cannot give discounts · Admin up to <b>${adminDiscountLimit()}%</b> (set by the CEO) · CEO any discount. Any line priced below the product minimum always needs CEO approval.</p><p class="mut" style="margin-top:6px">${floor.length ? `Lines below minimum: ${floor.map((i) => E(i.c)).join(', ')}` : 'No lines are below their product minimum.'}</p></div></section>
 <section class="qt-section"><div class="qt-section-head"><span class="ms">edit_note</span><b>Notes for approval <i class="qt-req">*</i></b></div><div class="qt-body"><textarea class="inp" rows="3" ${locked ? 'disabled' : ''} placeholder="Explain the discount or pricing so the approver can decide. Required before submitting." oninput="S.qd.notes=this.value">${E(q.notes || '')}</textarea></div></section>
 <section class="qt-section"><div class="qt-section-head"><span class="ms">gavel</span><b>Terms &amp; conditions</b>${canEditTnc ? '' : '<span class="mut text-xs">Added by Admin / CEO</span>'}</div><div class="qt-body">${canEditTnc ? `<textarea class="inp" rows="4" placeholder="e.g. Pricing valid until the expiry date. Payment as per the terms above." oninput="S.qd.tnc=this.value">${E(q.tnc || '')}</textarea>` : `<p style="white-space:pre-wrap">${q.tnc ? E(q.tnc) : '<span class="mut">None added yet.</span>'}</p>`}</div></section>${history ? `<section class="qt-section"><div class="qt-section-head"><span class="ms">history</span><b>Approval history</b></div><div class="qt-body">${history}</div></section>` : ''}`;
 }
@@ -2950,7 +3065,8 @@ function approveQuote(no) {
   if (!['admin', 'ceo'].includes(S.role)) return toast('Only Admin or CEO can approve');
   if (q.status === 'Pending CEO Approval' && S.role !== 'ceo')
     return toast('CEO approval is required');
-  if (S.role === 'admin' && quoteDiscount(q) > 5) return toast('Discount exceeds Admin limit');
+  if (S.role === 'admin' && quoteDiscount(q) > adminDiscountLimit())
+    return toast(`Discount exceeds the Admin limit of ${adminDiscountLimit()}%`);
   if (belowProductFloor(q).length && S.role !== 'ceo')
     return toast('Below-minimum product pricing requires CEO approval');
   if (!['Pending Admin Approval', 'Pending CEO Approval'].includes(q.status))
@@ -3213,7 +3329,7 @@ function teamBoardCard(team, metric, meCode) {
   const rows = ranked
     .map((r) => {
       const me = r.user.ownerCode === meCode;
-      return `<tr style="${me ? 'background:var(--hov)' : ''}"><td>${rankBadge(r.rank)}</td><td><div class="flex items-center gap-2"><span class="w-7 h-7 rounded-full grid place-items-center text-xs font-bold" style="background:var(--hov);color:var(--pr)">${E(personInitials(r.user.name))}</span><b>${E(r.user.name)}</b>${me ? '<span class="chip">You</span>' : ''}</div></td><td class="text-right"><b>${M(r.won)}</b></td><td class="text-right">${r.deals}</td><td class="text-right">${M(r.pipeline)}</td><td><div class="flex items-center gap-2">${progressBar(r.attain)}<span class="text-xs">${Math.round(r.attain)}%</span></div></td></tr>`;
+      return `<tr style="${me ? 'background:var(--hov)' : ''}"><td>${rankBadge(r.rank)}</td><td><div class="flex items-center gap-2"><span class="w-7 h-7 rounded-full grid place-items-center text-xs font-bold" style="background:var(--hov);color:var(--pr)">${E(personInitials(r.user.name))}</span><b>${repLink(r.user.ownerCode)}</b>${me ? '<span class="chip">You</span>' : ''}</div></td><td class="text-right"><b>${M(r.won)}</b></td><td class="text-right">${r.deals}</td><td class="text-right">${M(r.pipeline)}</td><td><div class="flex items-center gap-2">${progressBar(r.attain)}<span class="text-xs">${Math.round(r.attain)}%</span></div></td></tr>`;
     })
     .join('');
   return `<div class="card p-4"><div class="flex justify-between items-start gap-2 flex-wrap"><div><b class="text-lg">${E(team.name)}</b><div class="mut text-xs">${ranked.length} rep${ranked.length === 1 ? '' : 's'} · ranked by ${LB_METRICS[metric].toLowerCase()}</div></div><div class="text-right"><b>${M(totalWon)}</b><div class="mut text-xs">of ${M(totalTarget)} team target (${totalTarget ? Math.round((totalWon / totalTarget) * 100) : 0}%)</div></div></div>${table(['#', 'Rep', 'Won', 'Deals', 'Open pipeline', 'Target'], rows || '<tr><td colspan="6" class="mut">No reps in this team yet.</td></tr>')}</div>`;
@@ -3229,7 +3345,8 @@ function leaderboardSection() {
     .join('');
   const meCode = roleNow().owner;
   let body, intro;
-  if (S.role === 'rep') {
+  // Plain reps see only their own team; Senior Reps, Admin and CEO see every team.
+  if (S.role === 'rep' && !isSeniorRep(S.users.find((u) => u.id === S.authUser))) {
     const me = S.users.find((u) => u.role === 'rep' && u.ownerCode === meCode);
     const team = me && teamById(me.teamId);
     if (!team)
@@ -3536,6 +3653,684 @@ function setLeaderboardDefault(metric) {
 // Opportunity tabs: every opportunity you open stays in a tab bar under the menu,
 // so you can switch between several records without losing your place.
 // ---------------------------------------------------------------------------
+
+// Discount rules: only Admin and CEO can give discounts, and the CEO decides how much Admin may give.
+
+const DEFAULT_ADMIN_DISCOUNT = 5;
+function adminDiscountLimit() {
+  const v = Number(S.settings && S.settings.adminDiscountLimit);
+  return Number.isFinite(v) && v >= 0 && v <= 100 ? v : DEFAULT_ADMIN_DISCOUNT;
+}
+function canGiveDiscount() {
+  return ['admin', 'ceo'].includes(S.role);
+}
+
+// Server-side style guards for the quote builder (the inputs are also disabled in the UI).
+const changeQuoteItemBeforePolicy = changeQuoteItem;
+changeQuoteItem = function (k, f) {
+  if (f === 'd' && !canGiveDiscount()) {
+    toast('Only Admin and CEO can give discounts');
+    return render();
+  }
+  return changeQuoteItemBeforePolicy.apply(this, arguments);
+};
+const tieredBeforePolicy = applyTieredDiscount;
+applyTieredDiscount = function () {
+  if (!canGiveDiscount()) return toast('Only Admin and CEO can give discounts');
+  return tieredBeforePolicy.apply(this, arguments);
+};
+
+// CEO sets the Admin limit. Pending Admin approvals above a lowered limit move to the CEO.
+function saveAdminDiscountLimit(e) {
+  e.preventDefault();
+  if (S.role !== 'ceo') return toast('Only the CEO can change the Admin discount limit');
+  const raw = new FormData(e.target).get('limit'),
+    n = Math.round(Number(raw) * 10) / 10;
+  if (raw === '' || !Number.isFinite(n) || n < 0 || n > 100)
+    return toast('Enter a limit between 0 and 100');
+  const before = adminDiscountLimit();
+  S.settings.adminDiscountLimit = n;
+  S.settings.adminDiscountLimitBy = roleNow().name;
+  S.settings.adminDiscountLimitAt = Date.now();
+  let moved = 0;
+  S.quotes.forEach((q) => {
+    if (q.status === 'Pending Admin Approval' && quoteDiscount(q) > n) {
+      q.status = 'Pending CEO Approval';
+      q.nextApprover = ROLE_CFG.ceo.name;
+      addQuoteHistory(q, 'Escalated', `Discount is above the new Admin limit of ${n}%`);
+      if (typeof queuePopup === 'function')
+        queuePopup({ kind: 'needs-approval', no: q.no, toRole: 'ceo', by: S.authUser });
+      moved++;
+    }
+  });
+  save();
+  toast(
+    `Admin discount limit set to ${n}%` + (moved ? ` · ${moved} pending quote(s) sent to CEO` : '')
+  );
+  render();
+}
+
+SETTINGS_PANELS.limits = function () {
+  const lim = adminDiscountLimit(),
+    ceo = S.role === 'ceo',
+    rows = [
+      ['Rep / Senior Rep', 'No discount authority', 'Admin approval on every quote'],
+      ['Admin', `Up to ${lim}% blended discount`, `CEO approval above ${lim}%`],
+      ['CEO', 'Any discount', 'Final authority'],
+    ],
+    by = S.settings.adminDiscountLimitBy
+      ? `Last changed by ${E(S.settings.adminDiscountLimitBy)} on ${whenText(S.settings.adminDiscountLimitAt)}.`
+      : 'Using the default limit.',
+    form = ceo
+      ? `<form class="mb-4 p-3 rounded-lg flex flex-wrap items-end gap-3" style="background:var(--hov)" onsubmit="saveAdminDiscountLimit(event)"><label class="block">Admin discount limit (%)<input class="inp mt-1" style="width:140px" type="number" name="limit" min="0" max="100" step="0.5" required value="${lim}"></label><button class="btn btn-p">Save limit</button><span class="mut text-xs flex-1 min-w-[200px]">${by} Quotes above this limit go to the CEO. Lowering it moves pending Admin approvals above the new limit to the CEO.</span></form>`
+      : `<p class="mut mb-3">The CEO sets the Admin discount limit. ${by}</p>`;
+  return `${secHead('approval', 'Approval limits', 'Only Admin and CEO can give discounts. The CEO decides how much Admin can give.')}${form}${table(['Role', 'Discount authority', 'Escalation'], rows.map((r) => `<tr><td><b>${r[0]}</b></td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join(''))}<p class="mut text-xs mt-3">Any line priced below its product minimum always needs CEO approval. Every submission needs notes for the approver.</p>`;
+};
+
+// Proper pop-ups for the approval flow: on submit, when approval is needed, and after approve / reject.
+
+function showPopup({ tone = 'ok', icon = 'info', title, lines = [], actions = [] }) {
+  const color = tone === 'err' ? 'var(--err)' : tone === 'wr' ? 'var(--warn)' : 'var(--ok)',
+    close = `$('#modal').innerHTML=''`,
+    buttons = actions
+      .map(
+        (a, i) =>
+          `<button type="button" class="btn ${i === 0 ? 'btn-p' : ''}" ${i === 0 ? 'data-pop-primary' : ''} onclick="${close};${a.js || ''}">${E(a.label)}</button>`
+      )
+      .concat([
+        `<button type="button" class="btn" ${actions.length ? '' : 'data-pop-primary'} onclick="${close}">Close</button>`,
+      ])
+      .join('');
+  $('#modal').innerHTML =
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)" onclick="if(event.target===this){${close}}"><div class="card p-5 w-full max-w-md" role="dialog" aria-modal="true" aria-labelledby="pop-title">` +
+    `<div class="flex items-start gap-3"><span class="ms" style="color:${color};font-size:36px">${icon}</span><div class="flex-1 min-w-0"><h2 id="pop-title" class="text-lg font-bold">${title}</h2>${lines
+      .filter(Boolean)
+      .map((l) => `<div class="mt-1">${l}</div>`)
+      .join('')}</div></div>` +
+    `<div class="flex justify-end gap-2 mt-4 flex-wrap">${buttons}</div></div></div>`;
+  const p = $('#modal [data-pop-primary]');
+  if (p) p.focus();
+}
+
+const POPUP_MAX_AGE = 7 * 864e5;
+function queuePopup(p) {
+  S.popups = (S.popups || []).slice(-199);
+  S.popups.push({
+    id: 'p' + Date.now() + Math.random().toString(36).slice(2, 6),
+    t: Date.now(),
+    seen: {},
+    ...p,
+  });
+}
+const quoteOf = (no) => S.quotes.find((x) => x.no === no);
+const quoteFacts = (q) =>
+  `<span class="mut">Discount ${quoteDiscount(q).toFixed(2)}% · Total ${M(quoteTotal(q))}</span>`;
+const invoiceOf = (q) => (q.invoiceId ? S.invoices.find((i) => i.id === q.invoiceId) : null);
+const invoiceActions = (q) => {
+  const inv = invoiceOf(q);
+  return inv && canSeeInvoices()
+    ? [{ label: `Open ${inv.invoiceNo}`, js: `openInvoice('${E(inv.id)}')` }]
+    : [];
+};
+
+// Pop-ups waiting for the signed-in person (approvals to review, or decisions on their quotes).
+function popupForMe(p) {
+  if (!S.authUser || p.by === S.authUser || (p.seen || {})[S.authUser]) return false;
+  if (Date.now() - p.t > POPUP_MAX_AGE) return false;
+  return p.toUser ? p.toUser === S.authUser : p.toRole ? p.toRole === S.role : false;
+}
+function showNextPopup() {
+  const modal = $('#modal');
+  if (!S.authUser || !modal || modal.innerHTML.trim()) return;
+  const p = (S.popups || []).find(popupForMe);
+  if (!p) return;
+  p.seen = { ...(p.seen || {}), [S.authUser]: true }; // showing it counts as seen, so it never repeats
+  save();
+  const q = quoteOf(p.no),
+    o = q && S.opps.find((x) => x.id == q.opp);
+  if (!q) return showNextPopup();
+  if (p.kind === 'needs-approval') {
+    if (!String(q.status).startsWith('Pending')) return showNextPopup(); // already decided
+    return showPopup({
+      tone: 'wr',
+      icon: 'approval',
+      title: `Approval needed: ${E(q.no)}`,
+      lines: [
+        `<b>${E(q.createdBy || 'A rep')}</b> submitted a quotation${o ? ` for <b>${E(o.name)}</b>` : ''}.`,
+        quoteFacts(q),
+        q.floorApprovalRequired
+          ? '<span class="mut">Includes a price below the product minimum.</span>'
+          : '',
+        q.notes ? `Notes: ${E(q.notes)}` : '',
+      ],
+      actions: [{ label: 'Review now', js: `nav('approvals')` }],
+    });
+  }
+  const approved = p.kind === 'approved';
+  showPopup({
+    tone: approved ? 'ok' : 'err',
+    icon: approved ? 'verified' : 'cancel',
+    title: `Quotation ${E(q.no)} ${approved ? 'approved' : 'rejected'}`,
+    lines: [
+      approved
+        ? `Approved by <b>${E(q.approvedBy || '')}</b>.`
+        : `Rejected by <b>${E(q.rejectedBy || '')}</b>.`,
+      approved
+        ? q.approvedNotes
+          ? `Notes: ${E(q.approvedNotes)}`
+          : ''
+        : q.rejectedNotes
+          ? `Reason: ${E(q.rejectedNotes)}`
+          : '',
+      approved && invoiceOf(q) && canSeeInvoices()
+        ? `Invoice ${E(invoiceOf(q).invoiceNo)} generated.`
+        : '',
+      approved ? '' : 'Update the quote and submit it again with notes.',
+    ],
+    actions: [
+      {
+        label: approved ? 'View quote' : 'Review and resubmit',
+        js: `openQuoteRecord('${E(q.no)}')`,
+      },
+      ...(approved ? invoiceActions(q) : []),
+    ],
+  });
+}
+
+// Toasts that the pop-ups replace; everything else (errors, validation) still shows.
+function withoutToasts(rx, fn) {
+  const real = toast;
+  toast = (m, ...r) => (rx.test(String(m)) ? undefined : real(m, ...r));
+  try {
+    return fn();
+  } finally {
+    toast = real;
+  }
+}
+
+const submitQuoteBeforePopups = submitQuote;
+submitQuote = function () {
+  const no = S.qd && S.qd.no,
+    before = (quoteOf(no) || {}).requestedAt;
+  withoutToasts(/^(Quotation sent for approval|Approved · invoice generated)/, () =>
+    submitQuoteBeforePopups.apply(this, arguments)
+  );
+  const q = quoteOf(no);
+  if (!q || !q.requestedAt || q.requestedAt === before) return;
+  const pending = String(q.status).startsWith('Pending');
+  if (pending)
+    queuePopup({
+      kind: 'needs-approval',
+      no,
+      toRole: q.status === 'Pending CEO Approval' ? 'ceo' : 'admin',
+      by: S.authUser,
+    });
+  save();
+  if (pending)
+    showPopup({
+      tone: 'wr',
+      icon: 'hourglass_top',
+      title: `Quotation ${E(q.no)} sent for approval`,
+      lines: [
+        `Routed to <b>${E(q.nextApprover || 'the approver')}</b> (${q.status === 'Pending CEO Approval' ? 'CEO' : 'Admin'}).`,
+        quoteFacts(q),
+        belowProductFloor(q).length
+          ? '<span class="mut">A price is below the product minimum, so CEO approval is required.</span>'
+          : '',
+        'You will get a pop-up here as soon as it is approved or rejected.',
+      ],
+      actions: [{ label: 'Back to opportunity', js: `nav('opp-detail')` }],
+    });
+  else
+    showPopup({
+      tone: 'ok',
+      icon: 'verified',
+      title: `Quotation ${E(q.no)} approved`,
+      lines: [
+        `Approved by <b>${E(q.approvedBy || '')}</b> within their authority.`,
+        quoteFacts(q),
+        invoiceOf(q) && canSeeInvoices() ? `Invoice ${E(invoiceOf(q).invoiceNo)} generated.` : '',
+      ],
+      actions: invoiceActions(q),
+    });
+};
+
+const finishApprovalBeforePopups = finishApproval;
+finishApproval = function (e, no, mode) {
+  const before = (quoteOf(no) || {}).status;
+  withoutToasts(/^(Quotation rejected|Approval granted)/, () =>
+    finishApprovalBeforePopups.apply(this, arguments)
+  );
+  const q = quoteOf(no);
+  if (!q || q.status === before || !['Approved', 'Rejected'].includes(q.status)) return;
+  const approved = q.status === 'Approved',
+    creator = S.users.find((u) => u.name === q.createdBy);
+  if (creator && creator.id !== S.authUser)
+    queuePopup({
+      kind: approved ? 'approved' : 'rejected',
+      no,
+      toUser: creator.id,
+      by: S.authUser,
+    });
+  save();
+  showPopup({
+    tone: approved ? 'ok' : 'err',
+    icon: approved ? 'verified' : 'cancel',
+    title: `Quotation ${E(q.no)} ${approved ? 'approved' : 'rejected'}`,
+    lines: [
+      quoteFacts(q),
+      approved && invoiceOf(q) ? `Invoice ${E(invoiceOf(q).invoiceNo)} generated.` : '',
+      creator ? `${E(creator.name)} will see a pop-up about this decision.` : '',
+    ],
+    actions: [{ label: 'View quote', js: `openQuoteRecord('${E(q.no)}')` }],
+  });
+};
+
+// Show waiting pop-ups after every render and when another tab saves new ones.
+const renderBeforePopups = render;
+render = function () {
+  renderBeforePopups.apply(this, arguments);
+  showNextPopup();
+};
+addEventListener('storage', (e) => {
+  if (e.key === KEY) setTimeout(showNextPopup, 0);
+});
+
+// Account addresses: shown in a hover card on every account name; only Senior Reps, Admin and CEO can edit them.
+
+// Demo addresses for the accounts that ship with the sample data.
+const SAMPLE_ADDRESSES = [
+  [
+    'Plot 14, Sector 62, Noida, Uttar Pradesh 201301',
+    'Warehouse 3, Kundli Industrial Area, Sonipat, Haryana 131028',
+  ],
+  ['4th Floor, Prestige Tech Park, Outer Ring Road, Bengaluru, Karnataka 560103', ''],
+  [
+    '12 Nariman Point, Mumbai, Maharashtra 400021',
+    'Gate 2, MIDC Andheri East, Mumbai, Maharashtra 400093',
+  ],
+  ['88 Anna Salai, Chennai, Tamil Nadu 600002', ''],
+  [
+    'Banjara Hills Road No. 3, Hyderabad, Telangana 500034',
+    'Plot 9, Genome Valley, Shameerpet, Telangana 500078',
+  ],
+  ['21 Park Street, Kolkata, West Bengal 700016', ''],
+];
+S.accountInfo = S.accountInfo || {};
+[...new Set(S.opps.map((o) => o.account))].forEach((name, i) => {
+  if (S.accountInfo[name]) return;
+  const [address, shipping] = SAMPLE_ADDRESSES[i % SAMPLE_ADDRESSES.length];
+  S.accountInfo[name] = {
+    address,
+    shipping: shipping || address,
+    by: 'Sample data',
+    at: Date.now(),
+  };
+});
+
+const accountInfo = (name) => S.accountInfo[name] || { address: '', shipping: '' };
+const acctAttr = (name) => `data-acct="${E(name)}" tabindex="0"`;
+const acctSpan = (name) => `<span class="acct-hover" ${acctAttr(name)}>${E(name)}</span>`;
+const acctEditBtn = (name) =>
+  canEditAddress()
+    ? ` <button type="button" class="hdr-ic" style="width:26px;height:26px;vertical-align:middle" title="Edit addresses" aria-label="Edit addresses for ${E(name)}" onclick="event.stopPropagation();openAccountEditor(${E(JSON.stringify(name))})"><span class="ms" style="font-size:18px">edit_location_alt</span></button>`
+    : '';
+
+// ----- hover card (also on keyboard focus) -----
+let acctCard;
+function showAcctCard(el) {
+  const name = el.dataset.acct,
+    info = accountInfo(name),
+    line = (label, v) =>
+      `<div class="mt-1"><div class="mut text-[11px]">${label}</div><div style="white-space:pre-wrap">${v ? E(v) : '<span class="mut">Not added</span>'}</div></div>`;
+  if (!acctCard) {
+    acctCard = document.createElement('div');
+    acctCard.id = 'acct-card';
+    acctCard.setAttribute('role', 'tooltip');
+    document.body.appendChild(acctCard);
+  }
+  acctCard.innerHTML = `<b>${E(name)}</b>${line('Address', info.address)}${line('Shipping address', info.shipping)}`;
+  acctCard.style.display = 'block';
+  const r = el.getBoundingClientRect(),
+    w = acctCard.offsetWidth,
+    h = acctCard.offsetHeight;
+  acctCard.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left)) + 'px';
+  acctCard.style.top =
+    (r.bottom + h + 12 > innerHeight ? Math.max(8, r.top - h - 6) : r.bottom + 6) + 'px';
+}
+function hideAcctCard() {
+  if (acctCard) acctCard.style.display = 'none';
+}
+document.addEventListener('mouseover', (e) => {
+  const el = e.target.closest && e.target.closest('[data-acct]');
+  if (el) showAcctCard(el);
+});
+document.addEventListener('mouseout', (e) => {
+  const el = e.target.closest && e.target.closest('[data-acct]');
+  if (el && !(e.relatedTarget && el.contains(e.relatedTarget))) hideAcctCard();
+});
+document.addEventListener('focusin', (e) => {
+  const el = e.target.closest && e.target.closest('[data-acct]');
+  if (el) showAcctCard(el);
+});
+document.addEventListener('focusout', hideAcctCard);
+addEventListener('scroll', hideAcctCard, true);
+addEventListener('keydown', (e) => e.key === 'Escape' && hideAcctCard(), true);
+addEventListener('hashchange', hideAcctCard);
+
+// ----- editing (Senior Rep, Admin, CEO) -----
+function openAccountEditor(name) {
+  if (!canEditAddress()) return toast('Only Senior Reps, Admin and CEO can edit addresses');
+  hideAcctCard();
+  const info = accountInfo(name);
+  $('#modal').innerHTML =
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><form class="card p-5 w-full max-w-lg space-y-3" onsubmit="saveAccountAddress(event,${E(JSON.stringify(name))})"><h2 class="text-lg font-bold">Addresses — ${E(name)}</h2>` +
+    `<label class="block">Address<textarea class="inp mt-1" name="address" rows="3" maxlength="300" placeholder="Registered / billing address">${E(info.address)}</textarea></label>` +
+    `<label class="flex items-center gap-2"><input type="checkbox" name="same" ${info.address && info.address === info.shipping ? 'checked' : ''}> Shipping address is the same</label>` +
+    `<label class="block">Shipping address<textarea class="inp mt-1" name="shipping" rows="3" maxlength="300" placeholder="Where goods are delivered">${E(info.shipping)}</textarea></label>` +
+    `<div class="flex justify-end gap-2"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">Save</button></div></form></div>`;
+  $('#modal textarea').focus();
+}
+function saveAccountAddress(e, name) {
+  e.preventDefault();
+  if (!canEditAddress()) return toast('Only Senior Reps, Admin and CEO can edit addresses');
+  const v = Object.fromEntries(new FormData(e.target)),
+    address = (v.address || '').trim();
+  S.accountInfo[name] = {
+    address,
+    shipping: v.same ? address : (v.shipping || '').trim(),
+    by: roleNow().name,
+    at: Date.now(),
+  };
+  S.opps
+    .filter((o) => o.account === name)
+    .forEach((o) => logOpp(o.id, 'sync', `Account addresses updated by ${roleNow().name}`));
+  $('#modal').innerHTML = '';
+  save();
+  toast('Addresses saved');
+  render();
+}
+
+// Accounts list: same columns as before, plus the address and an edit button for those allowed.
+V.accounts = () => {
+  const names = [...new Set(S.opps.map((o) => o.account))],
+    edit = canEditAddress();
+  return (
+    `<h1 class="text-xl font-bold mb-3">Accounts</h1>` +
+    table(
+      ['Account', 'Open deals', 'Open pipeline', 'Won', 'Address', ''],
+      names
+        .map((a) => {
+          const x = S.opps.filter((o) => o.account == a),
+            open = x.filter((o) => o.stage < 5),
+            info = accountInfo(a);
+          return `<tr class="r" onclick="S.q='${E(a).replace(/'/g, '')}';nav('opps')"><td><b>${acctSpan(a)}</b></td><td>${open.length}</td><td>${M(open.reduce((s, o) => s + o.amount, 0))}</td><td>${M(x.filter((o) => o.stage == 5).reduce((s, o) => s + o.amount, 0))}</td><td class="mut text-xs">${info.address ? E(info.address) : 'Not added'}</td><td class="text-right">${edit ? `<button class="btn" onclick="event.stopPropagation();openAccountEditor(${E(JSON.stringify(a))})"><span class="ms">edit_location_alt</span>Edit</button>` : ''}</td></tr>`;
+        })
+        .join('')
+    )
+  );
+};
+
+// Who may create opportunities: Admin, CEO and Senior Reps. Regular reps cannot.
+// "Senior rep" is a rep account with senior = true: same portal and data access, plus permission to add opportunities.
+
+function isSeniorRep(u) {
+  return !!u && u.role === 'rep' && u.senior === true;
+}
+function roleTitle(u) {
+  return isSeniorRep(u) ? 'SENIOR REP' : String((u && u.role) || '').toUpperCase();
+}
+// Admin, CEO and Senior Reps get the extra rights below; regular reps do not.
+function hasSeniorRights() {
+  if (['admin', 'ceo'].includes(S.role)) return true;
+  return isSeniorRep((S.users || []).find((u) => u.id === S.authUser));
+}
+function canAddOpportunity() {
+  return hasSeniorRights();
+}
+function canEditOwner() {
+  return hasSeniorRights(); // change an opportunity's assigned rep
+}
+function canEditAddress() {
+  return hasSeniorRights(); // account address and shipping address
+}
+// Invoices are for Admin and CEO only. A Senior Rep's extra rights are just: add opportunities,
+// edit account addresses and reassign opportunities to any rep (plus seeing all teams).
+function canSeeInvoices() {
+  return !S.authUser || ['admin', 'ceo'].includes(S.role);
+}
+const NO_ADD_OPP_MSG = 'Only Admin, CEO and Senior Reps can add opportunities';
+
+// One-time demo data: Dan Mills (login dan / rep123) is a Senior Rep; everyone else stays a regular rep.
+if (!S.seniorSeeded) {
+  const dan = (S.users || []).find((u) => u.username === 'dan' && u.role === 'rep');
+  if (dan && dan.senior == null) dan.senior = true;
+  S.seniorSeeded = true;
+  save();
+}
+
+// Block every path that creates an opportunity.
+const modalBeforePermissions = modal;
+modal = function (k) {
+  if (k === 'opp' && !canAddOpportunity()) return toast(NO_ADD_OPP_MSG);
+  return modalBeforePermissions.apply(this, arguments);
+};
+const saveOpportunityBeforePermissions = saveOpportunityExtended;
+saveOpportunityExtended = function (e) {
+  if (!canAddOpportunity()) {
+    e.preventDefault();
+    $('#modal').innerHTML = '';
+    return toast(NO_ADD_OPP_MSG);
+  }
+  return saveOpportunityBeforePermissions.apply(this, arguments);
+};
+const convertBeforePermissions = convert; // lead -> opportunity also creates one
+convert = function () {
+  if (!canAddOpportunity()) return toast(NO_ADD_OPP_MSG);
+  return convertBeforePermissions.apply(this, arguments);
+};
+
+// Admin / CEO can promote a rep to Senior Rep, or take it away again.
+function toggleSeniorRep(id) {
+  const u = S.users.find((x) => x.id === id);
+  if (!['admin', 'ceo'].includes(S.role) || !u || u.role !== 'rep')
+    return toast('You do not have permission to change this account');
+  u.senior = !isSeniorRep(u);
+  save();
+  toast(u.name + (u.senior ? ' is now a Senior Rep' : ' is now a regular Rep'));
+  render();
+}
+
+// Invoices are hidden from regular reps: routes, the open action, nav links and invoice columns.
+const navBeforeInvoiceGuard = nav;
+nav = function (v) {
+  if (['invoices', 'invoice-detail'].includes(v) && !canSeeInvoices())
+    return toast('Invoices are not available for your role');
+  return navBeforeInvoiceGuard.apply(this, arguments);
+};
+const openInvoiceBeforeGuard = openInvoice;
+openInvoice = function () {
+  if (!canSeeInvoices()) return toast('Invoices are not available for your role');
+  return openInvoiceBeforeGuard.apply(this, arguments);
+};
+function hideInvoiceUi() {
+  if (canSeeInvoices()) return;
+  document.querySelectorAll('#nav a[href="#invoices"]').forEach((a) => a.remove());
+  document.querySelectorAll('#app table').forEach((t) => {
+    const th = [...t.querySelectorAll('th')].find((h) =>
+      /^invoice( no\.)?$/i.test(h.textContent.trim())
+    );
+    if (!th) return;
+    const i = th.cellIndex;
+    t.querySelectorAll('tr').forEach((r) => r.cells[i] && r.cells[i].remove());
+  });
+}
+const renderBeforeInvoiceGuard = render;
+render = function () {
+  if (['invoices', 'invoice-detail'].includes(location.hash.slice(1)) && !canSeeInvoices())
+    location.hash = '#home';
+  renderBeforeInvoiceGuard.apply(this, arguments);
+  hideInvoiceUi();
+};
+
+// The app's hashchange listeners hold older copies of render(), so after a real navigation (clicking a nav link)
+// the invoice clean-up, redirect and approval pop-ups are re-applied here.
+['invoices', 'invoice-detail'].forEach((k) => {
+  const base = V[k];
+  V[k] = function () {
+    return canSeeInvoices()
+      ? base.apply(this, arguments)
+      : '<div class="card p-4"><b>Not available</b><p class="mut mt-1">Invoices are not available for your role.</p></div>';
+  };
+});
+addEventListener('hashchange', () => {
+  if (['invoices', 'invoice-detail'].includes(location.hash.slice(1)) && !canSeeInvoices())
+    return (location.hash = '#home');
+  hideInvoiceUi();
+  showNextPopup();
+});
+
+// Rep details page for Admin / CEO: click a rep's name anywhere to open their stats, deals, quotes and activity log.
+// Also owns the global Esc behaviour (close dialog, then menus, then step back out of a detail page).
+
+const canViewReps = () => ['admin', 'ceo'].includes(S.role);
+const repByCode = (code) => (S.users || []).find((u) => u.role === 'rep' && u.ownerCode === code);
+
+// Rep name as a link for Admin / CEO; plain text for everyone else (or when there is no matching rep account).
+function repLink(code) {
+  const name = E(ownerLabel(code));
+  if (!canViewReps() || !repByCode(code)) return name;
+  const open = `event.stopPropagation();openRep(${E(JSON.stringify(code))})`;
+  return `<a class="rep-link" role="link" tabindex="0" title="Open rep details" onclick="${open}" onkeydown="if(event.key==='Enter'){${open}}">${name}</a>`;
+}
+
+// Small icon button for places where the rep is shown as a dropdown (Admin / CEO reassign controls).
+function repOpenBtn(code) {
+  if (!canViewReps() || !repByCode(code)) return '';
+  return `<button type="button" class="hdr-ic" style="width:28px;height:28px" title="Open rep details" aria-label="Open rep details" onclick="event.stopPropagation();openRep(${E(JSON.stringify(code))})"><span class="ms" style="font-size:18px">open_in_new</span></button>`;
+}
+
+let repReturnTo = 'home';
+function openRep(code) {
+  if (!canViewReps()) return toast('Rep details are available to Admin and CEO only');
+  if (!repByCode(code)) return toast('Rep account not found');
+  const here = location.hash.slice(1) || 'home';
+  if (here !== 'rep-detail') repReturnTo = here;
+  S.curRep = code;
+  nav('rep-detail');
+}
+function closeRep() {
+  nav(repReturnTo && repReturnTo !== 'rep-detail' ? repReturnTo : 'home');
+}
+
+// Every activity entry on the rep's opportunities, plus quotes they submitted, newest first.
+function repLogEntries(u) {
+  const mine = S.opps.filter((o) => o.owner === u.ownerCode);
+  const ids = new Set(mine.map((o) => String(o.id)));
+  const out = [];
+  mine.forEach((o) =>
+    (S.acts[o.id] || []).forEach((a) =>
+      out.push({ k: a.k || 'sync', x: a.x, t: a.t, by: a.by, opp: o })
+    )
+  );
+  S.quotes
+    .filter((q) => ids.has(String(q.opp)) && q.requestedAt)
+    .forEach((q) => {
+      const o = mine.find((x) => String(x.id) === String(q.opp));
+      out.push({
+        k: 'request_quote',
+        x: `Quote ${q.no} submitted for approval (${M(quoteTotal(q))})`,
+        t: q.requestedAt,
+        by: q.createdBy,
+        opp: o,
+      });
+    });
+  return out.sort((a, b) => (b.t || 0) - (a.t || 0));
+}
+
+function filterRepLog() {
+  const q = ($('#rep-log-q')?.value || '').trim().toLowerCase(),
+    k = $('#rep-log-k')?.value || '';
+  let shown = 0;
+  document.querySelectorAll('#rep-log [data-q]').forEach((el) => {
+    const ok = (!k || el.dataset.k === k) && (!q || el.dataset.q.includes(q));
+    el.style.display = ok ? '' : 'none';
+    if (ok) shown++;
+  });
+  const n = $('#rep-log-empty');
+  if (n) n.style.display = shown ? 'none' : '';
+}
+
+V['rep-detail'] = () => {
+  if (!canViewReps())
+    return `<div class="card p-4"><b>Not available</b><p class="mut mt-1">Rep details are available to Admin and CEO only.</p></div>`;
+  const u = repByCode(S.curRep);
+  if (!u)
+    return `<div class="card p-4"><b>Rep not found</b><p class="mut mt-1">This rep account no longer exists.</p><button class="btn mt-3" onclick="closeRep()">Back</button></div>`;
+  const st = repStats(u),
+    team = typeof teamById === 'function' && u.teamId ? teamById(u.teamId) : null,
+    opps = S.opps.filter((o) => o.owner === u.ownerCode),
+    oppIds = new Set(opps.map((o) => String(o.id))),
+    quotes = S.quotes.filter((q) => oppIds.has(String(q.opp))),
+    log = repLogEntries(u),
+    kinds = [...new Set(log.map((a) => a.k))],
+    stat = (label, value, sub) =>
+      `<div class="card p-3"><div class="mut text-xs">${label}</div><div class="text-lg font-bold">${value}</div>${sub ? `<div class="mut text-xs">${sub}</div>` : ''}</div>`,
+    on = u.active !== false;
+  const head = `<div class="flex items-center gap-3 flex-wrap mb-3"><button class="btn" onclick="closeRep()" title="Back (Esc)"><span class="ms">arrow_back</span>Back</button><span class="w-10 h-10 rounded-full grid place-items-center font-bold" style="background:var(--hov);color:var(--pr)">${E(personInitials(u.name))}</span><div class="flex-1"><h1 class="text-xl font-bold">${E(u.name)}</h1><div class="mut">${isSeniorRep(u) ? 'Senior sales rep' : 'Sales rep'} · ${E(u.ownerCode)}${team ? ' · ' + E(team.name) : ''}${u.email ? ' · ' + E(u.email) : ''}</div></div><button class="btn" onclick="toggleSeniorRep('${E(u.id)}')">${isSeniorRep(u) ? 'Remove senior rep' : 'Make senior rep'}</button><span class="chip ${on ? 'ok' : 'wr'}">${on ? 'Active' : 'Inactive'}</span></div>`;
+  const stats = `<div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-3">${stat('Revenue won', M(st.won), st.deals + ' deal' + (st.deals === 1 ? '' : 's'))}${stat('Open pipeline', M(st.pipeline))}${stat('Target', M(st.target), Math.round(st.attain) + '% attained')}${stat('Opportunities', opps.length)}${stat('Quotes', quotes.length)}</div>`;
+  const oppRows = opps
+    .map(
+      (o) =>
+        `<tr class="r" onclick="nav('opp-detail',${o.id})"><td><b>${E(o.name)}</b></td><td>${E(o.account)}</td><td>${o.lost ? 'Lost' : ST[o.stage]}</td><td>${M(o.amount)}</td><td>${fd(o.close)}</td></tr>`
+    )
+    .join('');
+  const quoteRows = quotes
+    .map((q) => {
+      const o = opps.find((x) => String(x.id) === String(q.opp)) || {};
+      return `<tr class="r" onclick="openQuoteRecord(${E(JSON.stringify(q.no))})"><td><b>${E(q.no)}</b></td><td>${E(o.name || '')}</td><td>${M(quoteTotal(q))}</td><td>${quoteDiscount(q).toFixed(2)}%</td><td>${E(q.status)}</td></tr>`;
+    })
+    .join('');
+  const logRows = log
+    .map(
+      (a) =>
+        `<div class="flex gap-2 py-2 border-b" style="border-color:var(--bd)" data-k="${E(a.k)}" data-q="${E((a.x + ' ' + (a.opp ? a.opp.name : '') + ' ' + (a.by || '')).toLowerCase())}"><span class="ms mut">${E(a.k)}</span><div class="flex-1"><div>${E(a.x)}</div><small class="mut">${a.opp ? `<a class="rep-link" onclick="nav('opp-detail',${a.opp.id})">${E(a.opp.name)}</a> · ` : ''}${a.by ? E(a.by) + ' · ' : ''}${whenText(a.t)} (${ago(a.t)})</small></div></div>`
+    )
+    .join('');
+  const logCard = `<div class="card p-4 mt-3"><div class="flex items-center gap-2 flex-wrap"><b class="flex-1">Activity log (${log.length})</b><input id="rep-log-q" class="inp" style="width:200px" placeholder="Filter log..." aria-label="Filter log" oninput="filterRepLog()"><select id="rep-log-k" class="inp" style="width:auto" aria-label="Filter by type" onchange="filterRepLog()"><option value="">All types</option>${kinds.map((k) => `<option value="${E(k)}">${E(k.replace(/_/g, ' '))}</option>`).join('')}</select></div><div id="rep-log">${logRows}<p id="rep-log-empty" class="mut mt-2" style="${log.length ? 'display:none' : ''}">No activity recorded for this rep yet.</p></div></div>`;
+  return (
+    head +
+    stats +
+    `<div class="grid lg:grid-cols-2 gap-3"><div><b>Opportunities (${opps.length})</b>${table(['Name', 'Account', 'Stage', 'Amount', 'Close'], oppRows)}</div><div><b>Quotes (${quotes.length})</b>${table(['Quote', 'Opportunity', 'Total', 'Discount', 'Status'], quoteRows)}</div></div>` +
+    logCard
+  );
+};
+
+// Esc: close a dialog first, then menus, then leave the search box, then step back out of a detail page.
+// Registered in the capture phase so it sees the dialog / menu before the other Esc handlers close them.
+addEventListener(
+  'keydown',
+  (e) => {
+    if (e.key !== 'Escape' || e.isComposing || !S.authUser) return;
+    const modal = $('#modal');
+    if (modal && modal.innerHTML.trim()) {
+      modal.innerHTML = '';
+      return e.preventDefault();
+    }
+    if (document.querySelector('.hdr-panel')) return; // header menus close themselves
+    const t = e.target,
+      typing = t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName);
+    if (typing) {
+      if (t.id === 'gs' || t.id === 'rep-log-q') t.blur(); // other inputs (tab rename, forms) handle Esc themselves
+      return;
+    }
+    if ((location.hash.slice(1) || 'home') === 'rep-detail') {
+      e.preventDefault();
+      closeRep();
+    }
+  },
+  true
+);
 
 // Open-record tabs: rename (double-click, pencil or F2), Alt+1..9 to switch, and the first render.
 

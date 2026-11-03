@@ -9,7 +9,7 @@ V.leads = () =>
     S.leads
       .map(
         (l, i) =>
-          `<tr><td><b>${E(l[0])}</b></td><td>${E(l[1])}</td><td>${E(l[2])}</td><td><select class="inp" style="width:auto" aria-label="Lead status" onchange="setLeadStatus(${i},this.value)">${LEAD_STATUS.map((s) => `<option ${s === l[3] ? 'selected' : ''}>${s}</option>`).join('')}</select></td><td class="text-right whitespace-nowrap"><button class="btn" onclick="convert(${i})">Convert to deal</button> <button class="btn" style="color:var(--err)" onclick="deleteLead(${i})">Delete</button></td></tr>`
+          `<tr><td><b>${E(l[0])}</b></td><td>${E(l[1])}</td><td>${E(l[2])}</td><td><select class="inp" style="width:auto" aria-label="Lead status" onchange="setLeadStatus(${i},this.value)">${LEAD_STATUS.map((s) => `<option ${s === l[3] ? 'selected' : ''}>${s}</option>`).join('')}</select></td><td class="text-right whitespace-nowrap">${canAddOpportunity() ? `<button class="btn" onclick="convert(${i})">Convert to deal</button>` : ''} <button class="btn" style="color:var(--err)" onclick="deleteLead(${i})">Delete</button></td></tr>`
       )
       .join('')
   );

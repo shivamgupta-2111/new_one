@@ -1315,3 +1315,35 @@ main#app {
     display: none !important;
   }
 }
+
+/* Clickable rep names (Admin / CEO) */
+.rep-link {
+  color: var(--pr);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+.rep-link:hover,
+.rep-link:focus-visible {
+  text-decoration: underline;
+}
+
+/* Account name hover card */
+.acct-hover {
+  cursor: help;
+  border-bottom: 1px dotted var(--mut, currentColor);
+}
+#acct-card {
+  display: none;
+  position: fixed;
+  z-index: 70;
+  max-width: 320px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--card, #fff);
+  color: inherit;
+  border: 1px solid var(--bd, #ddd);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  font-size: 13px;
+  pointer-events: none;
+}

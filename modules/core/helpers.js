@@ -37,7 +37,7 @@ function ownerLabel(code) {
   return user ? user.name : OWN[code] || code || 'Unassigned';
 }
 function assignableReps() {
-  return S.role === 'rep'
+  return S.role === 'rep' && !canEditOwner()
     ? activeReps().filter((u) => u.ownerCode === roleNow().owner)
     : activeReps();
 }

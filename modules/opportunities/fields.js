@@ -81,6 +81,7 @@ const riskOf = (o) => {
           : 'Low';
 };
 const fld = (o, [k, l, t, op]) => {
+  if (k === 'owner' && !canEditOwner()) t = 'ro';
   const v = gv(o, k),
     ed = S.ed == k && t != 'ro' && t != 'b';
   let b;
@@ -95,7 +96,7 @@ const fld = (o, [k, l, t, op]) => {
           ? `<textarea class="inp" rows="3" ${a}>${E(v)}</textarea>`
           : `<input class="inp" type="${t == 'n' ? 'number' : t == 'd' ? 'date' : 'text'}" value="${E(v)}" ${a}>`;
   } else
-    b = `<div class="font-semibold break-words">${t == 'n' ? M(v) : t == 'd' ? fd(v) : k == 'amount' ? M(v) : k == 'owner' ? E(ownerLabel(v)) : E(v) || '–'}</div>`;
+    b = `<div class="font-semibold break-words">${t == 'n' ? M(v) : t == 'd' ? fd(v) : k == 'amount' ? M(v) : k == 'owner' ? repLink(v) : k == 'account' ? acctSpan(v) + acctEditBtn(v) : E(v) || '–'}</div>`;
   return `<div class="py-2 border-b flex justify-between gap-2" style="border-color:var(--bd)"><div class="min-w-0 flex-1"><div class="mut text-[11px]">${l}</div>${b}</div>${t == 'ro' || t == 'b' ? '' : `<span class="ms mut" style="font-size:16px;cursor:pointer" title="Edit" onclick="S.ed='${k}';render()">edit</span>`}</div>`;
 };
 function sf(k, v) {

@@ -11,10 +11,11 @@ function quoteRoute(q) {
     };
   if (S.role === 'ceo') return { status: 'Approved', approver: roleNow().name };
   if (S.role === 'admin')
-    return pct <= 5
+    return pct <= adminDiscountLimit()
       ? { status: 'Approved', approver: roleNow().name }
       : { status: 'Pending CEO Approval', approver: ROLE_CFG.ceo.name };
-  if (pct > 5) return { status: 'Pending CEO Approval', approver: ROLE_CFG.ceo.name };
+  if (pct > adminDiscountLimit())
+    return { status: 'Pending CEO Approval', approver: ROLE_CFG.ceo.name };
   return { status: 'Pending Admin Approval', approver: ROLE_CFG.admin.name };
 }
 function storeQuote(q) {

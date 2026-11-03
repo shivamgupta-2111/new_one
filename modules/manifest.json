@@ -48,5 +48,10 @@
   "modules/teams/teams.js",
   "modules/teams/home-board.js",
   "modules/settings/settings.js",
+  "modules/quotations/discount-policy.js",
+  "modules/approvals/popups.js",
+  "modules/accounts/account-info.js",
+  "modules/opportunities/permissions.js",
+  "modules/teams/rep-detail.js",
   "modules/opportunities/tabs.js"
 ]

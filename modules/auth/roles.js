@@ -2,7 +2,7 @@
 
 // Ceph CRM extensions: portals, price controls, approvals, invoice history.
 const ROLE_CFG = {
-  rep: { label: 'Rep portal', owner: 'AL', limit: 2, name: 'Alex Lee' },
+  rep: { label: 'Rep portal', owner: 'AL', limit: 0, name: 'Alex Lee' },
   admin: { label: 'Admin portal', owner: 'SC', limit: 5, name: 'Sara Chen' },
   ceo: { label: 'CEO portal', owner: 'TS', limit: 100, name: 'Tony Stark' },
 };

@@ -27,7 +27,8 @@ const APP_LABELS = {
   users: 'User accounts',
   settings: 'Settings',
 };
-const appsForRole = () =>
+const appsForRole = () => appsForRoleAll().filter((k) => k !== 'invoices' || canSeeInvoices());
+const appsForRoleAll = () =>
   S.role === 'rep'
     ? ['home', 'leads', 'accounts', 'contacts', 'opps', 'quotes', 'invoices', 'settings']
     : [

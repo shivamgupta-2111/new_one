@@ -79,7 +79,7 @@ function toggleHelp() {
   openPanel(
     'help',
     panelTitle('Help') +
-      `<div class="p-3"><div class="mut font-semibold mb-1">Keyboard shortcuts</div>${row('Search', 'Ctrl + K')}${row('Close menus', 'Esc')}</div><div class="p-3" style="border-top:1px solid var(--bd)"><div class="mut font-semibold mb-1">Quote to invoice</div><p>Open an opportunity and choose <b>Generate quote</b>. Submit it for approval; once approved, an invoice is generated that you can submit to the client and mark as paid.</p><p class="mut mt-2">Approval limits: Rep 2% · Admin 5% · CEO unlimited. Prices below a product minimum always need CEO approval.</p></div>`
+      `<div class="p-3"><div class="mut font-semibold mb-1">Keyboard shortcuts</div>${row('Search', 'Ctrl + K')}${row('Close dialogs and menus, go back', 'Esc')}${row('Switch opportunity tab', 'Alt + 1-9')}${row('Rename opportunity tab', 'F2')}</div><div class="p-3" style="border-top:1px solid var(--bd)"><div class="mut font-semibold mb-1">Quote to invoice</div><p>Open an opportunity and choose <b>Generate quote</b>. Submit it for approval; once approved, an invoice is generated that you can submit to the client and mark as paid.</p><p class="mut mt-2">Approval limits: Reps cannot discount · Admin ${adminDiscountLimit()}% · CEO unlimited. Prices below a product minimum always need CEO approval.</p></div>`
   );
 }
 addEventListener('keydown', (e) => {

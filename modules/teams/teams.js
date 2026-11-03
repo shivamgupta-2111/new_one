@@ -142,7 +142,7 @@ function teamBoardCard(team, metric, meCode) {
   const rows = ranked
     .map((r) => {
       const me = r.user.ownerCode === meCode;
-      return `<tr style="${me ? 'background:var(--hov)' : ''}"><td>${rankBadge(r.rank)}</td><td><div class="flex items-center gap-2"><span class="w-7 h-7 rounded-full grid place-items-center text-xs font-bold" style="background:var(--hov);color:var(--pr)">${E(personInitials(r.user.name))}</span><b>${E(r.user.name)}</b>${me ? '<span class="chip">You</span>' : ''}</div></td><td class="text-right"><b>${M(r.won)}</b></td><td class="text-right">${r.deals}</td><td class="text-right">${M(r.pipeline)}</td><td><div class="flex items-center gap-2">${progressBar(r.attain)}<span class="text-xs">${Math.round(r.attain)}%</span></div></td></tr>`;
+      return `<tr style="${me ? 'background:var(--hov)' : ''}"><td>${rankBadge(r.rank)}</td><td><div class="flex items-center gap-2"><span class="w-7 h-7 rounded-full grid place-items-center text-xs font-bold" style="background:var(--hov);color:var(--pr)">${E(personInitials(r.user.name))}</span><b>${repLink(r.user.ownerCode)}</b>${me ? '<span class="chip">You</span>' : ''}</div></td><td class="text-right"><b>${M(r.won)}</b></td><td class="text-right">${r.deals}</td><td class="text-right">${M(r.pipeline)}</td><td><div class="flex items-center gap-2">${progressBar(r.attain)}<span class="text-xs">${Math.round(r.attain)}%</span></div></td></tr>`;
     })
     .join('');
   return `<div class="card p-4"><div class="flex justify-between items-start gap-2 flex-wrap"><div><b class="text-lg">${E(team.name)}</b><div class="mut text-xs">${ranked.length} rep${ranked.length === 1 ? '' : 's'} · ranked by ${LB_METRICS[metric].toLowerCase()}</div></div><div class="text-right"><b>${M(totalWon)}</b><div class="mut text-xs">of ${M(totalTarget)} team target (${totalTarget ? Math.round((totalWon / totalTarget) * 100) : 0}%)</div></div></div>${table(['#', 'Rep', 'Won', 'Deals', 'Open pipeline', 'Target'], rows || '<tr><td colspan="6" class="mut">No reps in this team yet.</td></tr>')}</div>`;
@@ -158,7 +158,8 @@ function leaderboardSection() {
     .join('');
   const meCode = roleNow().owner;
   let body, intro;
-  if (S.role === 'rep') {
+  // Plain reps see only their own team; Senior Reps, Admin and CEO see every team.
+  if (S.role === 'rep' && !isSeniorRep(S.users.find((u) => u.id === S.authUser))) {
     const me = S.users.find((u) => u.role === 'rep' && u.ownerCode === meCode);
     const team = me && teamById(me.teamId);
     if (!team)

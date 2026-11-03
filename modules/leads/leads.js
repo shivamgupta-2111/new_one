@@ -7,7 +7,7 @@ V.leads = () =>
     S.leads
       .map(
         (l, i) =>
-          `<tr><td><b>${E(l[0])}</b></td><td>${E(l[1])}</td><td>${E(l[2])}</td><td><span class="chip ${l[3] == 'New' ? '' : 'wr'}">${l[3]}</span></td><td class="text-right"><button class="btn" onclick="convert(${i})">Convert to deal</button></td></tr>`
+          `<tr><td><b>${E(l[0])}</b></td><td>${E(l[1])}</td><td>${E(l[2])}</td><td><span class="chip ${l[3] == 'New' ? '' : 'wr'}">${l[3]}</span></td><td class="text-right">${canAddOpportunity() ? `<button class="btn" onclick="convert(${i})">Convert to deal</button>` : ''}</td></tr>`
       )
       .join('')
   );

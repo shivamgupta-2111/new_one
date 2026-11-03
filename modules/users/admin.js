@@ -11,7 +11,7 @@ V.users = () =>
       .map((x) => {
         const can = manageableRoles().includes(x.role) && x.id !== S.authUser,
           on = x.active !== false;
-        return `<tr><td><b>${E(x.name)}</b></td><td>${E(x.username)}</td><td>${x.role.toUpperCase()}</td><td>${E(x.ownerCode || '—')}</td><td><span class="chip ${on ? 'ok' : 'wr'}">${on ? 'Active' : 'Inactive'}</span></td><td class="text-right whitespace-nowrap">${can ? `<button class="btn" onclick="openResetPassword('${x.id}')">Reset password</button> <button class="btn" onclick="toggleUserActive('${x.id}')">${on ? 'Deactivate' : 'Activate'}</button>` : ''}</td></tr>`;
+        return `<tr><td><b>${E(x.name)}</b></td><td>${E(x.username)}</td><td>${roleTitle(x)}</td><td>${E(x.ownerCode || '—')}</td><td><span class="chip ${on ? 'ok' : 'wr'}">${on ? 'Active' : 'Inactive'}</span></td><td class="text-right whitespace-nowrap">${can ? `${x.role === 'rep' ? `<button class="btn" onclick="toggleSeniorRep('${x.id}')">${isSeniorRep(x) ? 'Remove senior' : 'Make senior'}</button> ` : ''}<button class="btn" onclick="openResetPassword('${x.id}')">Reset password</button> <button class="btn" onclick="toggleUserActive('${x.id}')">${on ? 'Deactivate' : 'Activate'}</button>` : ''}</td></tr>`;
       })
       .join('')
   ) +

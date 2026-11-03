@@ -25,17 +25,17 @@ ceph-crm/
 │  ├─ auth/                      roles, login, role-picker, portal-nav, portal-render
 │  ├─ users/                     users, admin
 │  ├─ leads/                     leads, status
-│  ├─ accounts/                  accounts
+│  ├─ accounts/                  accounts, account-info
 │  ├─ contacts/                  contacts, mobile, primary, edit
 │  ├─ opportunities/             board, fields, detail, attachments, modals,
-│  │                             new-opportunity, portal-views, ownership, slack, tabs
+│  │                             new-opportunity, portal-views, ownership, slack, tabs, permissions
 │  ├─ products/                  products, catalogue-view
-│  ├─ quotations/                quote-base, records, builder, list-view, status
-│  ├─ approvals/                 approvals-view, approval-flow, others-select
+│  ├─ quotations/                quote-base, records, builder, list-view, status, discount-policy
+│  ├─ approvals/                 approvals-view, approval-flow, others-select, popups
 │  ├─ invoices/                  create, submit-and-send, views, payment
 │  ├─ header/                    panels, launcher, render-hook
 │  ├─ settings/                  settings, theme
-│  └─ teams/                     teams, home-board
+│  └─ teams/                     teams, home-board, rep-detail
 ├─ public/ceph-crm.js            generated from modules/, do not edit
 ├─ scripts/build-runtime.js      joins modules/ into public/ceph-crm.js
 ├─ jsconfig.json
