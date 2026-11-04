@@ -60,5 +60,6 @@
   "modules/opportunities/record-page.js",
   "modules/opportunities/files-upload.js",
   "modules/teams/rep-detail.js",
-  "modules/opportunities/tabs.js"
+  "modules/opportunities/tabs.js",
+  "modules/quotations/quote-record.js"
 ]
