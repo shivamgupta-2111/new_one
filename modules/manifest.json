@@ -54,6 +54,7 @@
   "modules/quotations/quote-flow.js",
   "modules/quotations/send-quote.js",
   "modules/products/price-book.js",
+  "modules/quotations/cart.js",
   "modules/invoices/billing.js",
   "modules/opportunities/permissions.js",
   "modules/opportunities/record-page.js",

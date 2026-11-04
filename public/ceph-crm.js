@@ -37,7 +37,7 @@ function ownerLabel(code) {
   return user ? user.name : OWN[code] || code || 'Unassigned';
 }
 function assignableReps() {
-  return S.role === 'rep' && !canEditOwner()
+  return S.role === 'rep' && !canAddOpportunity()
     ? activeReps().filter((u) => u.ownerCode === roleNow().owner)
     : activeReps();
 }
@@ -372,7 +372,9 @@ const RIGHT = [
   ['lost', 'Why we lost', 'ta'],
   ['risk', 'Risk classification', 's', ['None', 'Low', 'Medium', 'High']],
   ['churn', 'Risk/churn level', 's', ['Level 1', 'Level 2', 'Level 3']],
-  ['churnWhy', 'Churn reasons', 'ms', CHURN_REASONS],
+  ['churn1', 'Churn 1', 's', ['', ...CHURN_REASONS]],
+  ['churn2', 'Churn 2', 's', ['', ...CHURN_REASONS]],
+  ['churn3', 'Churn 3', 's', ['', ...CHURN_REASONS]],
   ['churnNotes', 'Churn notes', 'ta'],
   ['notes', 'At-risk notes', 'ta'],
   ['desc', 'Description', 'ta'],
@@ -403,6 +405,8 @@ const gv = (o, k) => {
       churn: 'Level 1',
       orig: o.amount,
     };
+  // churn reasons saved earlier as one list now fill Churn 1, 2 and 3
+  if (/^churn[123]$/.test(k) && !(k in f) && Array.isArray(f.churnWhy)) return f.churnWhy[+k.slice(5) - 1] || '';
   return k in f ? f[k] : (m[k] ?? '');
 };
 const riskOf = (o) => {
@@ -1069,8 +1073,11 @@ const roleNow = () => {
       }
     : ROLE_CFG[S.role] || ROLE_CFG.rep;
 };
+// Reps see their own deals. Senior Reps, Admin and CEO see every opportunity.
+const seesAllOpps = () =>
+  S.role !== 'rep' || isSeniorRep((S.users || []).find((u) => u.id === S.authUser));
 const visibleOpps = () =>
-  S.role === 'rep' ? S.opps.filter((o) => o.owner === roleNow().owner) : S.opps;
+  seesAllOpps() ? S.opps : S.opps.filter((o) => o.owner === roleNow().owner);
 const quoteTotal = (q) => q.items.reduce((a, i) => a + i.p * i.q * (1 - i.d / 100), 0);
 const quoteDiscount = (q) => {
   const sub = q.items.reduce((a, i) => a + i.p * i.q, 0);
@@ -1318,13 +1325,13 @@ V.home = () => {
 };
 const prototypeOpportunityBoard = V.opps;
 V.opps = () => {
-  S.mine = S.role === 'rep';
+  S.mine = !seesAllOpps();
   return prototypeOpportunityBoard();
 };
 V.quotes = () => {
   const list = S.quotes.filter((q) => S.role !== 'rep' || visibleOpps().some((o) => o.id == q.opp));
   return (
-    `<h1 class="text-xl font-bold mb-3">Quotations</h1><p class="mut mb-3">Only Admin and CEO can give discounts · Admin authority ${adminDiscountLimit()}% · CEO unlimited. Below-minimum product prices always require CEO approval.</p>` +
+    `<h1 class="text-xl font-bold mb-3">Quotations</h1><p class="mut mb-3">Rep discounts need approval · Admin authority ${adminDiscountLimit()}% · CEO unlimited. Below-minimum product prices always require CEO approval.</p>` +
     table(
       ['Quotation no.', 'Opportunity', 'Total', 'Discount', 'Status', 'Invoice no.'],
       list
@@ -1437,7 +1444,7 @@ V.quote = () => {
   const field = (label, control, required) =>
     `<label class="qt-field"><span>${label}${required ? ' <i class="qt-req">*</i>' : ''}</span>${control}</label>`;
 
-  const infoCard = `<section class="qt-section"><div class="qt-section-head"><span class="ms">badge</span><b>Quote Information</b></div><div class="qt-grid">${field('Quote Name', `<input class="inp" value="${E(d.name)}" ${dis} onchange="S.qd.name=this.value">`, true)}<label class="qt-check"><input type="checkbox" ${d.primary ? 'checked' : ''} ${dis} onchange="S.qd.primary=this.checked"> Primary Quote (Syncs to Opportunity)</label>${field('Expiration Date', `<input type="date" class="inp" value="${q.exp}" ${dis} onchange="S.qd.exp=this.value">`)}${field('Status', q.status === 'Draft' ? quoteOtherSelect('label', QUOTE_STATUS_CHOICES, q.label || 'Draft', false) : `<select class="inp" disabled><option>${E(q.status)}</option></select>`)}${contactsOfAccount(o.account).length ? field('Customer Contact', `<select class="inp" ${dis} onchange="pickQuoteContact(this.value)"><option value="">Choose a contact…</option>${contactOptions(o.account, String(d.preparedFor).replace(/\s*\(.*\)\s*$/, ''))}</select>`) : ''}${field('Prepared For', `<input class="inp" value="${E(d.preparedFor)}" ${dis} onchange="S.qd.preparedFor=this.value">`)}${field('Send To (Email)', `<input class="inp" type="email" value="${E(d.toEmail)}" placeholder="customer@company.com" ${dis} onchange="S.qd.toEmail=this.value">`)}${field('WhatsApp Number', `<input class="inp" type="tel" value="${E(d.toPhone)}" placeholder="+91 98765 43210" ${dis} onchange="S.qd.toPhone=this.value">`)}${field('Sales Rep / Owner', `<input class="inp" value="${E(ownerLabel(o.owner))}" disabled>`)}${field('Billing Address', `<input class="inp" value="${E(d.address)}" placeholder="Street, city, state, PIN" ${dis} onchange="S.qd.address=this.value">`)}${field('Shipping Address', `<input class="inp" value="${E(d.shipping)}" placeholder="Street, city, state, PIN" ${dis} onchange="S.qd.shipping=this.value">`)}</div></section>`;
+  const infoCard = `<section class="qt-section"><div class="qt-section-head"><span class="ms">badge</span><b>Quote Information</b></div><div class="qt-grid">${field('Quote Name', `<input class="inp" value="${E(d.name)}" ${dis} onchange="S.qd.name=this.value">`, true)}${field('Expiration Date', `<input type="date" class="inp" value="${q.exp}" ${dis} onchange="S.qd.exp=this.value">`)}${field('Status', q.status === 'Draft' ? quoteOtherSelect('label', QUOTE_STATUS_CHOICES, q.label || 'Draft', false) : `<select class="inp" disabled><option>${E(q.status)}</option></select>`)}${contactsOfAccount(o.account).length ? field('Customer Contact', `<select class="inp" ${dis} onchange="pickQuoteContact(this.value)"><option value="">Choose a contact…</option>${contactOptions(o.account, String(d.preparedFor).replace(/\s*\(.*\)\s*$/, ''))}</select>`) : ''}${field('Prepared For', `<input class="inp" value="${E(d.preparedFor)}" ${dis} onchange="S.qd.preparedFor=this.value">`)}${field('Send To (Email)', `<input class="inp" type="email" value="${E(d.toEmail)}" placeholder="customer@company.com" ${dis} onchange="S.qd.toEmail=this.value">`)}${field('WhatsApp Number', `<input class="inp" type="tel" value="${E(d.toPhone)}" placeholder="+91 98765 43210" ${dis} onchange="S.qd.toPhone=this.value">`)}${field('Sales Rep / Owner', `<input class="inp" value="${E(ownerLabel(o.owner))}" disabled>`)}${field('Billing Address', `<input class="inp" value="${E(d.address)}" placeholder="Street, city, state, PIN" ${dis} onchange="S.qd.address=this.value">`)}${field('Shipping Address', `<input class="inp" value="${E(d.shipping)}" placeholder="Street, city, state, PIN" ${dis} onchange="S.qd.shipping=this.value">`)}</div></section>`;
 
   const approvalCard = approvalSection(q, floor, locked);
 
@@ -1903,7 +1910,7 @@ function saveOppContact(e) {
 const originalNav = nav;
 nav = function (v, id) {
   if (id) S.cur = id;
-  if (S.role === 'rep' && v === 'opp-detail' && cur() && cur().owner !== roleNow().owner) {
+  if (!seesAllOpps() && v === 'opp-detail' && cur() && cur().owner !== roleNow().owner) {
     toast('This opportunity is outside your portal access');
     return;
   }
@@ -1915,7 +1922,7 @@ const originalRender = render;
 render = function () {
   let v = location.hash.slice(1) || 'home';
   if (S.role === 'rep' && ['approvals', 'products'].includes(v)) location.hash = '#home';
-  if (S.role === 'rep' && v === 'opp-detail' && cur() && cur().owner !== roleNow().owner)
+  if (!seesAllOpps() && v === 'opp-detail' && cur() && cur().owner !== roleNow().owner)
     location.hash = '#home';
   originalRender();
   v = location.hash.slice(1) || 'home';
@@ -3779,7 +3786,7 @@ SETTINGS_PANELS.limits = function () {
     form = ceo
       ? `<form class="mb-4 p-3 rounded-lg flex flex-wrap items-end gap-3" style="background:var(--hov)" onsubmit="saveAdminDiscountLimit(event)"><label class="block">Admin discount limit (%)<input class="inp mt-1" style="width:140px" type="number" name="limit" min="0" max="100" step="0.5" required value="${lim}"></label><button class="btn btn-p">Save limit</button><span class="mut text-xs flex-1 min-w-[200px]">${by} Quotes above this limit go to the CEO. Lowering it moves pending Admin approvals above the new limit to the CEO.</span></form>`
       : `<p class="mut mb-3">The CEO sets the Admin discount limit. ${by}</p>`;
-  return `${secHead('approval', 'Approval limits', 'Only Admin and CEO can give discounts. The CEO decides how much Admin can give.')}${form}${table(['Role', 'Discount authority', 'Escalation'], rows.map((r) => `<tr><td><b>${r[0]}</b></td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join(''))}<p class="mut text-xs mt-3">Any line priced below its product minimum always needs CEO approval. Every submission needs notes for the approver.</p>`;
+  return `${secHead('approval', 'Approval limits', 'Reps can enter a discount but it needs approval. The CEO decides how much Admin can approve.')}${form}${table(['Role', 'Discount authority', 'Escalation'], rows.map((r) => `<tr><td><b>${r[0]}</b></td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join(''))}<p class="mut text-xs mt-3">Any line priced below its product minimum always needs CEO approval. Every submission needs notes for the approver.</p>`;
 };
 
 // Proper pop-ups for the approval flow: on submit, when approval is needed, and after approve / reject.
@@ -4078,7 +4085,7 @@ addEventListener('hashchange', hideAcctCard);
 
 // ----- editing (Senior Rep, Admin, CEO) -----
 function openAccountEditor(name) {
-  if (!canEditAddress()) return toast('Only Senior Reps, Admin and CEO can edit addresses');
+  if (!canEditAddress()) return toast('Only Admin and CEO can edit addresses');
   hideAcctCard();
   const info = accountInfo(name);
   $('#modal').innerHTML =
@@ -4091,7 +4098,7 @@ function openAccountEditor(name) {
 }
 function saveAccountAddress(e, name) {
   e.preventDefault();
-  if (!canEditAddress()) return toast('Only Senior Reps, Admin and CEO can edit addresses');
+  if (!canEditAddress()) return toast('Only Admin and CEO can edit addresses');
   const v = Object.fromEntries(new FormData(e.target)),
     address = (v.address || '').trim();
   S.accountInfo[name] = {
@@ -4565,7 +4572,6 @@ function openNewQuoteForm(o) {
     `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><form class="card qt-section w-full max-w-3xl max-h-full overflow-auto" role="dialog" aria-modal="true" aria-label="New quote" onsubmit="createQuoteFromForm(event,${o.id})">` +
     `<div class="qt-section-head"><span class="ms">badge</span><b>Quote Information</b></div><div class="qt-grid">` +
     field('Quote Name', `<input class="inp" name="name" required value="${E(d.name)}">`, true) +
-    `<label class="qt-check"><input type="checkbox" name="primary" checked> Primary Quote (Syncs to Opportunity)</label>` +
     field(
       'Expiration Date',
       `<input type="date" class="inp" name="exp" required value="${D(quoteDefaultsSetting().validityDays)}">`
@@ -4615,7 +4621,7 @@ function createQuoteFromForm(e, id) {
     opp: o.id,
     no,
     name: v.name.trim(),
-    primary: !!v.primary,
+    primary: true,
     exp: v.exp,
     status: 'Draft',
     label: v.label,
@@ -5321,6 +5327,80 @@ SETTINGS_PANELS.pricebook = function () {
     `<h3 class="font-bold mt-5">Price limits &amp; product tiers</h3><p class="mut text-xs mb-2">Minimum ≤ list ≤ maximum. Type tiers for one product as <code>quantity:percent</code>, e.g. <code>3:8, 10:15</code>. Leave empty to use the global tiers.</p><div class="overflow-x-auto"><table class="w-full"><thead><tr><th class="text-left">Product</th><th class="text-left">Min ₹</th><th class="text-left">List ₹</th><th class="text-left">Max ₹</th><th class="text-left">Tiers</th></tr></thead><tbody>${prodRows}</tbody></table></div>`
   );
 };
+
+// Product cart on the quote: pick several products with quantities, review the cart, then add it all to the quote.
+
+S.cart = S.cart || {};
+const cartCount = () => Object.values(S.cart).reduce((a, n) => a + n, 0);
+const cartTotal = () =>
+  Object.entries(S.cart).reduce((a, [c, n]) => a + ((S.products.find((p) => p.code === c) || {}).listPrice || 0) * n, 0);
+
+const quoteLinesCardBeforeCart = quoteLinesCard;
+quoteLinesCard = function () {
+  let html = quoteLinesCardBeforeCart.apply(this, arguments);
+  const mark = '<button class="btn qt-tool" onclick="calculateQuotePricing()"';
+  if (html.includes(mark))
+    html = html.replace(
+      mark,
+      `<button class="btn qt-tool" onclick="openCart()"><span class="ms">shopping_cart</span>Cart${cartCount() ? ` <span class="chip ok">${cartCount()}</span>` : ''}</button>` + mark
+    );
+  return html;
+};
+function openCart() {
+  const q = S.qd;
+  if (!q || !['Draft', 'Rejected'].includes(q.status)) return toast('Open a draft quote to use the cart');
+  const term = (S.cartQ || '').toLowerCase(),
+    prods = S.products.filter((p) => p.active !== false && (!term || (p.name + ' ' + p.code).toLowerCase().includes(term))),
+    rows = prods
+      .map(
+        (p) =>
+          `<div class="flex items-center gap-2 py-2" style="border-bottom:1px solid var(--bd)"><div class="flex-1 min-w-0"><b>${E(p.name)}</b><div class="mut text-xs">${E(p.code)} · ${M(p.listPrice)}</div></div><button class="btn" aria-label="Less" onclick="cartSet('${E(p.code)}',${(S.cart[p.code] || 0) - 1})">−</button><input class="inp" style="width:64px;text-align:center" type="number" min="0" value="${S.cart[p.code] || 0}" aria-label="Quantity of ${E(p.name)}" onchange="cartSet('${E(p.code)}',this.value)"><button class="btn" aria-label="More" onclick="cartSet('${E(p.code)}',${(S.cart[p.code] || 0) + 1})">+</button></div>`
+      )
+      .join('') || '<p class="mut py-3">No products match.</p>',
+    lines = Object.entries(S.cart)
+      .map(([c, n]) => {
+        const p = S.products.find((x) => x.code === c);
+        return p ? `<div class="flex justify-between gap-2 text-sm py-1"><span>${n} × ${E(p.name)}</span><span>${M(p.listPrice * n)}</span></div>` : '';
+      })
+      .join('');
+  $('#modal').innerHTML =
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><div class="card p-5 w-full max-w-2xl max-h-full overflow-auto"><div class="flex items-center gap-2"><span class="ms" style="color:var(--pr)">shopping_cart</span><h2 class="text-lg font-bold flex-1">Cart for ${E(q.no)}</h2><button class="btn" aria-label="Close" onclick="$('#modal').innerHTML=''"><span class="ms">close</span></button></div>` +
+    `<input class="inp mt-3" type="search" placeholder="Search products" value="${E(S.cartQ || '')}" oninput="S.cartQ=this.value;openCart();const i=$('#modal input[type=search]');i.focus();i.setSelectionRange(i.value.length,i.value.length)">` +
+    `<div class="mt-2" style="max-height:34vh;overflow:auto">${rows}</div>` +
+    `<div class="mt-3 p-3 rounded" style="background:var(--hov)"><b>In your cart (${cartCount()})</b>${lines || '<div class="mut text-sm">Nothing yet. Use + to add products.</div>'}<div class="flex justify-between font-bold mt-1"><span>Cart total (list price)</span><span>${M(cartTotal())}</span></div></div>` +
+    `<div class="flex justify-end gap-2 mt-3 flex-wrap"><button class="btn" ${cartCount() ? '' : 'disabled'} onclick="cartClear()">Empty cart</button><button class="btn btn-p" ${cartCount() ? '' : 'disabled'} onclick="cartToQuote()"><span class="ms">add_shopping_cart</span>Add to quote</button></div></div></div>`;
+}
+function cartSet(code, n) {
+  n = Math.max(0, Math.floor(+n || 0));
+  if (n) S.cart[code] = n;
+  else delete S.cart[code];
+  save();
+  openCart();
+}
+function cartClear() {
+  S.cart = {};
+  save();
+  openCart();
+}
+function cartToQuote() {
+  const q = S.qd;
+  if (!q || !['Draft', 'Rejected'].includes(q.status) || !cartCount()) return;
+  let n = 0;
+  Object.entries(S.cart).forEach(([c, qty]) => {
+    const p = S.products.find((x) => x.code === c);
+    if (!p) return;
+    const ex = q.items.find((i) => i.c === c && !i.bundle);
+    if (ex) ex.q += qty;
+    else q.items.push({ n: p.name, c: p.code, p: p.listPrice, q: qty, d: 0 });
+    n += qty;
+  });
+  S.cart = {};
+  S.cartQ = '';
+  $('#modal').innerHTML = '';
+  save();
+  toast(`${n} item${n === 1 ? '' : 's'} added to the quote`);
+  render();
+}
 
 // Billing: GST-ready invoices, partial payments and balance due, overdue reminders,
 // invoice PDF (print), and the Close Won prompt once an invoice is paid in full.
@@ -6073,7 +6153,8 @@ function isSeniorRep(u) {
 function roleTitle(u) {
   return isSeniorRep(u) ? 'SENIOR REP' : String((u && u.role) || '').toUpperCase();
 }
-// Admin, CEO and Senior Reps get the extra rights below; regular reps do not.
+// A Senior Rep can create opportunities (for any rep), and sees all opportunities, teams and rep names.
+// Senior Reps can also reassign an opportunity's owner. Editing account addresses stays with Admin and CEO.
 function hasSeniorRights() {
   if (['admin', 'ceo'].includes(S.role)) return true;
   return isSeniorRep((S.users || []).find((u) => u.id === S.authUser));
@@ -6082,10 +6163,10 @@ function canAddOpportunity() {
   return hasSeniorRights();
 }
 function canEditOwner() {
-  return hasSeniorRights(); // change an opportunity's assigned rep
+  return hasSeniorRights(); // change an opportunity's assigned rep (Senior Rep, Admin, CEO)
 }
 function canEditAddress() {
-  return hasSeniorRights(); // account address and shipping address
+  return ['admin', 'ceo'].includes(S.role); // account address and shipping address
 }
 // Invoices are for Admin and CEO only. A Senior Rep's extra rights are just: add opportunities,
 // edit account addresses and reassign opportunities to any rep (plus seeing all teams).

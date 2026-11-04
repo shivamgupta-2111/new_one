@@ -41,8 +41,11 @@ const roleNow = () => {
       }
     : ROLE_CFG[S.role] || ROLE_CFG.rep;
 };
+// Reps see their own deals. Senior Reps, Admin and CEO see every opportunity.
+const seesAllOpps = () =>
+  S.role !== 'rep' || isSeniorRep((S.users || []).find((u) => u.id === S.authUser));
 const visibleOpps = () =>
-  S.role === 'rep' ? S.opps.filter((o) => o.owner === roleNow().owner) : S.opps;
+  seesAllOpps() ? S.opps : S.opps.filter((o) => o.owner === roleNow().owner);
 const quoteTotal = (q) => q.items.reduce((a, i) => a + i.p * i.q * (1 - i.d / 100), 0);
 const quoteDiscount = (q) => {
   const sub = q.items.reduce((a, i) => a + i.p * i.q, 0);

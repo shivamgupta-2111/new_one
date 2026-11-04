@@ -40,13 +40,13 @@ V.home = () => {
 };
 const prototypeOpportunityBoard = V.opps;
 V.opps = () => {
-  S.mine = S.role === 'rep';
+  S.mine = !seesAllOpps();
   return prototypeOpportunityBoard();
 };
 V.quotes = () => {
   const list = S.quotes.filter((q) => S.role !== 'rep' || visibleOpps().some((o) => o.id == q.opp));
   return (
-    `<h1 class="text-xl font-bold mb-3">Quotations</h1><p class="mut mb-3">Only Admin and CEO can give discounts · Admin authority ${adminDiscountLimit()}% · CEO unlimited. Below-minimum product prices always require CEO approval.</p>` +
+    `<h1 class="text-xl font-bold mb-3">Quotations</h1><p class="mut mb-3">Rep discounts need approval · Admin authority ${adminDiscountLimit()}% · CEO unlimited. Below-minimum product prices always require CEO approval.</p>` +
     table(
       ['Quotation no.', 'Opportunity', 'Total', 'Discount', 'Status', 'Invoice no.'],
       list

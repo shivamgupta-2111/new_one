@@ -82,7 +82,7 @@ addEventListener('hashchange', hideAcctCard);
 
 // ----- editing (Senior Rep, Admin, CEO) -----
 function openAccountEditor(name) {
-  if (!canEditAddress()) return toast('Only Senior Reps, Admin and CEO can edit addresses');
+  if (!canEditAddress()) return toast('Only Admin and CEO can edit addresses');
   hideAcctCard();
   const info = accountInfo(name);
   $('#modal').innerHTML =
@@ -95,7 +95,7 @@ function openAccountEditor(name) {
 }
 function saveAccountAddress(e, name) {
   e.preventDefault();
-  if (!canEditAddress()) return toast('Only Senior Reps, Admin and CEO can edit addresses');
+  if (!canEditAddress()) return toast('Only Admin and CEO can edit addresses');
   const v = Object.fromEntries(new FormData(e.target)),
     address = (v.address || '').trim();
   S.accountInfo[name] = {

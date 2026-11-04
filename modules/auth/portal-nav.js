@@ -4,7 +4,7 @@
 const originalNav = nav;
 nav = function (v, id) {
   if (id) S.cur = id;
-  if (S.role === 'rep' && v === 'opp-detail' && cur() && cur().owner !== roleNow().owner) {
+  if (!seesAllOpps() && v === 'opp-detail' && cur() && cur().owner !== roleNow().owner) {
     toast('This opportunity is outside your portal access');
     return;
   }
@@ -16,7 +16,7 @@ const originalRender = render;
 render = function () {
   let v = location.hash.slice(1) || 'home';
   if (S.role === 'rep' && ['approvals', 'products'].includes(v)) location.hash = '#home';
-  if (S.role === 'rep' && v === 'opp-detail' && cur() && cur().owner !== roleNow().owner)
+  if (!seesAllOpps() && v === 'opp-detail' && cur() && cur().owner !== roleNow().owner)
     location.hash = '#home';
   originalRender();
   v = location.hash.slice(1) || 'home';

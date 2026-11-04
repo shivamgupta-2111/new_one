@@ -434,7 +434,6 @@ function openNewQuoteForm(o) {
     `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><form class="card qt-section w-full max-w-3xl max-h-full overflow-auto" role="dialog" aria-modal="true" aria-label="New quote" onsubmit="createQuoteFromForm(event,${o.id})">` +
     `<div class="qt-section-head"><span class="ms">badge</span><b>Quote Information</b></div><div class="qt-grid">` +
     field('Quote Name', `<input class="inp" name="name" required value="${E(d.name)}">`, true) +
-    `<label class="qt-check"><input type="checkbox" name="primary" checked> Primary Quote (Syncs to Opportunity)</label>` +
     field(
       'Expiration Date',
       `<input type="date" class="inp" name="exp" required value="${D(quoteDefaultsSetting().validityDays)}">`
@@ -484,7 +483,7 @@ function createQuoteFromForm(e, id) {
     opp: o.id,
     no,
     name: v.name.trim(),
-    primary: !!v.primary,
+    primary: true,
     exp: v.exp,
     status: 'Draft',
     label: v.label,

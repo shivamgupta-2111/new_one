@@ -49,7 +49,9 @@ const RIGHT = [
   ['lost', 'Why we lost', 'ta'],
   ['risk', 'Risk classification', 's', ['None', 'Low', 'Medium', 'High']],
   ['churn', 'Risk/churn level', 's', ['Level 1', 'Level 2', 'Level 3']],
-  ['churnWhy', 'Churn reasons', 'ms', CHURN_REASONS],
+  ['churn1', 'Churn 1', 's', ['', ...CHURN_REASONS]],
+  ['churn2', 'Churn 2', 's', ['', ...CHURN_REASONS]],
+  ['churn3', 'Churn 3', 's', ['', ...CHURN_REASONS]],
   ['churnNotes', 'Churn notes', 'ta'],
   ['notes', 'At-risk notes', 'ta'],
   ['desc', 'Description', 'ta'],
@@ -80,6 +82,8 @@ const gv = (o, k) => {
       churn: 'Level 1',
       orig: o.amount,
     };
+  // churn reasons saved earlier as one list now fill Churn 1, 2 and 3
+  if (/^churn[123]$/.test(k) && !(k in f) && Array.isArray(f.churnWhy)) return f.churnWhy[+k.slice(5) - 1] || '';
   return k in f ? f[k] : (m[k] ?? '');
 };
 const riskOf = (o) => {
