@@ -71,6 +71,144 @@ const ago = (t) => {
 const days = (s) => Math.round((new Date(s + 'T00:00') - new Date(D(0) + 'T00:00')) / 864e5);
 const clone = (x) => JSON.parse(JSON.stringify(x));
 
+// Document branding (logo + letterhead for quotations and invoices), e-signatures and the floating action button.
+
+// ---------- logo ----------
+// The company's uploaded logo (Settings → Company & GST) is used when there is one; otherwise a clean built-in mark.
+function brandMark(size = 44) {
+  const co = (S.settings && S.settings.company) || {};
+  if (co.logo)
+    return `<img class="doc-logo-img" src="${E(co.logo)}" alt="${E(co.name || 'Company')} logo" style="max-height:${size}px;max-width:${size * 3.2}px">`;
+  return `<svg class="doc-logo-mark" width="${size}" height="${size}" viewBox="0 0 48 48" role="img" aria-label="Logo" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="dlg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1b96ff"/><stop offset="1" stop-color="#0b4f9c"/></linearGradient></defs><rect width="48" height="48" rx="12" fill="url(#dlg)"/><path d="M15.5 33h17.2a6.3 6.3 0 0 0 .9-12.5 8.6 8.6 0 0 0-16.4 2.1 5.2 5.2 0 0 0-1.7 10.4z" fill="#fff"/><path d="M19 27.5l3.4 3.2 6.6-7" fill="none" stroke="#0b5cab" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+const brandInitials = (name) =>
+  String(name || 'Ceph CRM')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('');
+
+// Letterhead used at the top of a quotation or invoice.
+// meta: [[label, value], ...] printed on the right under the document title.
+function docLetterhead(title, meta) {
+  const co = (S.settings && S.settings.company) || {},
+    name = co.name || 'Ceph CRM',
+    lines = [
+      co.address ? `<div class="doc-co-addr">${E(co.address)}</div>` : '',
+      co.gstin ? `<div>GSTIN <b>${E(co.gstin)}</b>${co.pan ? ` · PAN ${E(co.pan)}` : ''}</div>` : '',
+      co.email || co.phone
+        ? `<div>${[co.email, co.phone].filter(Boolean).map(E).join(' · ')}</div>`
+        : '',
+    ].join('');
+  return `<div class="doc-head"><div class="doc-brand">${brandMark(co.logo ? 52 : 46)}<div><div class="doc-co">${E(name)}</div><div class="doc-co-sub">${lines || '<div>Sales &amp; Billing</div>'}</div></div></div><div class="doc-title"><div class="doc-kind">${E(title)}</div>${meta
+    .filter((m) => m && m[1] !== '' && m[1] != null)
+    .map((m) => `<div class="doc-meta"><span>${E(m[0])}</span><b>${m[2] ? m[1] : E(m[1])}</b></div>`)
+    .join('')}</div></div><div class="doc-rule"></div>`;
+}
+
+// Company logo upload (stored as a small data URL with the company details).
+function pickCompanyLogo(input) {
+  const f = input.files && input.files[0];
+  if (!f) return;
+  if (!/^image\/(png|jpeg|svg\+xml|webp)$/.test(f.type))
+    return toast('Use a PNG, JPG, SVG or WebP image');
+  if (f.size > 400 * 1024) return toast('Logo must be smaller than 400 KB');
+  const r = new FileReader();
+  r.onload = () => {
+    companyInfo().logo = r.result;
+    save();
+    toast('Logo updated · it now appears on quotations and invoices');
+    render();
+  };
+  r.readAsDataURL(f);
+}
+function removeCompanyLogo() {
+  delete companyInfo().logo;
+  save();
+  toast('Logo removed · the standard mark is used');
+  render();
+}
+function companyLogoField() {
+  const co = companyInfo(),
+    ok = canManageBilling();
+  return `<div class="md:col-span-2"><div class="text-sm font-semibold mb-1">Logo (quotations &amp; invoices)</div><div class="flex items-center gap-3 flex-wrap p-3 rounded-lg" style="background:var(--hov)"><div class="doc-logo-preview">${brandMark(48)}</div>${ok ? `<label class="btn" style="cursor:pointer"><span class="ms">upload</span>${co.logo ? 'Change logo' : 'Upload logo'}<input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" hidden onchange="pickCompanyLogo(this)"></label>${co.logo ? `<button type="button" class="btn" onclick="removeCompanyLogo()">Use standard mark</button>` : ''}` : ''}<span class="mut text-xs">PNG, JPG, SVG or WebP, under 400 KB. A wide logo on a transparent background looks best.</span></div></div>`;
+}
+
+// ---------- e-signature ----------
+// A handwriting-style signature generated from the typed name.
+function signatureSvg(name, opts = {}) {
+  const n = String(name || '').trim();
+  if (!n) return '';
+  const w = opts.width || 300,
+    h = opts.height || 84,
+    fs = Math.max(26, Math.min(48, Math.round((w * 1.55) / Math.max(n.length, 6))));
+  // a light, deterministic "pen" flourish under the name so each signature looks hand made
+  let seed = 0;
+  for (const ch of n) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+  const r = (k) => ((Math.sin(seed + k) + 1) / 2) * 6 - 3,
+    y = h - 18;
+  const flourish = `M12 ${y + r(1)} C ${w * 0.3} ${y + 6 + r(2)}, ${w * 0.55} ${y - 4 + r(3)}, ${w - 20} ${y + 2 + r(4)}`;
+  return `<svg class="sig-svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="Signature of ${E(n)}" xmlns="http://www.w3.org/2000/svg"><text x="14" y="${h - 26}" font-family="'Mrs Saint Delafield','Segoe Script','Brush Script MT',cursive" font-size="${fs}" fill="#14306b" transform="rotate(-3 14 ${h - 26})">${E(n)}</text><path d="${flourish}" fill="none" stroke="#14306b" stroke-width="1.4" stroke-linecap="round" opacity=".75"/></svg>`;
+}
+// via: 'customer' = the client typed their name on the quote link (a real e-signature);
+// 'staff' = someone in the team recorded a signature they received offline (shown as text, not as handwriting).
+function signatureBlock(name, at, label = 'Accepted & signed by', via = 'customer', recordedBy = '') {
+  if (!name) return '';
+  const lab = label ? `<div class="sig-label">${E(label)}</div>` : '';
+  if (via === 'staff')
+    return `<div class="sig-block">${lab}<div class="sig-recorded"><span class="ms">edit_document</span>Signed copy received</div><div class="sig-line"></div><div class="sig-name"><b>${E(name)}</b>${at ? ` · ${whenText(at)}` : ''}</div><div class="sig-note">Recorded by ${E(recordedBy || 'the sales team')}</div></div>`;
+  return `<div class="sig-block">${lab}${signatureSvg(name)}<div class="sig-line"></div><div class="sig-name"><b>${E(name)}</b>${at ? ` · ${whenText(at)}` : ''}</div><div class="sig-note">Signed electronically by the client</div></div>`;
+}
+// Who signed a quote. The client's own e-signature always wins over a signature recorded by staff.
+function quoteSigner(q) {
+  if (!q) return null;
+  const c = q.customer;
+  if (c && c.status === 'Accepted' && c.name) return { name: c.name, at: c.at, via: 'customer' };
+  if (q.signedBy)
+    return { name: q.signedBy, at: q.signedAt, via: q.signedVia === 'customer' ? 'customer' : 'staff', by: q.signedRecordedBy };
+  return null;
+}
+const quoteSignatureHtml = (q, label) => {
+  const s = quoteSigner(q);
+  return s ? signatureBlock(s.name, s.at, label, s.via, s.by) : '';
+};
+
+// ---------- floating "Back to top" button ----------
+// Bottom-right. It appears once the page is scrolled down and takes you back to the top.
+function backToTop() {
+  const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  try {
+    window.scrollTo({ top: 0, left: 0, behavior: smooth ? 'smooth' : 'auto' });
+  } catch (e) {
+    window.scrollTo(0, 0);
+  }
+  // some layouts scroll an inner element instead of the window
+  document.querySelectorAll('#app, #app *').forEach((el) => {
+    if (el.scrollTop > 0 && el.scrollHeight > el.clientHeight && getComputedStyle(el).overflowY !== 'visible')
+      el.scrollTo({ top: 0, behavior: smooth ? 'smooth' : 'auto' });
+  });
+  const brand = document.querySelector('.hdr-brand');
+  if (brand) brand.focus({ preventScroll: true });
+}
+function updateFab() {
+  const f = document.getElementById('crm-fab');
+  if (f) f.classList.toggle('show', window.scrollY > 240);
+}
+function mountFab() {
+  if (document.getElementById('crm-fab')) return;
+  const d = document.createElement('div');
+  d.id = 'crm-fab';
+  d.className = 'no-print';
+  d.innerHTML = `<button type="button" id="crm-fab-btn" class="fab-main" aria-label="Back to top" title="Back to top" onclick="backToTop()"><span class="ms">arrow_upward</span></button>`;
+  document.body.appendChild(d);
+  updateFab();
+}
+addEventListener('scroll', updateFab, { passive: true });
+addEventListener('resize', updateFab);
+if (document.readyState === 'loading') addEventListener('DOMContentLoaded', mountFab);
+else mountFab();
+
 // Demo seed data used the first time the app loads (or after "Reset demo").
 
 function seed() {
@@ -335,6 +473,31 @@ const CHURN_REASONS = [
   'Support issues',
   'Other',
 ];
+// Every ISO 4217 currency the browser knows, with its name ("INR — Indian Rupee").
+const COMMON_CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD', 'AUD', 'CAD', 'JPY', 'CNY'];
+const ALL_CURRENCIES = (() => {
+  let codes = [];
+  try {
+    codes = Intl.supportedValuesOf('currency');
+  } catch (e) {}
+  if (!codes.length) codes = COMMON_CURRENCIES.slice();
+  return [...new Set(codes)].sort();
+})();
+function currencyName(code) {
+  try {
+    return new Intl.DisplayNames(['en'], { type: 'currency' }).of(code) || code;
+  } catch (e) {
+    return code;
+  }
+}
+const currencyLabel = (code) => (code ? `${code} — ${currencyName(code)}` : '–');
+function currencyOptions(selected) {
+  const opt = (c) =>
+    `<option value="${E(c)}" ${c === selected ? 'selected' : ''}>${E(currencyLabel(c))}</option>`;
+  const common = COMMON_CURRENCIES.filter((c) => ALL_CURRENCIES.includes(c));
+  const extra = selected && !ALL_CURRENCIES.includes(selected) ? [selected] : [];
+  return `<optgroup label="Common">${common.map(opt).join('')}</optgroup><optgroup label="All currencies (${ALL_CURRENCIES.length})">${[...extra, ...ALL_CURRENCIES].map(opt).join('')}</optgroup>`;
+}
 const LEFT = [
   ['owner', 'Opportunity owner', 's'],
   ['name', 'Opportunity name', 't'],
@@ -348,7 +511,7 @@ const LEFT = [
   ['type', 'Type', 's', ['New Customer', 'Add-on', 'Renewal']],
   ['channel', 'Revenue channel', 's', ['Direct', 'Partner', 'Distributor']],
   ['refRep', 'Referral rep', 't'],
-  ['currency', 'Currency', 's', ['USD', 'EUR', 'GBP', 'INR']],
+  ['currency', 'Currency', 'cur'],
   ['hold', 'Hold tag', 't'],
   ['chInit', 'Channel initiated', 'b'],
   ['so', 'Sales order number', 't'],
@@ -395,7 +558,7 @@ const gv = (o, k) => {
       source: 'Partner Referral',
       type: 'New Customer',
       channel: 'Direct',
-      currency: 'USD',
+      currency: 'INR',
       bill: 'Not started',
       rt: 'Enterprise',
       sdr: 'N/A',
@@ -423,6 +586,14 @@ const riskOf = (o) => {
 };
 const fld = (o, [k, l, t, op]) => {
   if (k === 'owner' && !canEditOwner()) t = 'ro';
+  if (t == 'cur') {
+    const cv = gv(o, k);
+    const body =
+      S.ed == k
+        ? `<select class="inp" aria-label="${E(l)}" data-ed onchange="sf('${k}',this.value)" onblur="S.ed=null;render()">${currencyOptions(cv)}</select>`
+        : `<div>${E(currencyLabel(cv))}</div>`;
+    return sfRow(l, body, `<span class="ms" title="Edit ${E(l)}" onclick="S.ed='${k}';render()">edit</span>`);
+  }
   const v = gv(o, k),
     ed = S.ed == k && t != 'ro' && t != 'b';
   let b;
@@ -1000,6 +1171,7 @@ function sub(e, k) {
 
 // Router: renders the view for the current hash.
 
+let lastRenderedView = null;
 function render() {
   let v = location.hash.slice(1) || 'home';
   if (!V[v]) v = 'home';
@@ -1020,9 +1192,17 @@ function render() {
       )
       .join('') +
     `<span class="flex-1"></span><a href="#home" class="px-3 py-2 mut" onclick="if(confirm('Reset all demo data?')){localStorage.removeItem(KEY);location.reload()}">Reset demo</a>`;
+  // Re-rendering the same page (saving a field, opening an inline editor, switching a tab) keeps the
+  // scroll position. Only moving to a different page or record starts again at the top.
+  const viewKey = v + '|' + (S.cur ?? ''),
+    sameView = lastRenderedView === viewKey,
+    y = window.scrollY;
   $('#app').innerHTML = V[v]();
+  lastRenderedView = viewKey;
   const ed = $('[data-ed]');
-  ed ? ed.focus() : scrollTo(0, 0);
+  if (ed) ed.focus({ preventScroll: true });
+  if (sameView) scrollTo(0, y);
+  else if (!ed) scrollTo(0, 0);
 }
 addEventListener('hashchange', render);
 // Later sections define more helpers; the final render() at the end of the file draws the page.
@@ -3147,8 +3327,33 @@ function openApprovalDialog(q, mode) {
     (approve
       ? `<label class="block">Terms &amp; conditions <span class="mut text-xs">(optional)</span><textarea class="inp" name="tnc" rows="4" placeholder="Conditions that apply to this approval">${E(effectiveTnc(q))}</textarea></label>`
       : '') +
-    `<div class="flex justify-end gap-2"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">${approve ? 'Approve' : 'Reject'}</button></div></form></div>`;
+    (approve
+      ? `<label class="block">Type <b>APPROVED</b> in capital letters to confirm *<input class="inp mt-1" name="confirmWord" autocomplete="off" spellcheck="false" placeholder="APPROVED" oninput="approvalWordCheck(this)" style="letter-spacing:.08em;font-weight:600"></label><div id="approve-word-hint" class="text-xs mut">The Approve button unlocks when you type APPROVED exactly.</div>`
+      : '') +
+    `<div class="flex justify-end gap-2"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button id="approval-submit" class="btn btn-p" ${approve ? 'disabled title="Type APPROVED to confirm"' : ''}>${approve ? 'Approve' : 'Reject'}</button></div></form></div>`;
   $('#modal textarea').focus();
+}
+// The approver must type the word APPROVED (capital letters, exactly) before approving.
+const APPROVAL_WORD = 'APPROVED';
+function approvalWordCheck(input) {
+  const v = input.value.trim(),
+    ok = v === APPROVAL_WORD,
+    btn = $('#approval-submit'),
+    hint = $('#approve-word-hint');
+  if (btn) {
+    btn.disabled = !ok;
+    btn.title = ok ? '' : 'Type APPROVED to confirm';
+  }
+  input.style.borderColor = ok ? 'var(--ok)' : v ? 'var(--err)' : '';
+  if (hint)
+    hint.textContent = ok
+      ? 'Confirmed. You can approve now.'
+      : v && v.toUpperCase() === APPROVAL_WORD
+        ? 'Use capital letters: APPROVED'
+        : v
+          ? 'Type APPROVED exactly'
+          : 'The Approve button unlocks when you type APPROVED exactly.';
+  if (hint) hint.style.color = ok ? 'var(--ok)' : v ? 'var(--err)' : '';
 }
 function finishApproval(e, no, mode) {
   e.preventDefault();
@@ -3160,6 +3365,8 @@ function finishApproval(e, no, mode) {
     return toast(
       mode === 'approve' ? 'Add approval notes first' : 'Add a reason for the rejection'
     );
+  if (mode === 'approve' && String(v.confirmWord || '').trim() !== APPROVAL_WORD)
+    return toast('Type APPROVED in capital letters to approve');
   const o = S.opps.find((x) => x.id == q.opp);
   $('#modal').innerHTML = '';
   if (mode === 'reject') {
@@ -4359,17 +4566,16 @@ function printQuote() {
     o = cur();
   if (!q || !o) return;
   $('#modal').innerHTML =
-    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><div class="card p-6 w-full max-w-3xl max-h-full overflow-auto"><div class="flex justify-between gap-3"><div><h2 class="text-xl font-bold">Quote ${E(q.no)}</h2><div class="mut">${E(q.name || '')}</div><div class="mut">Prepared for ${E(q.preparedFor || o.account)} · Valid until ${fd(q.exp)}</div></div><b>${E(o.account)}</b></div>` +
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><div class="card p-6 w-full max-w-3xl max-h-full overflow-auto doc-sheet">${docLetterhead('QUOTATION', [['Quote no.', q.no], ['Date', fd(new Date(q.createdAt || Date.now()).toISOString().slice(0, 10))], ['Valid until', fd(q.exp)], ['Status', q.status]])}<div class="doc-for"><div><div class="mut text-xs">Prepared for</div><b>${E(q.preparedFor || o.account)}</b><div>${E(o.account)}</div></div><div class="text-right"><div class="mut text-xs">Subject</div><b>${E(q.name || o.name || '')}</b></div></div>` +
     `<div class="grid sm:grid-cols-2 gap-3 mt-3 text-sm"><div><div class="mut text-xs">Billing address</div><div style="white-space:pre-wrap">${E(q.address || '–')}</div></div><div><div class="mut text-xs">Shipping address</div><div style="white-space:pre-wrap">${E(q.shipping || '–')}</div></div></div>` +
     `<div class="my-4">${billLinesTable(q.items, !!q.showDiscount)}</div><div class="text-right text-lg font-bold">Grand total ${M(quoteTotal(q))}</div>` +
     `<div class="mt-4"><b>Terms &amp; conditions</b><div style="white-space:pre-wrap" class="text-sm">${E(effectiveTnc(q))}</div></div>` +
     (q.po
       ? `<p class="mt-3 text-sm"><b>Customer PO:</b> ${E(q.po.no)}${q.po.date ? ' · ' + fd(q.po.date) : ''}</p>`
       : '') +
-    (q.signedBy
-      ? `<p class="mt-1 text-sm"><b>Signed by:</b> ${E(q.signedBy)} · ${whenText(q.signedAt)}</p>`
-      : '') +
-    `<div class="flex justify-end gap-2 mt-4"><button class="btn" onclick="$('#modal').innerHTML=''">Close</button><button class="btn btn-p" onclick="window.print()">Print / Save PDF</button></div></div></div>`;
+    `<div class="doc-sign-row"><div>${quoteSigner(q) ? quoteSignatureHtml(q, 'Accepted & signed by (customer)') : '<div class="sig-block sig-empty"><div class="sig-label">Customer acceptance</div><div class="sig-line"></div><div class="sig-name mut">Name, signature &amp; date</div></div>'}</div><div class="sig-block text-right"><div class="sig-label">For ${E((S.settings.company || {}).name || 'Ceph CRM')}</div><div style="height:56px"></div><div class="sig-line"></div><div class="sig-name">${E(q.approvedBy ? q.approvedBy : 'Authorised signatory')}</div><div class="sig-note">${q.approvedBy ? 'Approved ' + whenText(q.approvedAt) : 'Authorised signatory'}</div></div></div>` +
+    `<div class="doc-foot">Thank you for your business. This is a computer generated quotation.</div>` +
+    `<div class="flex justify-end gap-2 mt-4 no-print"><button class="btn" onclick="$('#modal').innerHTML=''">Close</button><button class="btn btn-p" onclick="window.print()">Print / Save PDF</button></div></div></div>`;
 }
 
 // Update a quote (stored copy, the open copy and its invoice) in one go.
@@ -4397,7 +4603,7 @@ function quoteToolbar(q) {
   const ok = quoteApproved(q),
     why = ok ? '' : 'Available once the quote is approved',
     syncOk = !String(q.status).startsWith('Pending') && q.status !== 'Rejected';
-  return `<div class="qt-toolbar"><button class="btn" ${syncOk ? '' : 'disabled'} title="${syncOk ? "Copy this quote's products and total to the opportunity" : 'Not available while the quote is pending or rejected'}" onclick="syncQuote()"><span class="ms">sync</span>Sync Quote</button><button class="btn" ${ok ? '' : 'disabled'} title="${why}" onclick="openSignForm()"><span class="ms">draw</span>Sign</button><button class="btn" ${ok ? '' : 'disabled'} title="${why}" onclick="openPoForm()"><span class="ms">receipt_long</span>PO</button><button class="btn" onclick="printQuote()"><span class="ms">print</span>Print / PDF</button>${q.syncedAt ? `<span class="chip ok">Synced ${ago(q.syncedAt)}</span>` : ''}${q.signedBy ? `<span class="chip ok">Signed by ${E(q.signedBy)}</span>` : ''}${q.po ? `<span class="chip ok">PO ${E(q.po.no)}</span>` : ''}<span class="flex-1"></span><label class="qt-check" title="${canGiveDiscount() ? '' : 'Only Admin and CEO can change this'}"><input type="checkbox" ${q.showDiscount ? 'checked' : ''} ${canGiveDiscount() ? '' : 'disabled'} onchange="setShowDiscount(this.checked)"> Show discount on bill</label></div>`;
+  return `<div class="qt-toolbar"><button class="btn" ${syncOk ? '' : 'disabled'} title="${syncOk ? "Copy this quote's products and total to the opportunity" : 'Not available while the quote is pending or rejected'}" onclick="syncQuote()"><span class="ms">sync</span>Sync Quote</button><button class="btn" ${ok ? '' : 'disabled'} title="${why}" onclick="openSignForm()"><span class="ms">draw</span>Sign</button><button class="btn" ${ok ? '' : 'disabled'} title="${why}" onclick="openPoForm()"><span class="ms">receipt_long</span>PO</button><button class="btn" onclick="printQuote()"><span class="ms">print</span>Print / PDF</button>${q.syncedAt ? `<span class="chip ok">Synced ${ago(q.syncedAt)}</span>` : ''}${quoteSigner(q) ? `<span class="chip ok">${quoteSigner(q).via === 'customer' ? 'E-signed by' : 'Signed by'} ${E(quoteSigner(q).name)}</span>` : ''}${q.po ? `<span class="chip ok">PO ${E(q.po.no)}</span>` : ''}<span class="flex-1"></span><label class="qt-check" title="${canGiveDiscount() ? '' : 'Only Admin and CEO can change this'}"><input type="checkbox" ${q.showDiscount ? 'checked' : ''} ${canGiveDiscount() ? '' : 'disabled'} onchange="setShowDiscount(this.checked)"> Show discount on bill</label></div>`;
 }
 const quoteViewBeforeFlow = V.quote;
 V.quote = function () {
@@ -4437,6 +4643,8 @@ function simpleQuoteForm(title, fields, submitJs, submitLabel) {
 function openSignForm() {
   const q = S.qd;
   if (!q || !quoteApproved(q)) return toast('Available once the quote is approved');
+  if (q.customer && q.customer.status === 'Accepted')
+    return toast(`Signed electronically by the client (${q.customer.name})`);
   simpleQuoteForm(
     `Sign quotation ${E(q.no)}`,
     `<label class="block">Signed by *<input class="inp" name="by" required value="${E(q.signedBy || String(q.preparedFor || '').replace(/\s*\(.*\)\s*$/, ''))}"></label><label class="block">Date<input class="inp" type="date" name="date" value="${D(0)}"></label>`,
@@ -4449,9 +4657,13 @@ function saveSign(e) {
   const q = S.qd,
     v = Object.fromEntries(new FormData(e.target));
   if (!q || !quoteApproved(q) || !(v.by || '').trim()) return;
+  if (q.customer && q.customer.status === 'Accepted')
+    return toast('The client already signed this quote electronically');
   patchQuote(q.no, {
     signedBy: v.by.trim(),
     signedAt: v.date ? new Date(v.date + 'T12:00').getTime() : Date.now(),
+    signedVia: 'staff',
+    signedRecordedBy: roleNow().name,
   });
   logOpp(q.opp, 'sync', `Quote ${q.no} signed by ${v.by.trim()}`);
   $('#modal').innerHTML = '';
@@ -4965,7 +5177,7 @@ function renderCustomerQuote() {
     expired = q.status === 'Expired' || quoteExpired(q),
     cs = q.customer,
     banner = cs
-      ? `<div class="qt-banner ${cs.status === 'Accepted' ? 'ok' : 'wr'}"><span class="ms">${cs.status === 'Accepted' ? 'verified' : 'info'}</span><div><b>You ${cs.status.toLowerCase()} this quotation</b><div>${E(cs.name || '')} · ${whenText(cs.at)}</div>${cs.reason ? `<div>Reason: ${E(cs.reason)}</div>` : ''}</div></div>`
+      ? `<div class="qt-banner ${cs.status === 'Accepted' ? 'ok' : 'wr'}"><span class="ms">${cs.status === 'Accepted' ? 'verified' : 'info'}</span><div><b>${cs.status === 'Accepted' ? 'Thank you. You accepted and signed this quotation.' : 'You declined this quotation'}</b><div>${E(cs.name || '')} · ${whenText(cs.at)}</div>${cs.reason ? `<div>Reason: ${E(cs.reason)}</div>` : ''}</div></div>`
       : expired
         ? `<div class="qt-banner wr"><span class="ms">event_busy</span><div><b>This quotation has expired</b><div>It was valid until ${fd(q.exp)}. Please contact us for an updated quote.</div></div></div>`
         : !quoteIsSendable(q)
@@ -4973,24 +5185,57 @@ function renderCustomerQuote() {
           : '';
   const actions =
     !cs && !expired && quoteIsSendable(q)
-      ? `<form class="card p-4 mt-3 space-y-3" onsubmit="customerRespond(event,'${E(q.token)}','Accepted')"><b>Accept and sign</b><label class="block">Your full name (as signature) *<input class="inp" name="name" required value="${E(String(q.preparedFor || '').replace(/\s*\(.*\)\s*$/, ''))}"></label><label class="flex items-start gap-2"><input type="checkbox" name="agree" required class="mt-1"> <span>I accept this quotation and its terms &amp; conditions.</span></label><div class="flex gap-2 flex-wrap"><button class="btn btn-p">Accept &amp; sign</button><button type="button" class="btn" style="color:var(--err)" onclick="customerDecline('${E(q.token)}')">Decline</button></div></form>`
+      ? `<form id="cq-sign" class="card p-4 md:p-5 mt-3 space-y-3" onsubmit="customerRespond(event,'${E(q.token)}','Accepted')" oninput="cqSignUpdate(this)" onchange="cqSignUpdate(this)"><div class="flex items-center gap-2"><span class="ms" style="color:var(--pr)">draw</span><b class="text-lg">Accept and sign</b></div><p class="mut text-sm">Type your full name. Your signature is created from it automatically.</p><label class="block">Your full name *<input class="inp mt-1" name="name" required minlength="2" maxlength="60" autocomplete="name" placeholder="e.g. ${E(String(q.preparedFor || 'Priya Sharma').replace(/\s*\(.*\)\s*$/, ''))}"></label><div class="sig-pad" aria-live="polite"><div class="sig-label">Your signature</div><div class="sig-pad-ink"><span class="mut text-sm">Your signature appears here as you type</span></div><div class="sig-line"></div><div class="sig-name mut">${fd(D(0))}</div></div><label class="flex items-start gap-2"><input type="checkbox" name="agree" required class="mt-1"> <span>I agree to this quotation and its terms &amp; conditions, and I accept the signature above as my electronic signature.</span></label><div class="flex gap-2 flex-wrap"><button class="btn btn-p" id="cq-accept" disabled><span class="ms">verified</span>Agree &amp; submit</button><button type="button" class="btn" style="color:var(--err)" onclick="customerDecline('${E(q.token)}')">Decline</button></div></form>`
       : '';
   app.innerHTML =
-    `<div class="card p-4 md:p-6"><div class="flex justify-between gap-3 flex-wrap"><div><div class="mut text-xs">${E(co.name || 'Quotation')}</div><h1 class="text-xl font-bold">Quotation ${E(q.no)}</h1><div class="mut">${E(q.name || '')}</div></div><div class="text-right"><div class="mut text-xs">Valid until</div><b>${fd(q.exp)}</b></div></div>${banner ? `<div class="mt-3">${banner}</div>` : ''}` +
+    `<div class="card p-4 md:p-6 doc-sheet">${docLetterhead('QUOTATION', [['Quote no.', q.no], ['Valid until', fd(q.exp)]])}${q.name ? `<div class="font-semibold">${E(q.name)}</div>` : ''}${banner ? `<div class="mt-3">${banner}</div>` : ''}` +
     `<div class="grid sm:grid-cols-2 gap-3 mt-4 text-sm"><div><div class="mut text-xs">Prepared for</div><b>${E(q.preparedFor || o.account || '')}</b><div class="mut">${E(o.account || '')}</div></div><div><div class="mut text-xs">Billing address</div><div style="white-space:pre-wrap">${E(q.address || '–')}</div><div class="mut text-xs mt-2">Shipping address</div><div style="white-space:pre-wrap">${E(q.shipping || '–')}</div></div></div>` +
     `<div class="my-4 overflow-x-auto">${billLinesTable(q.items, !!q.showDiscount)}</div><div class="text-right text-lg font-bold">Grand total ${M(quoteTotal(q))}</div>` +
-    `<div class="mt-4"><b>Terms &amp; conditions</b><div style="white-space:pre-wrap" class="text-sm">${E(effectiveTnc(q))}</div></div></div>${actions}`;
+    `<div class="mt-4"><b>Terms &amp; conditions</b><div style="white-space:pre-wrap" class="text-sm">${E(effectiveTnc(q))}</div></div>` +
+    (cs && cs.status === 'Accepted' && cs.name
+      ? `<div class="doc-sign-row">${signatureBlock(cs.name, cs.at)}</div>`
+      : '') +
+    `</div>${actions}`;
+}
+// Live signature preview: Agree & submit unlocks once a full name is typed and the box is ticked.
+function cqSignUpdate(form) {
+  const name = String(form.elements.name.value || '')
+      .replace(/\s+/g, ' ')
+      .trim(),
+    ok = name.length >= 2 && /[a-z]/i.test(name),
+    ink = form.querySelector('.sig-pad-ink');
+  ink.innerHTML = ok
+    ? signatureSvg(name)
+    : '<span class="mut text-sm">Your signature appears here as you type</span>';
+  form.querySelector('.sig-pad').classList.toggle('signed', ok);
+  $('#cq-accept').disabled = !(ok && form.elements.agree.checked);
 }
 function customerRespond(e, token, status) {
   e.preventDefault();
   const q = quoteByToken(token),
     v = Object.fromEntries(new FormData(e.target));
   if (!q || q.customer || q.status === 'Expired' || quoteExpired(q)) return;
-  q.customer = { status, name: (v.name || '').trim(), at: Date.now() };
+  const signer = String(v.name || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (status === 'Accepted' && (signer.length < 2 || !v.agree))
+    return toast('Type your full name and tick the box to accept');
+  q.customer = { status, name: signer, at: Date.now() };
   if (status === 'Accepted') {
     q.signedBy = q.customer.name;
     q.signedAt = q.customer.at;
+    q.signedVia = 'customer';
+    q.signedRecordedBy = undefined;
   }
+  // keep the open working copy in step, so the CRM shows the client's signature straight away
+  if (S.qd && S.qd.no === q.no)
+    Object.assign(S.qd, {
+      customer: clone(q.customer),
+      signedBy: q.signedBy,
+      signedAt: q.signedAt,
+      signedVia: q.signedVia,
+      signedRecordedBy: q.signedRecordedBy,
+    });
   addQuoteHistory(q, 'Customer ' + status.toLowerCase(), q.customer.name);
   const o = S.opps.find((x) => x.id == q.opp);
   if (o)
@@ -5479,6 +5724,7 @@ SETTINGS_PANELS.company = function () {
       'Printed on every invoice. Needed for GST-ready tax invoices.'
     ) +
     `<form class="grid md:grid-cols-2 gap-3" onsubmit="saveCompany(event)">` +
+    companyLogoField() +
     f('Company name *', 'name', c.name, 'required') +
     f(
       'GSTIN',
@@ -5730,7 +5976,8 @@ const PAY_METHODS = ['Bank transfer (NEFT/RTGS/IMPS)', 'UPI', 'Cheque', 'Cash', 
 const invPayable = (i) => invoiceCalc(i).payable;
 function invPaid(i) {
   if (!(i.payments || []).length) return i.status === 'Paid' ? invPayable(i) : 0;
-  return r2(i.payments.reduce((s, p) => s + p.amount, 0));
+  // payments marked as not yet confirmed do not count as received
+  return r2(i.payments.filter((p) => !p.pending).reduce((s, p) => s + p.amount, 0));
 }
 const invBalance = (i) => Math.max(0, r2(invPayable(i) - invPaid(i)));
 function invDueDate(i) {
@@ -5826,7 +6073,7 @@ function deletePayment(id, pid) {
   const o = S.opps.find((x) => x.id == i.opp);
   if (o && o.stage === 5 && !o.lost) return toast('The deal is already Closed Won');
   i.payments = (i.payments || []).filter((p) => p.id !== pid);
-  i.status = !i.payments.length
+  i.status = !i.payments.some((p) => !p.pending)
     ? 'Submitted to client'
     : invBalance(i) <= 0.5
       ? 'Paid'
@@ -6110,8 +6357,7 @@ function invoiceSheetHtml(i) {
     .join('');
   const addr = (t) => `<div style="white-space:pre-wrap">${E(t || '–')}</div>`;
   return (
-    `<div class="inv-sheet text-sm"><div class="flex justify-between gap-3 flex-wrap"><div><div class="text-xl font-bold">${E(co.name || 'Your company')}</div>${addr(co.address)}${co.gstin ? `<div>GSTIN: <b>${E(co.gstin)}</b></div>` : ''}${co.pan ? `<div>PAN: ${E(co.pan)}</div>` : ''}${co.state ? `<div>State: ${E(co.state)}</div>` : ''}${co.email || co.phone ? `<div>${E(co.email || '')} ${E(co.phone || '')}</div>` : ''}</div>` +
-    `<div class="text-right"><div class="text-xl font-bold">${tax ? 'TAX INVOICE' : 'INVOICE'}</div><div>No: <b>${E(i.invoiceNo)}</b></div><div>Date: ${fd(new Date(i.sentAt || i.generatedAt || Date.now()).toISOString().slice(0, 10))}</div><div>Due: ${fd(invDueDate(i))}</div><div class="mut">Quotation ${E(i.quoteNo)}</div></div></div>` +
+    `<div class="inv-sheet doc-sheet text-sm">${docLetterhead(tax ? 'TAX INVOICE' : 'INVOICE', [['Invoice no.', i.invoiceNo], ['Date', fd(new Date(i.sentAt || i.generatedAt || Date.now()).toISOString().slice(0, 10))], ['Due', fd(invDueDate(i))], ['Quotation', i.quoteNo], ['State', co.state || '']])}` +
     `<div class="grid sm:grid-cols-2 gap-3 mt-3"><div><div class="mut text-xs">Bill to</div><b>${E(i.account)}</b>${addr(cu.address)}${cu.gstin ? `<div>GSTIN: <b>${E(cu.gstin)}</b></div>` : ''}</div><div><div class="mut text-xs">Ship to</div>${addr(cu.shipping || cu.address)}${tax ? `<div class="mt-1">Place of supply: <b>${E(cu.state || co.state || '–')}</b> (${intra ? 'intra-state: CGST + SGST' : 'inter-state: IGST'})</div>` : ''}</div></div>` +
     `<div class="overflow-x-auto mt-3"><table class="w-full inv-table"><thead><tr>${head.map((h, k) => th(h, k > 2)).join('')}</tr></thead><tbody>${rows}</tbody></table></div>` +
     `<div class="grid sm:grid-cols-2 gap-4 mt-3"><div>${tax ? `<table class="w-full text-xs"><thead><tr><th class="text-left">HSN/SAC</th><th class="text-right">Taxable</th><th class="text-right">Rate</th><th class="text-right">Tax</th></tr></thead><tbody>${sumRows}</tbody></table>` : ''}</div><div><div class="flex justify-between"><span>Taxable value</span><span>${M(c.taxable)}</span></div>${tax ? (intra ? `<div class="flex justify-between"><span>CGST</span><span>${M(c.cgst)}</span></div><div class="flex justify-between"><span>SGST</span><span>${M(c.sgst)}</span></div>` : `<div class="flex justify-between"><span>IGST</span><span>${M(c.igst)}</span></div>`) : ''}${c.roundOff ? `<div class="flex justify-between"><span>Round off</span><span>${c.roundOff > 0 ? '+' : '−'}₹${Math.abs(c.roundOff).toFixed(2)}</span></div>` : ''}<div class="flex justify-between text-lg font-bold" style="border-top:1px solid var(--bd);margin-top:4px;padding-top:4px"><span>Total</span><span>${M(c.payable)}</span></div>${invPaid(i) ? `<div class="flex justify-between"><span>Received</span><span>${M(invPaid(i))}</span></div><div class="flex justify-between font-bold"><span>Balance due</span><span>${M(invBalance(i))}</span></div>` : ''}</div></div>` +
@@ -7309,7 +7555,8 @@ function qrClient(q, o, d) {
       block(
         'PRIMARY CONTACT',
         `<div class="qr-strong">${E(name || '—')}</div>${title ? `<div>${E(title)}</div>` : ''}${d.toPhone ? `<a class="qr-link" href="tel:${E(d.toPhone)}">${E(d.toPhone)}</a>` : ''}`
-      )
+      ) +
+      (quoteSigner(q) ? block('CUSTOMER SIGNATURE', quoteSignatureHtml(q, '')) : '')
   );
 }
 
@@ -7367,7 +7614,11 @@ function qrActivity(q, o) {
   (q.sends || []).forEach((s) =>
     ev.push({ t: s.at, a: `Sent by ${s.channel === 'email' ? 'email' : 'WhatsApp'}`, n: s.to })
   );
-  if (q.signedBy) ev.push({ t: q.signedAt, a: `Signed by ${E(q.signedBy)}` });
+  if (quoteSigner(q))
+    ev.push({
+      t: quoteSigner(q).at,
+      a: `${quoteSigner(q).via === 'customer' ? 'E-signed by client' : 'Signed copy recorded'}: ${E(quoteSigner(q).name)}`,
+    });
   if (q.syncedAt) ev.push({ t: q.syncedAt, a: 'Synced to the opportunity' });
   ev.push({ t: q.createdAt || 0, a: `Created by ${E(q.createdBy || ownerLabel(o.owner))}` });
   ev.sort((a, b) => (b.t || 0) - (a.t || 0));
@@ -7421,7 +7672,7 @@ V.quote = () => {
       `<span class="qr-pill ok">${E(quoteStatusInfo(q).text)}</span>`,
       q.label && q.label !== 'Draft' && !locked ? `<span class="qr-pill blue">${E(q.label)}</span>` : '',
       q.status === 'Expired' || quoteExpired(q) ? '<span class="qr-pill bad">Expired</span>' : '',
-      q.signedBy ? `<span class="qr-pill ok">Signed by ${E(q.signedBy)}</span>` : '',
+      quoteSigner(q) ? `<span class="qr-pill ok">${quoteSigner(q).via === 'customer' ? 'E-signed by' : 'Signed by'} ${E(quoteSigner(q).name)}</span>` : '',
       q.po ? `<span class="qr-pill ok">PO ${E(q.po.no)}</span>` : '',
       typeof sendQuoteChips === 'function' ? sendQuoteChips(q).replace(/class="chip/g, 'class="qr-pill') : '',
     ].join(' ');
@@ -7568,3 +7819,571 @@ createQuoteFromForm = function (e, id, again) {
   $('#modal').innerHTML = '';
   nav('quote');
 };
+
+// Keeps the client's e-signature in step everywhere in the CRM.
+// The quote page edits a working copy (S.qd). When the client signs from their link (often in another tab or
+// browser), only the stored quote changes, so the copy is refreshed from the stored quote on every render.
+
+const CLIENT_OWNED_QUOTE_KEYS = [
+  'customer',
+  'signedBy',
+  'signedAt',
+  'signedVia',
+  'signedRecordedBy',
+  'views',
+  'firstViewedAt',
+  'paidOnlineAt',
+];
+function adoptClientSignature(q) {
+  if (!q || !q.customer || q.customer.status !== 'Accepted' || !q.customer.name) return false;
+  if (q.signedBy === q.customer.name && q.signedAt === q.customer.at && q.signedVia === 'customer')
+    return false;
+  q.signedBy = q.customer.name;
+  q.signedAt = q.customer.at;
+  q.signedVia = 'customer';
+  q.signedRecordedBy = undefined;
+  return true;
+}
+function syncOpenQuoteFromStore() {
+  let changed = false;
+  (S.quotes || []).forEach((q) => (changed = adoptClientSignature(q) || changed));
+  const q = S.qd,
+    stored = q && (S.quotes || []).find((x) => x.no === q.no);
+  if (stored) {
+    CLIENT_OWNED_QUOTE_KEYS.forEach((k) => {
+      if (JSON.stringify(q[k]) !== JSON.stringify(stored[k])) {
+        q[k] = stored[k] === undefined ? undefined : clone(stored[k]);
+        changed = true;
+      }
+    });
+    // a payment made by the client marks the stored quote Paid; never let the open copy undo that
+    if (stored.status === 'Paid' && q.status !== 'Paid') {
+      q.status = 'Paid';
+      changed = true;
+    }
+  }
+  if (changed) save();
+}
+const renderBeforeSignatureSync = render;
+render = function () {
+  syncOpenQuoteFromStore();
+  return renderBeforeSignatureSync.apply(this, arguments);
+};
+// another tab (the client's link) changed the data: refresh the open quote page
+addEventListener('storage', (e) => {
+  if (e.key !== KEY || clientRoute()) return;
+  syncOpenQuoteFromStore();
+  if (['quote', 'opp-detail', 'invoice-detail', 'invoices'].includes(location.hash.slice(1)) && S.authUser)
+    render();
+});
+syncOpenQuoteFromStore();
+
+// Online payments: a client payment page (#pay/<quote token>) for card, net banking and wallets,
+// payment settings for Admin / CEO and payment receipts.
+//
+// Card, net banking and wallets need a payment gateway (Razorpay, Cashfree, PayU, Stripe…) with a server.
+// Until one is connected they run in TEST MODE: the flow and records are real but no money moves.
+
+const PAY_BANKS = [
+  'State Bank of India',
+  'HDFC Bank',
+  'ICICI Bank',
+  'Axis Bank',
+  'Kotak Mahindra Bank',
+  'Punjab National Bank',
+  'Bank of Baroda',
+  'Canara Bank',
+  'Union Bank of India',
+  'IDFC FIRST Bank',
+  'Yes Bank',
+  'IndusInd Bank',
+];
+const PAY_WALLETS = ['Paytm', 'PhonePe', 'Amazon Pay', 'MobiKwik'];
+const PAY_METHOD_INFO = {
+  card: ['credit_card', 'Card', 'Visa, Mastercard, RuPay, Amex'],
+  netbanking: ['account_balance', 'Net banking', 'All major Indian banks'],
+  wallet: ['account_balance_wallet', 'Wallet', PAY_WALLETS.join(', ')],
+};
+
+// ---------- settings ----------
+function paySettings() {
+  S.settings = S.settings || {};
+  const p = S.settings.payments || (S.settings.payments = {});
+  if (p.enabled === undefined) p.enabled = true;
+  if (!p.methods) p.methods = { card: true, netbanking: true, wallet: true };
+  delete p.methods.upi; // UPI is not offered
+  delete p.upiId;
+  delete p.payeeName;
+  if (!p.mode) p.mode = 'test';
+  return p;
+}
+
+const SETTINGS_SECTIONS_BeforeOnlinePay = SETTINGS_SECTIONS;
+SETTINGS_SECTIONS = function () {
+  const base = SETTINGS_SECTIONS_BeforeOnlinePay.apply(this, arguments);
+  if (S.role !== 'rep' && !base.some((s) => s[0] === 'payments')) {
+    const at = base.findIndex((s) => s[0] === 'company');
+    base.splice(at < 0 ? base.length : at + 1, 0, ['payments', 'Online payments', 'payments']);
+  }
+  return base;
+};
+SETTINGS_PANELS.payments = function () {
+  const p = paySettings(),
+    ok = canManageBilling(),
+    dis = ok ? '' : 'disabled',
+    co = companyInfo(),
+    method = (k) => {
+      const [ic, label, sub] = PAY_METHOD_INFO[k];
+      return `<label class="pay-set-m"><input type="checkbox" name="m_${k}" ${p.methods[k] ? 'checked' : ''} ${dis}><span class="ms">${ic}</span><span><b>${label}</b><span class="mut text-xs block">${sub}</span></span></label>`;
+    };
+  return (
+    secHead(
+      'payments',
+      'Online payments',
+      'Let clients pay invoices online from a payment link (card, net banking, wallets).'
+    ) +
+    `<form class="grid md:grid-cols-2 gap-3" onsubmit="savePaySettings(event)">` +
+    settingsField(
+      'Online payments',
+      `<select class="inp" name="enabled" ${dis}><option value="yes" ${p.enabled ? 'selected' : ''}>On: clients can pay from the link</option><option value="no" ${!p.enabled ? 'selected' : ''}>Off</option></select>`
+    ) +
+    settingsField(
+      'Payment gateway',
+      `<select class="inp" name="mode" ${dis}><option value="test" selected>Test mode (no real money moves)</option><option value="live" disabled>Live: connect a gateway first</option></select>`
+    ) +
+    `<div class="md:col-span-2"><div class="text-sm font-semibold mb-1">Methods offered to clients</div><div class="grid sm:grid-cols-2 gap-2">${Object.keys(PAY_METHOD_INFO).map(method).join('')}</div></div>` +
+    `<div class="md:col-span-2 p-3 rounded-lg text-sm" style="background:var(--hov)"><b>How it works</b><ul class="list-disc ml-5 mt-1 space-y-1"><li><b>Card, net banking and wallets</b> need a payment gateway such as Razorpay, Cashfree, PayU or Stripe, with your gateway keys kept on a server. Until one is connected they run in <b>test mode</b>: the screens and records are real, but no money moves. Test card: 4111 1111 1111 1111. A card ending 0002 is declined.</li></ul></div>` +
+    (ok
+      ? `<div class="md:col-span-2 flex justify-end"><button class="btn btn-p">Save payment settings</button></div>`
+      : '<p class="mut md:col-span-2">Only Admin and CEO can change these settings.</p>') +
+    `</form>`
+  );
+};
+function savePaySettings(e) {
+  e.preventDefault();
+  if (!canManageBilling()) return toast('Only Admin and CEO can change payment settings');
+  const f = e.target,
+    v = Object.fromEntries(new FormData(f));
+  const methods = {};
+  Object.keys(PAY_METHOD_INFO).forEach((k) => (methods[k] = !!f.elements['m_' + k].checked));
+  if (v.enabled === 'yes' && !Object.values(methods).some(Boolean))
+    return toast('Pick at least one payment method');
+  Object.assign(paySettings(), {
+    enabled: v.enabled === 'yes',
+    mode: 'test',
+    methods,
+  });
+  save();
+  toast('Payment settings saved');
+  render();
+}
+
+// ---------- links and amounts ----------
+const paymentRoute = () => /^#pay\//.test(location.hash);
+const clientRoute = () => customerRoute() || paymentRoute();
+const invoiceOfQuote = (q) => (q && q.invoiceId ? S.invoices.find((i) => i.id === q.invoiceId) : null);
+const quoteOfInvoice = (i) => S.quotes.find((q) => q.no === i.quoteNo);
+function paymentLink(i) {
+  const q = quoteOfInvoice(i);
+  return q ? `${location.origin}${location.pathname}#pay/${quoteToken(q)}` : '';
+}
+// what the client can still pay online
+const payableNow = (i) => invBalance(i);
+const canPayOnline = (i) =>
+  !!i && paySettings().enabled && i.status !== 'Paid' && Object.values(paySettings().methods).some(Boolean);
+
+// The client's tab only writes the shared records, never the sales team's open pages and drafts.
+const CLIENT_WRITE_KEYS = ['quotes', 'invoices', 'opps', 'acts', 'popups'];
+const saveBeforeClientGuard = save;
+save = function () {
+  if (!clientRoute() || S.authUser) return saveBeforeClientGuard.apply(this, arguments);
+  try {
+    const stored = load() || {};
+    CLIENT_WRITE_KEYS.forEach((k) => {
+      if (S[k] !== undefined) stored[k] = S[k];
+    });
+    localStorage.setItem(KEY, JSON.stringify(stored));
+  } catch (e) {}
+};
+
+// The invoice goes to the client automatically when they pay before it was formally submitted.
+function ensureInvoiceSubmitted(i) {
+  if (invIsOpen(i) || i.status === 'Paid') return;
+  i.gst = i.gst || liveGst(i);
+  i.status = 'Submitted to client';
+  i.sentAt = i.sentAt || Date.now();
+  i.dueDate = invDueDate(i);
+  const q = quoteOfInvoice(i);
+  if (q && !['Paid'].includes(q.status)) q.status = 'Sent to client';
+}
+function settleInvoiceStatus(i) {
+  const left = invBalance(i);
+  const was = i.status;
+  const received = (i.payments || []).some((p) => !p.pending);
+  i.status = received && left <= 0.5 ? 'Paid' : received ? 'Partially paid' : 'Submitted to client';
+  const q = quoteOfInvoice(i);
+  if (i.status === 'Paid') {
+    i.paidAt = i.paidAt || Date.now();
+    if (q) q.status = 'Paid';
+  } else {
+    delete i.paidAt;
+    if (q && q.status === 'Paid') q.status = 'Sent to client';
+  }
+  return was !== 'Paid' && i.status === 'Paid';
+}
+function notifyTeam(kind, i, extra = {}) {
+  const q = quoteOfInvoice(i),
+    creator = q && S.users.find((u) => u.name === q.createdBy);
+  ['admin', 'ceo'].forEach((role) => queuePopup({ kind, inv: i.id, toRole: role, by: 'customer', ...extra }));
+  if (creator && creator.role === 'rep')
+    queuePopup({ kind, inv: i.id, toUser: creator.id, by: 'customer', ...extra });
+}
+const txnId = (prefix) =>
+  prefix + '_' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 7).toUpperCase();
+
+// Record a payment made by the client through the payment page.
+function recordClientPayment(i, pay) {
+  ensureInvoiceSubmitted(i);
+  i.gst = i.gst || liveGst(i);
+  const entry = {
+    id: 'pay' + Date.now().toString(36),
+    date: D(0),
+    by: 'Client (online)',
+    at: Date.now(),
+    online: true,
+    ...pay,
+  };
+  i.payments = [...(i.payments || []), entry];
+  const fullyPaid = settleInvoiceStatus(i);
+  entry.balanceAfter = invBalance(i);
+  const q = quoteOfInvoice(i);
+  if (q) q.paidOnlineAt = Date.now();
+  logOpp(
+    i.opp,
+    'sync',
+    `Client paid ${M(entry.amount)} online on ${i.invoiceNo} by ${entry.method}${fullyPaid ? ' · paid in full' : ` · balance ${M(invBalance(i))}`}`
+  );
+  notifyTeam('bill-online', i, { pay: entry.id });
+  if (fullyPaid) {
+    const o = S.opps.find((x) => x.id == i.opp);
+    if (o && !(o.stage === 5 && !o.lost))
+      queuePopup({ kind: 'bill-paidfull', inv: i.id, toRole: 'admin', by: 'customer' });
+  }
+  save();
+  return entry;
+}
+
+// ---------- client payment page ----------
+let PAY = { method: null, step: 'choose', receipt: null, busy: false };
+function renderPaymentPage() {
+  document.body.classList.add('cq-mode');
+  const h = document.querySelector('header');
+  if (h) h.style.display = 'none';
+  const app = $('#app');
+  app.className = 'min-h-screen p-3 md:p-6 max-w-3xl mx-auto';
+  const q = quoteByToken(location.hash.slice(5)),
+    i = invoiceOfQuote(q);
+  const shell = (body) => `<div class="pay-wrap">${body}<p class="pay-secure"><span class="ms">lock</span>Secure payment page · ${E(companyInfo().name || 'Ceph CRM')}</p></div>`;
+  if (!q || !i) {
+    app.innerHTML = shell(
+      `<div class="card p-6 text-center"><span class="ms" style="font-size:40px;color:var(--mut)">link_off</span><h1 class="text-xl font-bold mt-2">Payment link not available</h1><p class="mut mt-2">${q ? 'The invoice for this quotation is not ready yet.' : 'This payment link is not valid.'} Please contact the sender.</p></div>`
+    );
+    return;
+  }
+  const p = paySettings(),
+    due = payableNow(i),
+    co = companyInfo(),
+    contact = [co.email, co.phone].filter(Boolean).map(E).join(' · '),
+    head = `<div class="card p-4 md:p-6 doc-sheet">${docLetterhead('PAYMENT', [['Invoice', i.invoiceNo], ['Quotation', i.quoteNo], ['Due date', fd(invDueDate(i))]])}<div class="pay-sum"><div><div class="mut text-xs">Billed to</div><b>${E(i.account)}</b></div><div><div class="mut text-xs">Invoice total</div><b>${M(invPayable(i))}</b></div><div><div class="mut text-xs">Paid</div><b>${M(invPaid(i))}</b></div><div class="pay-due"><div class="mut text-xs">Amount due</div><b>${M(due)}</b></div></div></div>`;
+
+  if (PAY.receipt) {
+    const r = (i.payments || []).find((x) => x.id === PAY.receipt);
+    if (r) {
+      app.innerHTML = shell(head + payReceiptCard(i, r, true));
+      return;
+    }
+    PAY.receipt = null;
+  }
+  if (i.status === 'Paid' || due <= 0.5) {
+    const online = (i.payments || []).filter((x) => x.online);
+    app.innerHTML = shell(
+      head +
+        `<div class="card p-6 mt-3 text-center"><span class="ms pay-big-ok">task_alt</span><h2 class="text-xl font-bold mt-1">This invoice is paid in full</h2><p class="mut mt-1">Thank you for your payment.</p>${online.length ? `<div class="mt-4 text-left">${online.map((x) => `<div class="pay-row"><span>${fd(x.date)} · ${E(x.method)}</span><span><b>${M(x.amount)}</b> <a class="rep-link text-sm" onclick="showPayReceipt('${E(x.id)}')">Receipt</a></span></div>`).join('')}</div>` : ''}</div>`
+    );
+    return;
+  }
+  if (!canPayOnline(i)) {
+    app.innerHTML = shell(
+      head +
+        `<div class="card p-6 mt-3 text-center"><h2 class="text-lg font-bold">Online payment is not available</h2><p class="mut mt-1">Please pay by bank transfer${companyInfo().bank ? ':' : '.'}</p>${companyInfo().bank ? `<pre class="pay-bank">${E(companyInfo().bank)}</pre>` : ''}</div>`
+    );
+    return;
+  }
+  const methods = Object.keys(PAY_METHOD_INFO).filter((k) => p.methods[k]);
+  if (!methods.includes(PAY.method)) PAY.method = methods[0];
+  const tabs = methods
+    .map((k) => {
+      const [ic, label] = PAY_METHOD_INFO[k];
+      return `<button type="button" class="pay-tab ${PAY.method === k ? 'on' : ''}" onclick="payPick('${k}')" aria-pressed="${PAY.method === k}"><span class="ms">${ic}</span><span>${label}</span></button>`;
+    })
+    .join('');
+  const testBadge = `<div class="pay-test"><span class="ms">science</span><div><b>Test mode</b> · no real money moves. Connect a payment gateway for live ${PAY_METHOD_INFO[PAY.method][1].toLowerCase()} payments.</div></div>`;
+  app.innerHTML = shell(
+    head +
+      `<div class="card mt-3 pay-card"><div class="pay-tabs" role="tablist">${tabs}</div><div class="pay-body">${testBadge}${payMethodBody(i, q, due)}</div></div>` +
+      `<p class="mut text-xs text-center mt-3">Paying ${M(due)} for invoice ${E(i.invoiceNo)}.${contact ? ` Questions? ${contact}` : ''}</p>`
+  );
+}
+function payPick(k) {
+  PAY.method = k;
+  renderPaymentPage();
+}
+function payMethodBody(i, q, due) {
+  const btn = (label, extra = '') =>
+    `<button class="btn btn-p pay-go" ${extra}><span class="ms">lock</span>${label}</button>`;
+  if (PAY.method === 'card')
+    return `<form class="pay-form" onsubmit="payByCard(event)" autocomplete="on"><label class="block">Card number<div class="pay-card-num"><input class="inp" name="num" inputmode="numeric" autocomplete="cc-number" placeholder="1234 5678 9012 3456" maxlength="23" required oninput="cardNumInput(this)"><span id="card-brand" class="pay-brand"></span></div></label><label class="block">Name on card<input class="inp" name="name" autocomplete="cc-name" required placeholder="As printed on the card"></label><div class="grid grid-cols-2 gap-3"><label class="block">Expiry (MM/YY)<input class="inp" name="exp" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/YY" maxlength="5" required oninput="cardExpInput(this)"></label><label class="block">CVV<input class="inp" name="cvv" type="password" inputmode="numeric" autocomplete="cc-csc" placeholder="•••" maxlength="4" required oninput="this.value=this.value.replace(/\\D/g,'')"></label></div><div id="pay-err" class="pay-err" role="alert"></div>${btn('Pay ' + M(due))}<p class="mut text-xs">Your card details are never stored. Only the card type and last 4 digits are kept on the receipt.</p></form>`;
+  if (PAY.method === 'netbanking')
+    return `<form class="pay-form" onsubmit="payByBank(event)"><div class="pay-bank-grid">${PAY_BANKS.slice(0, 6).map((b) => `<label class="pay-bank-opt"><input type="radio" name="bank" value="${E(b)}" onchange="this.form.other.value=''"><span>${E(b)}</span></label>`).join('')}</div><label class="block">Other bank<select class="inp" name="other" onchange="if(this.value)[...this.form.bank].forEach(r=>r.checked=false)"><option value="">Choose a bank</option>${PAY_BANKS.slice(6).map((b) => `<option>${E(b)}</option>`).join('')}</select></label><div id="pay-err" class="pay-err" role="alert"></div>${btn('Pay ' + M(due))}<p class="mut text-xs">You will sign in to your bank to approve the payment.</p></form>`;
+  return `<form class="pay-form" onsubmit="payByWallet(event)"><div class="pay-bank-grid">${PAY_WALLETS.map((w) => `<label class="pay-bank-opt"><input type="radio" name="wallet" value="${E(w)}" required><span>${E(w)}</span></label>`).join('')}</div><div id="pay-err" class="pay-err" role="alert"></div>${btn('Pay ' + M(due))}</form>`;
+}
+function copyText(t, msg) {
+  try {
+    navigator.clipboard.writeText(t).then(() => toast(msg || 'Copied'));
+  } catch (e) {
+    prompt('Copy this', t);
+  }
+}
+
+// --- card helpers ---
+function cardBrand(num) {
+  const n = String(num).replace(/\D/g, '');
+  if (/^3[47]/.test(n)) return 'Amex';
+  if (/^(508[5-9]|6069|607|608|6521|6522|817|819|82)/.test(n)) return 'RuPay';
+  if (/^4/.test(n)) return 'Visa';
+  if (/^(5[1-5]|2(2[2-9]|[3-6]\d|7[01]|720))/.test(n)) return 'Mastercard';
+  if (/^(60|65)/.test(n)) return 'RuPay';
+  return '';
+}
+function luhnOk(num) {
+  const n = String(num).replace(/\D/g, '');
+  if (n.length < 12 || n.length > 19) return false;
+  let sum = 0;
+  for (let k = 0; k < n.length; k++) {
+    let d = +n[n.length - 1 - k];
+    if (k % 2) {
+      d *= 2;
+      if (d > 9) d -= 9;
+    }
+    sum += d;
+  }
+  return sum % 10 === 0;
+}
+function cardNumInput(el) {
+  payError('');
+  const d = el.value.replace(/\D/g, '').slice(0, 19),
+    brand = cardBrand(d);
+  el.value = brand === 'Amex' ? d.replace(/^(\d{4})(\d{0,6})(\d{0,5}).*/, (m, a, b, c) => [a, b, c].filter(Boolean).join(' ')) : d.replace(/(\d{4})(?=\d)/g, '$1 ');
+  const b = document.getElementById('card-brand');
+  if (b) b.textContent = brand;
+}
+function cardExpInput(el) {
+  const d = el.value.replace(/\D/g, '').slice(0, 4);
+  el.value = d.length > 2 ? d.slice(0, 2) + '/' + d.slice(2) : d;
+}
+function payError(msg) {
+  const el = document.getElementById('pay-err');
+  if (el) el.textContent = msg;
+  else toast(msg);
+}
+function currentPayInvoice() {
+  const q = quoteByToken(location.hash.slice(5));
+  return { q, i: invoiceOfQuote(q) };
+}
+// Simulated gateway round trip (test mode).
+function gatewayRun(label, onDone) {
+  if (PAY.busy) return;
+  PAY.busy = true;
+  $('#modal').innerHTML = `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.45)"><div class="card p-6 w-full max-w-sm text-center"><div class="pay-spin" aria-hidden="true"></div><b class="block mt-3">${E(label)}</b><p class="mut text-sm mt-1">Please do not close or refresh this page.</p><p class="pay-test-inline mt-3">Test mode</p></div></div>`;
+  setTimeout(() => {
+    $('#modal').innerHTML = '';
+    PAY.busy = false;
+    onDone();
+  }, 1600);
+}
+function finishGatewayPayment(method, ref) {
+  const { i } = currentPayInvoice();
+  if (!i) return;
+  const due = payableNow(i);
+  if (due <= 0) return renderPaymentPage();
+  const entry = recordClientPayment(i, { amount: due, method, ref, note: 'Paid online (test mode)', gateway: 'test' });
+  PAY.receipt = entry.id;
+  renderPaymentPage();
+  scrollTo(0, 0);
+}
+function payByCard(e) {
+  e.preventDefault();
+  const v = Object.fromEntries(new FormData(e.target)),
+    num = String(v.num || '').replace(/\D/g, ''),
+    brand = cardBrand(num) || 'Card',
+    [mm, yy] = String(v.exp || '').split('/').map((x) => +x),
+    now = new Date(),
+    cvvLen = brand === 'Amex' ? 4 : 3;
+  if (!luhnOk(num)) return payError('Check the card number');
+  if (!(mm >= 1 && mm <= 12) || !(yy >= 0)) return payError('Enter the expiry as MM/YY');
+  const expEnd = new Date(2000 + yy, mm, 1);
+  if (expEnd <= now) return payError('This card has expired');
+  if (String(v.cvv || '').length !== cvvLen) return payError(`Enter the ${cvvLen}-digit CVV`);
+  if (String(v.name || '').trim().length < 2) return payError('Enter the name on the card');
+  payError('');
+  const last4 = num.slice(-4);
+  e.target.reset(); // card details are not kept anywhere
+  gatewayRun('Processing your card payment…', () => {
+    if (last4 === '0002') {
+      renderPaymentPage();
+      return payError('Your bank declined this payment. Try another card or method.');
+    }
+    finishGatewayPayment(`Card · ${brand} •••• ${last4}`, txnId('pay'));
+  });
+}
+function payByBank(e) {
+  e.preventDefault();
+  const f = e.target,
+    bank = (f.querySelector('input[name=bank]:checked') || {}).value || f.other.value;
+  if (!bank) return payError('Choose your bank');
+  gatewayRun(`Connecting to ${bank}…`, () => finishGatewayPayment(`Net banking · ${bank}`, txnId('pay')));
+}
+function payByWallet(e) {
+  e.preventDefault();
+  const w = (e.target.querySelector('input[name=wallet]:checked') || {}).value;
+  if (!w) return payError('Choose a wallet');
+  gatewayRun(`Opening ${w}…`, () => finishGatewayPayment(`Wallet · ${w}`, txnId('pay')));
+}
+// ---------- receipts ----------
+function payReceiptCard(i, r, withActions) {
+  return `<div class="card p-6 mt-3 pay-receipt"><div class="text-center"><span class="ms pay-big-ok">check_circle</span><h2 class="text-xl font-bold mt-1">Payment successful</h2><p class="mut">Thank you. A receipt is below.</p></div><div class="pay-rcpt-rows">${[
+    ['Amount', `<b>${M(r.amount)}</b>`],
+    ['Paid by', E(r.method)],
+    ['Transaction ID', `<code>${E(r.ref)}</code>`],
+    ['Date', whenText(r.at)],
+    ['Invoice', E(i.invoiceNo)],
+    ['Status', '<span class="chip ok">Received</span>'],
+    ['Balance after this payment', M(r.balanceAfter ?? invBalance(i))],
+  ]
+    .map(([a, b]) => `<div class="pay-row"><span class="mut">${a}</span><span>${b}</span></div>`)
+    .join('')}</div>${r.gateway === 'test' ? '<p class="pay-test-inline mt-2">Test mode payment · no money moved</p>' : ''}${withActions ? `<div class="flex justify-center gap-2 mt-4 flex-wrap"><button class="btn" onclick="printPayReceipt('${E(i.id)}','${E(r.id)}')"><span class="ms">download</span>Download receipt</button>${payableNow(i) > 0.5 ? `<button class="btn btn-p" onclick="PAY.receipt=null;renderPaymentPage()">Pay remaining ${M(payableNow(i))}</button>` : ''}</div>` : ''}</div>`;
+}
+function showPayReceipt(pid) {
+  PAY.receipt = pid;
+  renderPaymentPage();
+}
+function printPayReceipt(invId, pid) {
+  const i = S.invoices.find((x) => x.id === invId),
+    r = i && (i.payments || []).find((x) => x.id === pid);
+  if (!i || !r) return;
+  $('#modal').innerHTML = `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><div class="card p-6 w-full max-w-xl max-h-full overflow-auto doc-sheet">${docLetterhead('PAYMENT RECEIPT', [['Receipt', 'RCPT-' + String(r.id).slice(3).toUpperCase()], ['Invoice', i.invoiceNo], ['Date', fd(r.date)]])}<div class="mb-2"><div class="mut text-xs">Received from</div><b>${E(i.account)}</b></div>${payReceiptCard(i, r, false)}<div class="doc-foot">This is a computer generated receipt.</div><div class="flex justify-end gap-2 mt-4 no-print"><button class="btn" onclick="$('#modal').innerHTML=''">Close</button><button class="btn btn-p" onclick="window.print()">Print / Save PDF</button></div></div></div>`;
+}
+
+// ---------- routing for the client page ----------
+function applyPaymentRoute() {
+  if (paymentRoute()) {
+    PAY = { method: PAY.method, step: 'choose', receipt: null, busy: false };
+    renderPaymentPage();
+  }
+}
+addEventListener('hashchange', applyPaymentRoute); // runs after the app's own hashchange renderers
+addEventListener('storage', (e) => {
+  if (e.key === KEY && paymentRoute() && !PAY.busy) renderPaymentPage();
+});
+setTimeout(applyPaymentRoute, 0);
+
+// ---------- client quote page: "Pay now" once accepted ----------
+const renderCustomerQuoteBeforePay = renderCustomerQuote;
+renderCustomerQuote = function () {
+  renderCustomerQuoteBeforePay.apply(this, arguments);
+  const q = quoteByToken(location.hash.slice(4)),
+    i = invoiceOfQuote(q);
+  if (!q || !i || !q.customer || q.customer.status !== 'Accepted') return;
+  const due = payableNow(i),
+    card = document.createElement('div');
+  card.className = 'card p-4 md:p-5 mt-3 pay-cta';
+  card.innerHTML =
+    i.status === 'Paid'
+      ? `<span class="ms" style="color:var(--ok)">task_alt</span><div class="flex-1"><b>Invoice ${E(i.invoiceNo)} is paid</b><div class="mut text-sm">Thank you for your payment.</div></div><a class="btn" href="#pay/${E(q.token)}">View receipt</a>`
+      : canPayOnline(i) && due > 0.5
+        ? `<span class="ms" style="color:var(--pr)">payments</span><div class="flex-1"><b>Pay invoice ${E(i.invoiceNo)}</b><div class="mut text-sm">${M(due)} due · card, net banking or wallet</div></div><a class="btn btn-p" href="#pay/${E(q.token)}"><span class="ms">lock</span>Pay now</a>`
+        : '';
+  if (card.innerHTML) $('#app').appendChild(card);
+};
+
+// ---------- staff side ----------
+function copyPaymentLink(invId) {
+  const i = S.invoices.find((x) => x.id === invId);
+  if (!i) return;
+  if (!paySettings().enabled) return toast('Turn on online payments in Settings → Online payments');
+  copyText(paymentLink(i), 'Payment link copied');
+}
+const reminderTextBeforePay = reminderText;
+reminderText = function (i) {
+  const t = reminderTextBeforePay.apply(this, arguments);
+  return canPayOnline(i) ? t.replace('Kindly arrange the payment at the earliest.', `Kindly arrange the payment at the earliest. You can pay online (card, net banking, wallet):\n${paymentLink(i)}`) : t;
+};
+// Invoice page: payment link and badges on online payments.
+const invoiceDetailBeforePay = V['invoice-detail'];
+V['invoice-detail'] = function () {
+  let html = invoiceDetailBeforePay.apply(this, arguments);
+  const i = S.invoices.find((x) => x.id === S.currentInvoice);
+  if (!i) return html;
+  const admin = canManageBilling();
+  // badge the online rows in the payments table
+  (i.payments || []).forEach((p) => {
+    if (!p.online) return;
+    const tag = p.pending ? ' <span class="chip wr">Not confirmed</span>' : p.gateway === 'test' ? ' <span class="chip">Online · test</span>' : ' <span class="chip ok">Online</span>';
+    html = html.replace(`<td>${E(p.method)}</td><td>${E(p.ref || '–')}</td>`, `<td>${E(p.method)}${tag}</td><td>${E(p.ref || '–')}</td>`);
+  });
+  if (admin && canPayOnline(i))
+    html = html.replace(
+      '<button class="btn" onclick="openInvoiceSheet(',
+      `<button class="btn" onclick="copyPaymentLink('${E(i.id)}')"><span class="ms">link</span>Copy payment link</button><button class="btn" onclick="openInvoiceSheet(`
+    );
+  return html;
+};
+
+// Pop-ups for the team about online payments.
+const showBillPopupBeforePay = showBillPopup;
+showBillPopup = function (p) {
+  if (p.kind !== 'bill-online')
+    return showBillPopupBeforePay.apply(this, arguments);
+  const i = S.invoices.find((x) => x.id === p.inv),
+    pay = i && (i.payments || []).find((x) => x.id === p.pay);
+  if (!i) return showNextPopup();
+  showPopup({
+    tone: 'ok',
+    icon: 'payments',
+    title: `${E(i.account)} paid ${pay ? M(pay.amount) : ''} online`,
+    lines: [
+      pay ? `${E(pay.method)} · Ref <code>${E(pay.ref)}</code> · ${whenText(pay.at)}` : '',
+      `Balance due now ${M(invBalance(i))}.`,
+      pay && pay.gateway === 'test' ? '<span class="mut">Test mode payment: no money moved.</span>' : '',
+    ],
+    actions: canSeeInvoices() ? [{ label: `Open ${i.invoiceNo}`, js: `openInvoice('${E(i.id)}')` }] : [],
+  });
+};
+
+// Shows the Back to top button only inside the signed-in CRM (not on the login screen or the client pages).
+function syncFab() {
+  mountFab();
+  const f = document.getElementById('crm-fab');
+  if (!f) return;
+  const hidden = !S.authUser || clientRoute();
+  f.style.display = hidden ? 'none' : '';
+  updateFab();
+}
+const renderBeforeFab = render;
+render = function () {
+  const r = renderBeforeFab.apply(this, arguments);
+  syncFab();
+  return r;
+};
+addEventListener('hashchange', () => setTimeout(syncFab, 0));
+syncFab();

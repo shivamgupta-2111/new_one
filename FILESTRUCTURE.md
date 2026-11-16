@@ -21,7 +21,8 @@ ceph-crm/
 │  └─ permissions.js
 ├─ modules/                      runtime source, one folder per domain
 │  ├─ manifest.json              load order (do not reorder)
-│  ├─ core/                      helpers, seed, state, render, sync
+│  ├─ core/                      helpers, branding (logo, letterhead, e-signature, FAB), seed, state,
+│  │                             render, sync, fab-hook (shows the FAB only when signed in)
 │  ├─ auth/                      roles, login, role-picker, portal-nav, portal-render
 │  ├─ users/                     users, admin
 │  ├─ leads/                     leads, status
@@ -32,10 +33,13 @@ ceph-crm/
 │  ├─ products/                  products, catalogue-view, price-book (tiers, bundles, min/max)
 │  ├─ quotations/                quote-base, records, builder, list-view, status, discount-policy, quote-flow,
 │  │                             cart, send-quote (email/WhatsApp, customer link #cq/, tracking, expiry)
-│  │                             quote-record (quote record page + New Quote pop-up; last override of V.quote)
+│  │                             quote-record (quote record page + New Quote pop-up; last override of V.quote),
+│  │                             signature-sync (client e-signature always shown, open quote kept in step)
 │  ├─ approvals/                 approvals-view, approval-flow, others-select, popups
 │  ├─ invoices/                  create, submit-and-send, views, payment,
-│  │                             billing (payments, GST invoice, overdue, Close Won prompt)
+│  │                             billing (payments, GST invoice, overdue, Close Won prompt),
+│  │                             online-pay (client payment page #pay/<token>: UPI app link + UTR, card,
+│  │                             net banking, wallet; payment settings, UPI confirmation, receipts)
 │  ├─ header/                    panels, launcher, render-hook
 │  ├─ settings/                  settings, theme
 │  └─ teams/                     teams, home-board, rep-detail

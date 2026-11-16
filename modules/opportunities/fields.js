@@ -12,6 +12,31 @@ const CHURN_REASONS = [
   'Support issues',
   'Other',
 ];
+// Every ISO 4217 currency the browser knows, with its name ("INR — Indian Rupee").
+const COMMON_CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD', 'AUD', 'CAD', 'JPY', 'CNY'];
+const ALL_CURRENCIES = (() => {
+  let codes = [];
+  try {
+    codes = Intl.supportedValuesOf('currency');
+  } catch (e) {}
+  if (!codes.length) codes = COMMON_CURRENCIES.slice();
+  return [...new Set(codes)].sort();
+})();
+function currencyName(code) {
+  try {
+    return new Intl.DisplayNames(['en'], { type: 'currency' }).of(code) || code;
+  } catch (e) {
+    return code;
+  }
+}
+const currencyLabel = (code) => (code ? `${code} — ${currencyName(code)}` : '–');
+function currencyOptions(selected) {
+  const opt = (c) =>
+    `<option value="${E(c)}" ${c === selected ? 'selected' : ''}>${E(currencyLabel(c))}</option>`;
+  const common = COMMON_CURRENCIES.filter((c) => ALL_CURRENCIES.includes(c));
+  const extra = selected && !ALL_CURRENCIES.includes(selected) ? [selected] : [];
+  return `<optgroup label="Common">${common.map(opt).join('')}</optgroup><optgroup label="All currencies (${ALL_CURRENCIES.length})">${[...extra, ...ALL_CURRENCIES].map(opt).join('')}</optgroup>`;
+}
 const LEFT = [
   ['owner', 'Opportunity owner', 's'],
   ['name', 'Opportunity name', 't'],
@@ -25,7 +50,7 @@ const LEFT = [
   ['type', 'Type', 's', ['New Customer', 'Add-on', 'Renewal']],
   ['channel', 'Revenue channel', 's', ['Direct', 'Partner', 'Distributor']],
   ['refRep', 'Referral rep', 't'],
-  ['currency', 'Currency', 's', ['USD', 'EUR', 'GBP', 'INR']],
+  ['currency', 'Currency', 'cur'],
   ['hold', 'Hold tag', 't'],
   ['chInit', 'Channel initiated', 'b'],
   ['so', 'Sales order number', 't'],
@@ -72,7 +97,7 @@ const gv = (o, k) => {
       source: 'Partner Referral',
       type: 'New Customer',
       channel: 'Direct',
-      currency: 'USD',
+      currency: 'INR',
       bill: 'Not started',
       rt: 'Enterprise',
       sdr: 'N/A',
@@ -100,6 +125,14 @@ const riskOf = (o) => {
 };
 const fld = (o, [k, l, t, op]) => {
   if (k === 'owner' && !canEditOwner()) t = 'ro';
+  if (t == 'cur') {
+    const cv = gv(o, k);
+    const body =
+      S.ed == k
+        ? `<select class="inp" aria-label="${E(l)}" data-ed onchange="sf('${k}',this.value)" onblur="S.ed=null;render()">${currencyOptions(cv)}</select>`
+        : `<div>${E(currencyLabel(cv))}</div>`;
+    return sfRow(l, body, `<span class="ms" title="Edit ${E(l)}" onclick="S.ed='${k}';render()">edit</span>`);
+  }
   const v = gv(o, k),
     ed = S.ed == k && t != 'ro' && t != 'b';
   let b;

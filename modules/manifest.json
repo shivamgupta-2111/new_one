@@ -1,5 +1,6 @@
 [
   "modules/core/helpers.js",
+  "modules/core/branding.js",
   "modules/core/seed.js",
   "modules/core/state.js",
   "modules/opportunities/board.js",
@@ -61,5 +62,8 @@
   "modules/opportunities/files-upload.js",
   "modules/teams/rep-detail.js",
   "modules/opportunities/tabs.js",
-  "modules/quotations/quote-record.js"
+  "modules/quotations/quote-record.js",
+  "modules/quotations/signature-sync.js",
+  "modules/invoices/online-pay.js",
+  "modules/core/fab-hook.js"
 ]

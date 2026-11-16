@@ -75,6 +75,7 @@ SETTINGS_PANELS.company = function () {
       'Printed on every invoice. Needed for GST-ready tax invoices.'
     ) +
     `<form class="grid md:grid-cols-2 gap-3" onsubmit="saveCompany(event)">` +
+    companyLogoField() +
     f('Company name *', 'name', c.name, 'required') +
     f(
       'GSTIN',
@@ -326,7 +327,8 @@ const PAY_METHODS = ['Bank transfer (NEFT/RTGS/IMPS)', 'UPI', 'Cheque', 'Cash', 
 const invPayable = (i) => invoiceCalc(i).payable;
 function invPaid(i) {
   if (!(i.payments || []).length) return i.status === 'Paid' ? invPayable(i) : 0;
-  return r2(i.payments.reduce((s, p) => s + p.amount, 0));
+  // payments marked as not yet confirmed do not count as received
+  return r2(i.payments.filter((p) => !p.pending).reduce((s, p) => s + p.amount, 0));
 }
 const invBalance = (i) => Math.max(0, r2(invPayable(i) - invPaid(i)));
 function invDueDate(i) {
@@ -422,7 +424,7 @@ function deletePayment(id, pid) {
   const o = S.opps.find((x) => x.id == i.opp);
   if (o && o.stage === 5 && !o.lost) return toast('The deal is already Closed Won');
   i.payments = (i.payments || []).filter((p) => p.id !== pid);
-  i.status = !i.payments.length
+  i.status = !i.payments.some((p) => !p.pending)
     ? 'Submitted to client'
     : invBalance(i) <= 0.5
       ? 'Paid'
@@ -706,8 +708,7 @@ function invoiceSheetHtml(i) {
     .join('');
   const addr = (t) => `<div style="white-space:pre-wrap">${E(t || '–')}</div>`;
   return (
-    `<div class="inv-sheet text-sm"><div class="flex justify-between gap-3 flex-wrap"><div><div class="text-xl font-bold">${E(co.name || 'Your company')}</div>${addr(co.address)}${co.gstin ? `<div>GSTIN: <b>${E(co.gstin)}</b></div>` : ''}${co.pan ? `<div>PAN: ${E(co.pan)}</div>` : ''}${co.state ? `<div>State: ${E(co.state)}</div>` : ''}${co.email || co.phone ? `<div>${E(co.email || '')} ${E(co.phone || '')}</div>` : ''}</div>` +
-    `<div class="text-right"><div class="text-xl font-bold">${tax ? 'TAX INVOICE' : 'INVOICE'}</div><div>No: <b>${E(i.invoiceNo)}</b></div><div>Date: ${fd(new Date(i.sentAt || i.generatedAt || Date.now()).toISOString().slice(0, 10))}</div><div>Due: ${fd(invDueDate(i))}</div><div class="mut">Quotation ${E(i.quoteNo)}</div></div></div>` +
+    `<div class="inv-sheet doc-sheet text-sm">${docLetterhead(tax ? 'TAX INVOICE' : 'INVOICE', [['Invoice no.', i.invoiceNo], ['Date', fd(new Date(i.sentAt || i.generatedAt || Date.now()).toISOString().slice(0, 10))], ['Due', fd(invDueDate(i))], ['Quotation', i.quoteNo], ['State', co.state || '']])}` +
     `<div class="grid sm:grid-cols-2 gap-3 mt-3"><div><div class="mut text-xs">Bill to</div><b>${E(i.account)}</b>${addr(cu.address)}${cu.gstin ? `<div>GSTIN: <b>${E(cu.gstin)}</b></div>` : ''}</div><div><div class="mut text-xs">Ship to</div>${addr(cu.shipping || cu.address)}${tax ? `<div class="mt-1">Place of supply: <b>${E(cu.state || co.state || '–')}</b> (${intra ? 'intra-state: CGST + SGST' : 'inter-state: IGST'})</div>` : ''}</div></div>` +
     `<div class="overflow-x-auto mt-3"><table class="w-full inv-table"><thead><tr>${head.map((h, k) => th(h, k > 2)).join('')}</tr></thead><tbody>${rows}</tbody></table></div>` +
     `<div class="grid sm:grid-cols-2 gap-4 mt-3"><div>${tax ? `<table class="w-full text-xs"><thead><tr><th class="text-left">HSN/SAC</th><th class="text-right">Taxable</th><th class="text-right">Rate</th><th class="text-right">Tax</th></tr></thead><tbody>${sumRows}</tbody></table>` : ''}</div><div><div class="flex justify-between"><span>Taxable value</span><span>${M(c.taxable)}</span></div>${tax ? (intra ? `<div class="flex justify-between"><span>CGST</span><span>${M(c.cgst)}</span></div><div class="flex justify-between"><span>SGST</span><span>${M(c.sgst)}</span></div>` : `<div class="flex justify-between"><span>IGST</span><span>${M(c.igst)}</span></div>`) : ''}${c.roundOff ? `<div class="flex justify-between"><span>Round off</span><span>${c.roundOff > 0 ? '+' : '−'}₹${Math.abs(c.roundOff).toFixed(2)}</span></div>` : ''}<div class="flex justify-between text-lg font-bold" style="border-top:1px solid var(--bd);margin-top:4px;padding-top:4px"><span>Total</span><span>${M(c.payable)}</span></div>${invPaid(i) ? `<div class="flex justify-between"><span>Received</span><span>${M(invPaid(i))}</span></div><div class="flex justify-between font-bold"><span>Balance due</span><span>${M(invBalance(i))}</span></div>` : ''}</div></div>` +

@@ -78,8 +78,33 @@ function openApprovalDialog(q, mode) {
     (approve
       ? `<label class="block">Terms &amp; conditions <span class="mut text-xs">(optional)</span><textarea class="inp" name="tnc" rows="4" placeholder="Conditions that apply to this approval">${E(effectiveTnc(q))}</textarea></label>`
       : '') +
-    `<div class="flex justify-end gap-2"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">${approve ? 'Approve' : 'Reject'}</button></div></form></div>`;
+    (approve
+      ? `<label class="block">Type <b>APPROVED</b> in capital letters to confirm *<input class="inp mt-1" name="confirmWord" autocomplete="off" spellcheck="false" placeholder="APPROVED" oninput="approvalWordCheck(this)" style="letter-spacing:.08em;font-weight:600"></label><div id="approve-word-hint" class="text-xs mut">The Approve button unlocks when you type APPROVED exactly.</div>`
+      : '') +
+    `<div class="flex justify-end gap-2"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button id="approval-submit" class="btn btn-p" ${approve ? 'disabled title="Type APPROVED to confirm"' : ''}>${approve ? 'Approve' : 'Reject'}</button></div></form></div>`;
   $('#modal textarea').focus();
+}
+// The approver must type the word APPROVED (capital letters, exactly) before approving.
+const APPROVAL_WORD = 'APPROVED';
+function approvalWordCheck(input) {
+  const v = input.value.trim(),
+    ok = v === APPROVAL_WORD,
+    btn = $('#approval-submit'),
+    hint = $('#approve-word-hint');
+  if (btn) {
+    btn.disabled = !ok;
+    btn.title = ok ? '' : 'Type APPROVED to confirm';
+  }
+  input.style.borderColor = ok ? 'var(--ok)' : v ? 'var(--err)' : '';
+  if (hint)
+    hint.textContent = ok
+      ? 'Confirmed. You can approve now.'
+      : v && v.toUpperCase() === APPROVAL_WORD
+        ? 'Use capital letters: APPROVED'
+        : v
+          ? 'Type APPROVED exactly'
+          : 'The Approve button unlocks when you type APPROVED exactly.';
+  if (hint) hint.style.color = ok ? 'var(--ok)' : v ? 'var(--err)' : '';
 }
 function finishApproval(e, no, mode) {
   e.preventDefault();
@@ -91,6 +116,8 @@ function finishApproval(e, no, mode) {
     return toast(
       mode === 'approve' ? 'Add approval notes first' : 'Add a reason for the rejection'
     );
+  if (mode === 'approve' && String(v.confirmWord || '').trim() !== APPROVAL_WORD)
+    return toast('Type APPROVED in capital letters to approve');
   const o = S.opps.find((x) => x.id == q.opp);
   $('#modal').innerHTML = '';
   if (mode === 'reject') {

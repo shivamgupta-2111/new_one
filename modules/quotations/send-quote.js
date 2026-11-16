@@ -262,7 +262,7 @@ function renderCustomerQuote() {
     expired = q.status === 'Expired' || quoteExpired(q),
     cs = q.customer,
     banner = cs
-      ? `<div class="qt-banner ${cs.status === 'Accepted' ? 'ok' : 'wr'}"><span class="ms">${cs.status === 'Accepted' ? 'verified' : 'info'}</span><div><b>You ${cs.status.toLowerCase()} this quotation</b><div>${E(cs.name || '')} · ${whenText(cs.at)}</div>${cs.reason ? `<div>Reason: ${E(cs.reason)}</div>` : ''}</div></div>`
+      ? `<div class="qt-banner ${cs.status === 'Accepted' ? 'ok' : 'wr'}"><span class="ms">${cs.status === 'Accepted' ? 'verified' : 'info'}</span><div><b>${cs.status === 'Accepted' ? 'Thank you. You accepted and signed this quotation.' : 'You declined this quotation'}</b><div>${E(cs.name || '')} · ${whenText(cs.at)}</div>${cs.reason ? `<div>Reason: ${E(cs.reason)}</div>` : ''}</div></div>`
       : expired
         ? `<div class="qt-banner wr"><span class="ms">event_busy</span><div><b>This quotation has expired</b><div>It was valid until ${fd(q.exp)}. Please contact us for an updated quote.</div></div></div>`
         : !quoteIsSendable(q)
@@ -270,24 +270,57 @@ function renderCustomerQuote() {
           : '';
   const actions =
     !cs && !expired && quoteIsSendable(q)
-      ? `<form class="card p-4 mt-3 space-y-3" onsubmit="customerRespond(event,'${E(q.token)}','Accepted')"><b>Accept and sign</b><label class="block">Your full name (as signature) *<input class="inp" name="name" required value="${E(String(q.preparedFor || '').replace(/\s*\(.*\)\s*$/, ''))}"></label><label class="flex items-start gap-2"><input type="checkbox" name="agree" required class="mt-1"> <span>I accept this quotation and its terms &amp; conditions.</span></label><div class="flex gap-2 flex-wrap"><button class="btn btn-p">Accept &amp; sign</button><button type="button" class="btn" style="color:var(--err)" onclick="customerDecline('${E(q.token)}')">Decline</button></div></form>`
+      ? `<form id="cq-sign" class="card p-4 md:p-5 mt-3 space-y-3" onsubmit="customerRespond(event,'${E(q.token)}','Accepted')" oninput="cqSignUpdate(this)" onchange="cqSignUpdate(this)"><div class="flex items-center gap-2"><span class="ms" style="color:var(--pr)">draw</span><b class="text-lg">Accept and sign</b></div><p class="mut text-sm">Type your full name. Your signature is created from it automatically.</p><label class="block">Your full name *<input class="inp mt-1" name="name" required minlength="2" maxlength="60" autocomplete="name" placeholder="e.g. ${E(String(q.preparedFor || 'Priya Sharma').replace(/\s*\(.*\)\s*$/, ''))}"></label><div class="sig-pad" aria-live="polite"><div class="sig-label">Your signature</div><div class="sig-pad-ink"><span class="mut text-sm">Your signature appears here as you type</span></div><div class="sig-line"></div><div class="sig-name mut">${fd(D(0))}</div></div><label class="flex items-start gap-2"><input type="checkbox" name="agree" required class="mt-1"> <span>I agree to this quotation and its terms &amp; conditions, and I accept the signature above as my electronic signature.</span></label><div class="flex gap-2 flex-wrap"><button class="btn btn-p" id="cq-accept" disabled><span class="ms">verified</span>Agree &amp; submit</button><button type="button" class="btn" style="color:var(--err)" onclick="customerDecline('${E(q.token)}')">Decline</button></div></form>`
       : '';
   app.innerHTML =
-    `<div class="card p-4 md:p-6"><div class="flex justify-between gap-3 flex-wrap"><div><div class="mut text-xs">${E(co.name || 'Quotation')}</div><h1 class="text-xl font-bold">Quotation ${E(q.no)}</h1><div class="mut">${E(q.name || '')}</div></div><div class="text-right"><div class="mut text-xs">Valid until</div><b>${fd(q.exp)}</b></div></div>${banner ? `<div class="mt-3">${banner}</div>` : ''}` +
+    `<div class="card p-4 md:p-6 doc-sheet">${docLetterhead('QUOTATION', [['Quote no.', q.no], ['Valid until', fd(q.exp)]])}${q.name ? `<div class="font-semibold">${E(q.name)}</div>` : ''}${banner ? `<div class="mt-3">${banner}</div>` : ''}` +
     `<div class="grid sm:grid-cols-2 gap-3 mt-4 text-sm"><div><div class="mut text-xs">Prepared for</div><b>${E(q.preparedFor || o.account || '')}</b><div class="mut">${E(o.account || '')}</div></div><div><div class="mut text-xs">Billing address</div><div style="white-space:pre-wrap">${E(q.address || '–')}</div><div class="mut text-xs mt-2">Shipping address</div><div style="white-space:pre-wrap">${E(q.shipping || '–')}</div></div></div>` +
     `<div class="my-4 overflow-x-auto">${billLinesTable(q.items, !!q.showDiscount)}</div><div class="text-right text-lg font-bold">Grand total ${M(quoteTotal(q))}</div>` +
-    `<div class="mt-4"><b>Terms &amp; conditions</b><div style="white-space:pre-wrap" class="text-sm">${E(effectiveTnc(q))}</div></div></div>${actions}`;
+    `<div class="mt-4"><b>Terms &amp; conditions</b><div style="white-space:pre-wrap" class="text-sm">${E(effectiveTnc(q))}</div></div>` +
+    (cs && cs.status === 'Accepted' && cs.name
+      ? `<div class="doc-sign-row">${signatureBlock(cs.name, cs.at)}</div>`
+      : '') +
+    `</div>${actions}`;
+}
+// Live signature preview: Agree & submit unlocks once a full name is typed and the box is ticked.
+function cqSignUpdate(form) {
+  const name = String(form.elements.name.value || '')
+      .replace(/\s+/g, ' ')
+      .trim(),
+    ok = name.length >= 2 && /[a-z]/i.test(name),
+    ink = form.querySelector('.sig-pad-ink');
+  ink.innerHTML = ok
+    ? signatureSvg(name)
+    : '<span class="mut text-sm">Your signature appears here as you type</span>';
+  form.querySelector('.sig-pad').classList.toggle('signed', ok);
+  $('#cq-accept').disabled = !(ok && form.elements.agree.checked);
 }
 function customerRespond(e, token, status) {
   e.preventDefault();
   const q = quoteByToken(token),
     v = Object.fromEntries(new FormData(e.target));
   if (!q || q.customer || q.status === 'Expired' || quoteExpired(q)) return;
-  q.customer = { status, name: (v.name || '').trim(), at: Date.now() };
+  const signer = String(v.name || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (status === 'Accepted' && (signer.length < 2 || !v.agree))
+    return toast('Type your full name and tick the box to accept');
+  q.customer = { status, name: signer, at: Date.now() };
   if (status === 'Accepted') {
     q.signedBy = q.customer.name;
     q.signedAt = q.customer.at;
+    q.signedVia = 'customer';
+    q.signedRecordedBy = undefined;
   }
+  // keep the open working copy in step, so the CRM shows the client's signature straight away
+  if (S.qd && S.qd.no === q.no)
+    Object.assign(S.qd, {
+      customer: clone(q.customer),
+      signedBy: q.signedBy,
+      signedAt: q.signedAt,
+      signedVia: q.signedVia,
+      signedRecordedBy: q.signedRecordedBy,
+    });
   addQuoteHistory(q, 'Customer ' + status.toLowerCase(), q.customer.name);
   const o = S.opps.find((x) => x.id == q.opp);
   if (o)

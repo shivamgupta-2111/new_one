@@ -157,7 +157,8 @@ function qrClient(q, o, d) {
       block(
         'PRIMARY CONTACT',
         `<div class="qr-strong">${E(name || '—')}</div>${title ? `<div>${E(title)}</div>` : ''}${d.toPhone ? `<a class="qr-link" href="tel:${E(d.toPhone)}">${E(d.toPhone)}</a>` : ''}`
-      )
+      ) +
+      (quoteSigner(q) ? block('CUSTOMER SIGNATURE', quoteSignatureHtml(q, '')) : '')
   );
 }
 
@@ -215,7 +216,11 @@ function qrActivity(q, o) {
   (q.sends || []).forEach((s) =>
     ev.push({ t: s.at, a: `Sent by ${s.channel === 'email' ? 'email' : 'WhatsApp'}`, n: s.to })
   );
-  if (q.signedBy) ev.push({ t: q.signedAt, a: `Signed by ${E(q.signedBy)}` });
+  if (quoteSigner(q))
+    ev.push({
+      t: quoteSigner(q).at,
+      a: `${quoteSigner(q).via === 'customer' ? 'E-signed by client' : 'Signed copy recorded'}: ${E(quoteSigner(q).name)}`,
+    });
   if (q.syncedAt) ev.push({ t: q.syncedAt, a: 'Synced to the opportunity' });
   ev.push({ t: q.createdAt || 0, a: `Created by ${E(q.createdBy || ownerLabel(o.owner))}` });
   ev.sort((a, b) => (b.t || 0) - (a.t || 0));
@@ -269,7 +274,7 @@ V.quote = () => {
       `<span class="qr-pill ok">${E(quoteStatusInfo(q).text)}</span>`,
       q.label && q.label !== 'Draft' && !locked ? `<span class="qr-pill blue">${E(q.label)}</span>` : '',
       q.status === 'Expired' || quoteExpired(q) ? '<span class="qr-pill bad">Expired</span>' : '',
-      q.signedBy ? `<span class="qr-pill ok">Signed by ${E(q.signedBy)}</span>` : '',
+      quoteSigner(q) ? `<span class="qr-pill ok">${quoteSigner(q).via === 'customer' ? 'E-signed by' : 'Signed by'} ${E(quoteSigner(q).name)}</span>` : '',
       q.po ? `<span class="qr-pill ok">PO ${E(q.po.no)}</span>` : '',
       typeof sendQuoteChips === 'function' ? sendQuoteChips(q).replace(/class="chip/g, 'class="qr-pill') : '',
     ].join(' ');

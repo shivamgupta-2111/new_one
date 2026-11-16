@@ -1868,3 +1868,434 @@ select.qr-btn { padding-right: 6px; }
 }
 .qr-lines-head select.qr-btn { width: auto; max-width: 150px; }
 .qr-lines-head { row-gap: 6px; }
+
+/* ==========================================================================
+   Quotation / invoice letterhead
+   ========================================================================== */
+.doc-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.doc-brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+.doc-logo-mark,
+.doc-logo-img {
+  flex: none;
+  display: block;
+  object-fit: contain;
+}
+.doc-co {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+.doc-co-sub {
+  font-size: 12px;
+  color: var(--mut);
+  line-height: 1.45;
+  margin-top: 2px;
+}
+.doc-co-addr {
+  white-space: pre-wrap;
+  max-width: 340px;
+}
+.doc-title {
+  text-align: right;
+  min-width: 190px;
+}
+.doc-kind {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--pr);
+  margin-bottom: 4px;
+}
+.doc-meta {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.doc-meta span {
+  color: var(--mut);
+}
+.doc-rule {
+  height: 4px;
+  border-radius: 4px;
+  margin: 14px 0 16px;
+  background: linear-gradient(90deg, var(--pr), color-mix(in srgb, var(--pr) 35%, transparent) 60%, transparent);
+}
+.doc-for {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+.doc-sign-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 24px;
+  margin-top: 24px;
+  align-items: end;
+}
+.doc-foot {
+  margin-top: 18px;
+  padding-top: 10px;
+  border-top: 1px solid var(--bd);
+  font-size: 11.5px;
+  color: var(--mut);
+  text-align: center;
+}
+.doc-logo-preview {
+  display: grid;
+  place-items: center;
+  min-width: 60px;
+  height: 60px;
+  padding: 4px 8px;
+  border-radius: 10px;
+  background: var(--card);
+  border: 1px solid var(--bd);
+}
+@media (max-width: 560px) {
+  .doc-title {
+    text-align: left;
+  }
+  .doc-meta {
+    justify-content: flex-start;
+  }
+}
+
+/* ==========================================================================
+   E-signature
+   ========================================================================== */
+.sig-block {
+  max-width: 340px;
+}
+.sig-block.text-right {
+  margin-left: auto;
+}
+.sig-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mut);
+  margin-bottom: 2px;
+}
+.sig-svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.sig-line {
+  border-top: 1.5px solid var(--tx);
+  opacity: 0.55;
+  margin-top: 2px;
+}
+.sig-name {
+  font-size: 12.5px;
+  margin-top: 4px;
+}
+.sig-note {
+  font-size: 11px;
+  color: var(--mut);
+}
+.sig-empty .sig-line {
+  margin-top: 60px;
+}
+.sig-pad {
+  border: 1.5px dashed var(--bd);
+  border-radius: 12px;
+  padding: 10px 14px 10px;
+  background: var(--card);
+  transition: border-color 0.15s;
+}
+.sig-pad.signed {
+  border-color: color-mix(in srgb, var(--ok) 70%, transparent);
+  border-style: solid;
+}
+.sig-pad-ink {
+  min-height: 84px;
+  display: flex;
+  align-items: center;
+}
+:root[data-theme='dark'] .sig-svg text,
+:root[data-theme='dark'] .sig-svg path {
+  fill: #cfe0ff;
+  stroke: #cfe0ff;
+}
+:root[data-theme='dark'] .sig-svg text {
+  stroke: none;
+}
+@media print {
+  .doc-sheet,
+  .doc-sheet * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .sig-svg text {
+    fill: #14306b !important;
+  }
+}
+
+/* ==========================================================================
+   Back to top button (bottom right)
+   ========================================================================== */
+#crm-fab {
+  position: fixed;
+  right: max(20px, env(safe-area-inset-right));
+  bottom: max(20px, env(safe-area-inset-bottom));
+  z-index: 35;
+  opacity: 0;
+  transform: translateY(12px) scale(0.9);
+  pointer-events: none;
+  transition: opacity 0.18s, transform 0.2s var(--ease, ease);
+}
+#crm-fab.show {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+.fab-main {
+  width: 52px;
+  height: 52px;
+  border: 0;
+  padding: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: #fff;
+  background: var(--pr);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--pr) 40%, transparent), var(--sh-md, 0 4px 12px rgba(0, 0, 0, 0.15));
+  transition: transform 0.2s var(--ease, ease);
+}
+.fab-main .ms {
+  font-size: 26px;
+}
+.fab-main:hover {
+  transform: translateY(-2px);
+}
+.fab-main:focus-visible {
+  outline: 3px solid var(--ring, rgba(11, 99, 197, 0.35));
+  outline-offset: 3px;
+}
+@media print {
+  #crm-fab {
+    display: none !important;
+  }
+}
+
+/* Signature recorded by staff (not an e-signature) */
+.sig-recorded {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 56px;
+  font-size: 13px;
+  color: var(--mut);
+}
+
+/* ==========================================================================
+   Client payment page
+   ========================================================================== */
+.pay-wrap {
+  max-width: 760px;
+  margin: 0 auto;
+}
+.pay-secure {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--mut);
+}
+.pay-secure .ms {
+  font-size: 16px;
+}
+.pay-sum {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+  font-size: 14px;
+}
+.pay-due b {
+  font-size: 1.35rem;
+  color: var(--pr);
+}
+.pay-card {
+  overflow: hidden;
+}
+.pay-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  border-bottom: 1px solid var(--bd);
+  background: var(--hov);
+}
+.pay-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 10px;
+  font-weight: 600;
+  color: var(--mut);
+  background: none;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+.pay-tab.on {
+  color: var(--pr);
+  border-bottom-color: var(--pr);
+  background: var(--card);
+}
+.pay-body {
+  padding: 18px;
+}
+.pay-test {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 12px;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  background: color-mix(in srgb, #f59e0b 14%, transparent);
+  border: 1px solid color-mix(in srgb, #f59e0b 45%, transparent);
+}
+.pay-test-inline {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #f59e0b 18%, transparent);
+  color: #92400e;
+}
+.pay-form {
+  display: grid;
+  gap: 12px;
+}
+.pay-card-num {
+  position: relative;
+}
+.pay-card-num .inp {
+  padding-right: 96px;
+  letter-spacing: 0.06em;
+}
+.pay-brand {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-weight: 800;
+  font-size: 12px;
+  color: var(--pr);
+}
+.pay-go {
+  justify-content: center;
+  padding-top: 11px;
+  padding-bottom: 11px;
+  font-size: 15px;
+}
+.pay-err {
+  color: var(--err);
+  font-size: 13px;
+  min-height: 1em;
+}
+.pay-bank-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+}
+.pay-bank-opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+}
+.pay-bank-opt:has(input:checked) {
+  border-color: var(--pr);
+  background: color-mix(in srgb, var(--pr) 8%, transparent);
+}
+.pay-bank {
+  text-align: left;
+  white-space: pre-wrap;
+  font: inherit;
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--hov);
+}
+.pay-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--bd);
+  font-size: 14px;
+}
+.pay-rcpt-rows {
+  margin-top: 14px;
+}
+.pay-big-ok {
+  font-size: 54px !important;
+  color: var(--ok);
+}
+.pay-cta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.pay-cta > .ms {
+  font-size: 30px;
+}
+.pay-spin {
+  width: 42px;
+  height: 42px;
+  margin: 0 auto;
+  border-radius: 50%;
+  border: 4px solid var(--bd);
+  border-top-color: var(--pr);
+  animation: pay-spin 0.8s linear infinite;
+}
+@keyframes pay-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.pay-set-m {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.pay-set-m .ms {
+  color: var(--pr);
+}

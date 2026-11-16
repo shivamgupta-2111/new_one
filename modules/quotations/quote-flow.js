@@ -221,17 +221,16 @@ function printQuote() {
     o = cur();
   if (!q || !o) return;
   $('#modal').innerHTML =
-    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><div class="card p-6 w-full max-w-3xl max-h-full overflow-auto"><div class="flex justify-between gap-3"><div><h2 class="text-xl font-bold">Quote ${E(q.no)}</h2><div class="mut">${E(q.name || '')}</div><div class="mut">Prepared for ${E(q.preparedFor || o.account)} · Valid until ${fd(q.exp)}</div></div><b>${E(o.account)}</b></div>` +
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><div class="card p-6 w-full max-w-3xl max-h-full overflow-auto doc-sheet">${docLetterhead('QUOTATION', [['Quote no.', q.no], ['Date', fd(new Date(q.createdAt || Date.now()).toISOString().slice(0, 10))], ['Valid until', fd(q.exp)], ['Status', q.status]])}<div class="doc-for"><div><div class="mut text-xs">Prepared for</div><b>${E(q.preparedFor || o.account)}</b><div>${E(o.account)}</div></div><div class="text-right"><div class="mut text-xs">Subject</div><b>${E(q.name || o.name || '')}</b></div></div>` +
     `<div class="grid sm:grid-cols-2 gap-3 mt-3 text-sm"><div><div class="mut text-xs">Billing address</div><div style="white-space:pre-wrap">${E(q.address || '–')}</div></div><div><div class="mut text-xs">Shipping address</div><div style="white-space:pre-wrap">${E(q.shipping || '–')}</div></div></div>` +
     `<div class="my-4">${billLinesTable(q.items, !!q.showDiscount)}</div><div class="text-right text-lg font-bold">Grand total ${M(quoteTotal(q))}</div>` +
     `<div class="mt-4"><b>Terms &amp; conditions</b><div style="white-space:pre-wrap" class="text-sm">${E(effectiveTnc(q))}</div></div>` +
     (q.po
       ? `<p class="mt-3 text-sm"><b>Customer PO:</b> ${E(q.po.no)}${q.po.date ? ' · ' + fd(q.po.date) : ''}</p>`
       : '') +
-    (q.signedBy
-      ? `<p class="mt-1 text-sm"><b>Signed by:</b> ${E(q.signedBy)} · ${whenText(q.signedAt)}</p>`
-      : '') +
-    `<div class="flex justify-end gap-2 mt-4"><button class="btn" onclick="$('#modal').innerHTML=''">Close</button><button class="btn btn-p" onclick="window.print()">Print / Save PDF</button></div></div></div>`;
+    `<div class="doc-sign-row"><div>${quoteSigner(q) ? quoteSignatureHtml(q, 'Accepted & signed by (customer)') : '<div class="sig-block sig-empty"><div class="sig-label">Customer acceptance</div><div class="sig-line"></div><div class="sig-name mut">Name, signature &amp; date</div></div>'}</div><div class="sig-block text-right"><div class="sig-label">For ${E((S.settings.company || {}).name || 'Ceph CRM')}</div><div style="height:56px"></div><div class="sig-line"></div><div class="sig-name">${E(q.approvedBy ? q.approvedBy : 'Authorised signatory')}</div><div class="sig-note">${q.approvedBy ? 'Approved ' + whenText(q.approvedAt) : 'Authorised signatory'}</div></div></div>` +
+    `<div class="doc-foot">Thank you for your business. This is a computer generated quotation.</div>` +
+    `<div class="flex justify-end gap-2 mt-4 no-print"><button class="btn" onclick="$('#modal').innerHTML=''">Close</button><button class="btn btn-p" onclick="window.print()">Print / Save PDF</button></div></div></div>`;
 }
 
 // Update a quote (stored copy, the open copy and its invoice) in one go.
@@ -259,7 +258,7 @@ function quoteToolbar(q) {
   const ok = quoteApproved(q),
     why = ok ? '' : 'Available once the quote is approved',
     syncOk = !String(q.status).startsWith('Pending') && q.status !== 'Rejected';
-  return `<div class="qt-toolbar"><button class="btn" ${syncOk ? '' : 'disabled'} title="${syncOk ? "Copy this quote's products and total to the opportunity" : 'Not available while the quote is pending or rejected'}" onclick="syncQuote()"><span class="ms">sync</span>Sync Quote</button><button class="btn" ${ok ? '' : 'disabled'} title="${why}" onclick="openSignForm()"><span class="ms">draw</span>Sign</button><button class="btn" ${ok ? '' : 'disabled'} title="${why}" onclick="openPoForm()"><span class="ms">receipt_long</span>PO</button><button class="btn" onclick="printQuote()"><span class="ms">print</span>Print / PDF</button>${q.syncedAt ? `<span class="chip ok">Synced ${ago(q.syncedAt)}</span>` : ''}${q.signedBy ? `<span class="chip ok">Signed by ${E(q.signedBy)}</span>` : ''}${q.po ? `<span class="chip ok">PO ${E(q.po.no)}</span>` : ''}<span class="flex-1"></span><label class="qt-check" title="${canGiveDiscount() ? '' : 'Only Admin and CEO can change this'}"><input type="checkbox" ${q.showDiscount ? 'checked' : ''} ${canGiveDiscount() ? '' : 'disabled'} onchange="setShowDiscount(this.checked)"> Show discount on bill</label></div>`;
+  return `<div class="qt-toolbar"><button class="btn" ${syncOk ? '' : 'disabled'} title="${syncOk ? "Copy this quote's products and total to the opportunity" : 'Not available while the quote is pending or rejected'}" onclick="syncQuote()"><span class="ms">sync</span>Sync Quote</button><button class="btn" ${ok ? '' : 'disabled'} title="${why}" onclick="openSignForm()"><span class="ms">draw</span>Sign</button><button class="btn" ${ok ? '' : 'disabled'} title="${why}" onclick="openPoForm()"><span class="ms">receipt_long</span>PO</button><button class="btn" onclick="printQuote()"><span class="ms">print</span>Print / PDF</button>${q.syncedAt ? `<span class="chip ok">Synced ${ago(q.syncedAt)}</span>` : ''}${quoteSigner(q) ? `<span class="chip ok">${quoteSigner(q).via === 'customer' ? 'E-signed by' : 'Signed by'} ${E(quoteSigner(q).name)}</span>` : ''}${q.po ? `<span class="chip ok">PO ${E(q.po.no)}</span>` : ''}<span class="flex-1"></span><label class="qt-check" title="${canGiveDiscount() ? '' : 'Only Admin and CEO can change this'}"><input type="checkbox" ${q.showDiscount ? 'checked' : ''} ${canGiveDiscount() ? '' : 'disabled'} onchange="setShowDiscount(this.checked)"> Show discount on bill</label></div>`;
 }
 const quoteViewBeforeFlow = V.quote;
 V.quote = function () {
@@ -299,6 +298,8 @@ function simpleQuoteForm(title, fields, submitJs, submitLabel) {
 function openSignForm() {
   const q = S.qd;
   if (!q || !quoteApproved(q)) return toast('Available once the quote is approved');
+  if (q.customer && q.customer.status === 'Accepted')
+    return toast(`Signed electronically by the client (${q.customer.name})`);
   simpleQuoteForm(
     `Sign quotation ${E(q.no)}`,
     `<label class="block">Signed by *<input class="inp" name="by" required value="${E(q.signedBy || String(q.preparedFor || '').replace(/\s*\(.*\)\s*$/, ''))}"></label><label class="block">Date<input class="inp" type="date" name="date" value="${D(0)}"></label>`,
@@ -311,9 +312,13 @@ function saveSign(e) {
   const q = S.qd,
     v = Object.fromEntries(new FormData(e.target));
   if (!q || !quoteApproved(q) || !(v.by || '').trim()) return;
+  if (q.customer && q.customer.status === 'Accepted')
+    return toast('The client already signed this quote electronically');
   patchQuote(q.no, {
     signedBy: v.by.trim(),
     signedAt: v.date ? new Date(v.date + 'T12:00').getTime() : Date.now(),
+    signedVia: 'staff',
+    signedRecordedBy: roleNow().name,
   });
   logOpp(q.opp, 'sync', `Quote ${q.no} signed by ${v.by.trim()}`);
   $('#modal').innerHTML = '';
