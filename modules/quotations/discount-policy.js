@@ -9,13 +9,8 @@ function canGiveDiscount() {
   return ['admin', 'ceo'].includes(S.role);
 }
 
-// Server-side style guards for the quote builder (the inputs are also disabled in the UI).
-// Reps may type a discount; the quote then goes to Admin or CEO for approval (see quoteRoute).
-const tieredBeforePolicy = applyTieredDiscount;
-applyTieredDiscount = function () {
-  if (!canGiveDiscount()) return toast('Only Admin and CEO can give discounts');
-  return tieredBeforePolicy.apply(this, arguments);
-};
+
+
 
 // CEO sets the Admin limit. Pending Admin approvals above a lowered limit move to the CEO.
 function saveAdminDiscountLimit(e) {
@@ -25,7 +20,6 @@ function saveAdminDiscountLimit(e) {
     n = Math.round(Number(raw) * 10) / 10;
   if (raw === '' || !Number.isFinite(n) || n < 0 || n > 100)
     return toast('Enter a limit between 0 and 100');
-  const before = adminDiscountLimit();
   S.settings.adminDiscountLimit = n;
   S.settings.adminDiscountLimitBy = roleNow().name;
   S.settings.adminDiscountLimitAt = Date.now();

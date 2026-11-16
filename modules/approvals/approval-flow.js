@@ -28,22 +28,6 @@ function approvalBanner(q, inv) {
   return '';
 }
 
-// Step 3: notes for the approver, terms & conditions, and the approval trail.
-function approvalSection(q, floor, locked) {
-  const canEditTnc = !locked && ['admin', 'ceo'].includes(S.role);
-  const history = (q.history || [])
-    .slice()
-    .reverse()
-    .map(
-      (h) =>
-        `<div class="qt-hist"><b>${E(h.action)}</b> · ${E(h.by)} · <span class="mut">${whenText(h.t)}</span><div>${E(h.note || '')}</div></div>`
-    )
-    .join('');
-  return `<section class="qt-section"><div class="qt-section-head"><span class="ms">approval</span><b>Approval Authority</b></div><div class="qt-body"><p>Reps cannot give discounts · Admin up to <b>${adminDiscountLimit()}%</b> (set by the CEO) · CEO any discount. Any line priced below the product minimum always needs CEO approval.</p><p class="mut" style="margin-top:6px">${floor.length ? `Lines below minimum: ${floor.map((i) => E(i.c)).join(', ')}` : 'No lines are below their product minimum.'}</p></div></section>
-<section class="qt-section"><div class="qt-section-head"><span class="ms">edit_note</span><b>Notes for approval <i class="qt-req">*</i></b></div><div class="qt-body"><textarea class="inp" rows="3" ${locked ? 'disabled' : ''} placeholder="Explain the discount or pricing so the approver can decide. Required before submitting." oninput="S.qd.notes=this.value">${E(q.notes || '')}</textarea></div></section>
-${tncSection(q, locked)}${history ? `<section class="qt-section"><div class="qt-section-head"><span class="ms">history</span><b>Approval history</b></div><div class="qt-body">${history}</div></section>` : ''}`;
-}
-
 // Approve / reject now ask for notes (required) and, on approval, terms & conditions.
 function approveQuote(no) {
   const q = S.quotes.find((x) => x.no === no);

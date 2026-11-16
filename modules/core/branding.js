@@ -8,13 +8,6 @@ function brandMark(size = 44) {
     return `<img class="doc-logo-img" src="${E(co.logo)}" alt="${E(co.name || 'Company')} logo" style="max-height:${size}px;max-width:${size * 3.2}px">`;
   return `<svg class="doc-logo-mark" width="${size}" height="${size}" viewBox="0 0 48 48" role="img" aria-label="Logo" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="dlg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1b96ff"/><stop offset="1" stop-color="#0b4f9c"/></linearGradient></defs><rect width="48" height="48" rx="12" fill="url(#dlg)"/><path d="M15.5 33h17.2a6.3 6.3 0 0 0 .9-12.5 8.6 8.6 0 0 0-16.4 2.1 5.2 5.2 0 0 0-1.7 10.4z" fill="#fff"/><path d="M19 27.5l3.4 3.2 6.6-7" fill="none" stroke="#0b5cab" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
-const brandInitials = (name) =>
-  String(name || 'Ceph CRM')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0].toUpperCase())
-    .join('');
 
 // Letterhead used at the top of a quotation or invoice.
 // meta: [[label, value], ...] printed on the right under the document title.

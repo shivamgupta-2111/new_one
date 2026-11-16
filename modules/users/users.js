@@ -1,21 +1,6 @@
-// User list and create-user form.
+// Create-user form.
 
-V.users = () => {
-  const u = S.users.filter((x) => x.active !== false);
-  return (
-    `<div class="flex items-center mb-3"><div class="flex-1"><h1 class="text-xl font-bold">User accounts</h1><p class="mut">Manage portal access and team accounts</p></div><button class="btn btn-p" onclick="openUserForm()">Create account</button></div>` +
-    table(
-      ['Name', 'Username', 'Role', 'Owner code', 'Status'],
-      u
-        .map(
-          (x) =>
-            `<tr><td><b>${E(x.name)}</b></td><td>${E(x.username)}</td><td>${roleTitle(x)}</td><td>${E(x.ownerCode || '—')}</td><td><span class="chip ok">Active</span></td></tr>`
-        )
-        .join('')
-    ) +
-    `<p class="mut mt-3">Admins can create Rep accounts. CEOs can create Admin and Rep accounts.</p>`
-  );
-};
+
 // teamId is optional: pass it to open the form already set to "Rep" on that team.
 function openUserForm(teamId = '') {
   const role = S.role,

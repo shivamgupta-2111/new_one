@@ -15,19 +15,15 @@ ceph-crm/
 ├─ components/
 │  ├─ layout/CrmShell.js         header, nav, main mount; loads the runtime
 │  └─ shared/Overlays.js         #modal and #toast mounts
-├─ lib/
-│  ├─ currency.js
-│  ├─ database.js
-│  └─ permissions.js
 ├─ modules/                      runtime source, one folder per domain
 │  ├─ manifest.json              load order (do not reorder)
-│  ├─ core/                      helpers, branding (logo, letterhead, e-signature, FAB), seed, state,
-│  │                             render, sync, fab-hook (shows the FAB only when signed in)
+│  ├─ core/                      helpers, branding (logo, letterhead, e-signature, Back to top button),
+│  │                             seed, state, render, sync, fab-hook (Back to top only when signed in)
 │  ├─ auth/                      roles, login, role-picker, portal-nav, portal-render
 │  ├─ users/                     users, admin
 │  ├─ leads/                     leads, status
-│  ├─ accounts/                  accounts, account-info
-│  ├─ contacts/                  contacts, mobile, primary, edit
+│  ├─ accounts/                  account-info
+│  ├─ contacts/                  mobile, primary, edit
 │  ├─ opportunities/             board, fields, detail, attachments, modals,
 │  │                             new-opportunity, portal-views, ownership, slack, tabs, permissions, record-page, files-upload
 │  ├─ products/                  products, catalogue-view, price-book (tiers, bundles, min/max)
@@ -36,7 +32,7 @@ ceph-crm/
 │  │                             quote-record (quote record page + New Quote pop-up; last override of V.quote),
 │  │                             signature-sync (client e-signature always shown, open quote kept in step)
 │  ├─ approvals/                 approvals-view, approval-flow, others-select, popups
-│  ├─ invoices/                  create, submit-and-send, views, payment,
+│  ├─ invoices/                  create, submit-and-send, payment,
 │  │                             billing (payments, GST invoice, overdue, Close Won prompt),
 │  │                             online-pay (client payment page #pay/<token>: UPI app link + UTR, card,
 │  │                             net banking, wallet; payment settings, UPI confirmation, receipts)

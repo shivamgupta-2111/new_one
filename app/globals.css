@@ -432,17 +432,6 @@ tr.r {
   }
 }
 
-/* Progress bars */
-.h-3.rounded,
-.h-6.rounded {
-  border-radius: 999px;
-  overflow: hidden;
-}
-.h-3.rounded > div,
-.h-6.rounded > div {
-  border-radius: 999px;
-}
-
 /* Links and focus */
 a {
   text-decoration: none;
@@ -703,72 +692,6 @@ header.card .btn-p {
 }
 
 /* ---------- Quote builder ---------- */
-.qt-wrap {
-  width: 100%;
-  max-width: none;
-  overflow: hidden;
-  box-shadow: var(--sh-sm);
-}
-.qt-head {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  padding: 12px 16px 8px;
-}
-.qt-head h1 {
-  font-size: 17px;
-  font-weight: 700;
-}
-.qt-head p {
-  font-size: 11px;
-  color: var(--mut);
-}
-.qt-head p b {
-  color: var(--pr);
-  font-weight: 600;
-}
-.qt-head-icon,
-.qt-guide-icon {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--pr) 14%, transparent);
-  color: var(--pr);
-  flex-shrink: 0;
-}
-.qt-steps {
-  display: flex;
-  gap: 4px;
-  padding: 0 12px;
-  border-bottom: 1px solid var(--bd);
-}
-.qt-step {
-  flex: 1;
-  padding: 6px 4px 8px;
-  font-size: 11px;
-  font-weight: 600;
-  text-align: left;
-  color: var(--mut);
-  background: none;
-  border: 0;
-  border-top: 3px solid var(--bd);
-  cursor: pointer;
-}
-.qt-step.done,
-.qt-step.on {
-  border-top-color: var(--pr);
-}
-.qt-step.on {
-  color: var(--pr);
-}
-.qt-content {
-  padding: 12px;
-  display: grid;
-  gap: 12px;
-  background: var(--bg);
-}
 .qt-section {
   background: var(--card);
   border: 1px solid var(--bd);
@@ -794,19 +717,6 @@ header.card .btn-p {
 }
 .qt-tool .ms {
   font-size: 16px;
-}
-.qt-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px 16px;
-  padding: 12px;
-}
-.qt-field {
-  display: grid;
-  gap: 3px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--mut);
 }
 .qt-req {
   color: var(--err);
@@ -863,97 +773,8 @@ header.card .btn-p {
 .qt-del:hover {
   color: var(--err);
 }
-.qt-bottom {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  border: 1px solid var(--bd);
-  border-radius: 4px;
-  overflow: hidden;
-  background: var(--card);
-}
-.qt-guide {
-  display: flex;
-  gap: 10px;
-  padding: 12px;
-  background: color-mix(in srgb, var(--pr) 8%, var(--card));
-  border-right: 1px solid var(--bd);
-}
-.qt-guide-title {
-  font-weight: 700;
-  color: var(--pr);
-  margin-bottom: 2px;
-}
-.qt-badge {
-  font-size: 9px;
-  padding: 1px 6px;
-  border-radius: 3px;
-  background: var(--pr);
-  color: #fff;
-  vertical-align: middle;
-}
-.qt-guide-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 14px;
-  margin-top: 8px;
-  font-size: 10.5px;
-  color: var(--mut);
-}
-.qt-good {
-  color: var(--pr);
-}
-.qt-bad {
-  color: var(--err);
-}
-.qt-totals {
-  padding: 12px;
-}
-.qt-total-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 3px 0;
-}
-.qt-grand {
-  margin-top: 6px;
-  padding-top: 8px;
-  border-top: 1px solid var(--bd);
-  font-size: 18px;
-  color: var(--pr);
-}
-.qt-foot {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 10px 12px;
-  border-top: 1px solid var(--bd);
-}
-.qt-foot .btn[disabled] {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-@media (max-width: 640px) {
-  .qt-grid,
-  .qt-bottom {
-    grid-template-columns: 1fr;
-  }
-  .qt-guide {
-    border-right: 0;
-    border-bottom: 1px solid var(--bd);
-  }
-  .qt-steps {
-    overflow-x: auto;
-  }
-  .qt-step {
-    min-width: 130px;
-  }
-}
 
-/* Let the quote builder use the whole screen width. */
-#app:has(.qt-wrap) {
-  max-width: none;
-}
-
-/* Approval banner + history */
+/* Approval banner */
 .qt-banner {
   display: flex;
   gap: 10px;
@@ -989,13 +810,6 @@ header.card .btn-p {
 }
 .qt-banner.err > .ms {
   color: var(--err);
-}
-.qt-hist {
-  padding: 6px 0;
-  border-bottom: 1px solid var(--bd);
-}
-.qt-hist:last-child {
-  border-bottom: 0;
 }
 
 /* Rejected / error chip */
@@ -1156,13 +970,6 @@ main#app {
   .hdr-search {
     flex-basis: 320px;
   }
-  .qt-bottom {
-    grid-template-columns: 1fr;
-  }
-  .qt-guide {
-    border-right: 0;
-    border-bottom: 1px solid var(--bd);
-  }
 }
 
 @media (max-width: 767px) {
@@ -1175,24 +982,12 @@ main#app {
   .qt-table {
     min-width: 560px;
   }
-  .qt-section,
-  .qt-wrap {
+  .qt-section {
     max-width: 100%;
   }
   .qt-section > .qt-body,
   .qt-section > div:has(> .qt-table) {
     overflow-x: auto;
-  }
-  .qt-steps {
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .qt-step {
-    flex: 0 0 auto;
-    min-width: 140px;
-  }
-  .qt-head {
-    flex-wrap: wrap;
   }
   .kcol.w-72 {
     width: 78vw;
@@ -1261,12 +1056,6 @@ main#app {
     left: 8px !important;
     right: 8px !important;
     width: auto !important;
-  }
-  .qt-grid {
-    grid-template-columns: 1fr;
-  }
-  .qt-head h1 {
-    font-size: 15px;
   }
   .text-2xl {
     font-size: 1.35rem;
@@ -1614,38 +1403,15 @@ body.cq-mode #nav {
     min-height: 32px;
   }
   /* tabs and stage path scroll sideways instead of wrapping */
-  .sf-tabs,
-  [role='tablist'],
-  .stage-path {
+  [role='tablist'] {
     overflow-x: auto;
     flex-wrap: nowrap !important;
     -webkit-overflow-scrolling: touch;
   }
-  .sf-tabs > *,
   [role='tablist'] > * {
     flex: 0 0 auto;
   }
   /* quote screen */
-  .qt-head {
-    padding: 12px !important;
-  }
-  .qt-head h1 {
-    font-size: 17px !important;
-  }
-  .qt-steps {
-    overflow-x: auto;
-    flex-wrap: nowrap !important;
-  }
-  .qt-step {
-    flex: 0 0 auto;
-    white-space: nowrap;
-  }
-  .qt-content {
-    padding: 8px !important;
-  }
-  .qt-grid {
-    grid-template-columns: 1fr !important;
-  }
   .qt-toolbar {
     overflow-x: auto;
     flex-wrap: nowrap !important;
@@ -1661,18 +1427,6 @@ body.cq-mode #nav {
   .qt-section-head .qt-tool,
   .qt-section-head select.btn {
     max-width: 100%;
-  }
-  .qt-foot {
-    position: sticky;
-    bottom: 0;
-    z-index: 5;
-    flex-wrap: wrap;
-    gap: 8px;
-    background: var(--card, #fff);
-  }
-  .qt-foot .btn {
-    flex: 1 1 140px;
-    justify-content: center;
   }
   .qt-banner {
     flex-wrap: wrap;
@@ -1715,15 +1469,6 @@ body.cq-mode #nav {
   }
   .qt-section-head > .flex-1 {
     display: none;
-  }
-}
-
-@media (max-width: 767px) {
-  .qt-content {
-    grid-template-columns: minmax(0, 1fr) !important;
-  }
-  .qt-content > * {
-    min-width: 0;
   }
 }
 

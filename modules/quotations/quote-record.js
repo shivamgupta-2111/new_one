@@ -164,8 +164,7 @@ function qrClient(q, o, d) {
 
 // ---------- right column ----------
 function qrApprovals(q, floor, locked) {
-  const hist = (q.history || []).filter((h) => ['Submitted', 'Approved', 'Rejected', 'Escalated'].includes(h.action)),
-    pending = String(q.status).startsWith('Pending'),
+  const pending = String(q.status).startsWith('Pending'),
     done = ['Approved', 'Sent to client', 'Paid'].includes(q.status),
     rows = [];
   if (done)
@@ -380,7 +379,7 @@ function openNewQuoteForm(o) {
 }
 
 // Save opens the quote page; Save & New keeps the quote and opens a blank pop-up for the next one.
-createQuoteFromForm = function (e, id, again) {
+function createQuoteFromForm(e, id, again) {
   if (e && e.preventDefault) e.preventDefault();
   const o = S.opps.find((x) => x.id == id),
     form = (e && e.target && (e.target.form || e.target)) || document.querySelector('#modal form'),
@@ -420,4 +419,4 @@ createQuoteFromForm = function (e, id, again) {
   }
   $('#modal').innerHTML = '';
   nav('quote');
-};
+}

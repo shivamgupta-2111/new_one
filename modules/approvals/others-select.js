@@ -22,25 +22,8 @@ const pickOther = (values, name) =>
 
 // Quote page: same idea, but the value lives in S.qd.
 const QUOTE_STATUS_CHOICES = ['Draft', 'Presented to Customer', 'Under Negotiation', 'On Hold'];
-function quoteOtherSelect(field, options, current, disabled) {
-  const custom = !!current && !options.includes(current) && current !== 'Others';
-  const isOther = custom || current === 'Others';
-  const opts = options
-    .map((o) => `<option ${!isOther && o === current ? 'selected' : ''}>${E(o)}</option>`)
-    .join('');
-  return `<select class="inp" ${disabled ? 'disabled' : ''} onchange="quoteSelectOther(this,'${field}')">${opts}<option value="Others" ${isOther ? 'selected' : ''}>Others</option></select><input class="inp" style="margin-top:6px;display:${isOther ? '' : 'none'}" placeholder="Please specify" value="${custom ? E(current) : ''}" ${disabled ? 'disabled' : ''} oninput="S.qd.${field}=this.value.trim()||'Others'">`;
-}
-function quoteSelectOther(select, field) {
-  const box = select.parentNode.querySelector('input');
-  if (select.value === 'Others') {
-    box.style.display = '';
-    box.focus();
-    S.qd[field] = box.value.trim() || 'Others';
-  } else {
-    box.style.display = 'none';
-    S.qd[field] = select.value;
-  }
-}
+
+
 
 const whenText = (t) =>
   t ? new Date(t).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '';

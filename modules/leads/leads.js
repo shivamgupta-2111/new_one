@@ -1,16 +1,6 @@
-// Leads list and lead-to-opportunity conversion.
+// Lead-to-opportunity conversion.
 
-V.leads = () =>
-  `<div class="flex items-center mb-3"><h1 class="text-xl font-bold flex-1">Leads</h1><button class="btn btn-p" onclick="modal('lead')"><span class="ms">add</span>New lead</button></div>` +
-  table(
-    ['Name', 'Company', 'Source', 'Status', ''],
-    S.leads
-      .map(
-        (l, i) =>
-          `<tr><td><b>${E(l[0])}</b></td><td>${E(l[1])}</td><td>${E(l[2])}</td><td><span class="chip ${l[3] == 'New' ? '' : 'wr'}">${l[3]}</span></td><td class="text-right">${canAddOpportunity() ? `<button class="btn" onclick="convert(${i})">Convert to deal</button>` : ''}</td></tr>`
-      )
-      .join('')
-  );
+
 function convert(i) {
   const l = S.leads.splice(i, 1)[0],
     id = Math.max(0, ...S.opps.map((o) => o.id)) + 1;
