@@ -63,48 +63,7 @@ V.opps = () => {
           .join('')}</select>${repOpenBtn(o.owner)}`
       : `<span>${repLink(o.owner)}</span>`;
   const top = `<div class="flex flex-wrap items-center gap-2 mb-3"><div><div class="mut">Opportunities</div><h1 class="text-xl font-bold">${S.role === 'rep' ? 'My opportunities' : 'All opportunities'}</h1></div><span class="mut ml-2">${all.length} items · Total ${M(total)}</span><span class="flex-1"></span><input class="inp" style="width:200px" placeholder="Filter this list" value="${E(S.q || '')}" oninput="S.q=this.value;clearTimeout(window.ft);window.ft=setTimeout(()=>{render();const i=document.querySelector('[placeholder=\\'Filter this list\\']');if(i){i.focus();i.setSelectionRange(99,99)}},250)"><button class="btn" onclick="S.view='${S.view === 'kanban' ? 'list' : 'kanban'}';render()"><span class="ms">${S.view === 'kanban' ? 'table_rows' : 'view_kanban'}</span>${S.view === 'kanban' ? 'List' : 'Board'}</button>${canAddOpportunity() ? `<button class="btn btn-p" onclick="modal('opp')"><span class="ms">add</span>New</button>` : ''}</div>`;
-  if (S.view === 'list') {
-    // List view: one box per stage, stacked top to bottom. Drag a row into another box to change its stage.
-    const head = [
-      '',
-      'Opportunity',
-      'Account',
-      'Priority',
-      'Amount',
-      'Close date',
-      'Assigned rep',
-      'Quotation no.',
-      ...(canSeeInvoices() ? ['Invoice no.'] : []),
-    ];
-    const row = (o, movable) => {
-      const docs = opportunityDocuments(o);
-      const quoteNumbers = docs.map((d) => E(d.quoteNo)).join('<br>') || '—';
-      const invoiceNumbers = docs.map((d) => E(d.invoiceNo || '—')).join('<br>') || '—';
-      return `<tr class="r${movable ? ' stage-row' : ''}" ${movable ? `draggable="true" ondragstart="event.dataTransfer.setData('t',${o.id});event.dataTransfer.effectAllowed='move';this.classList.add('dragging')" ondragend="this.classList.remove('dragging')"` : ''} onclick="nav('opp-detail',${o.id})"><td class="stage-grip" title="${movable ? 'Drag to another stage' : ''}">${movable ? '<span class="ms">drag_indicator</span>' : ''}</td><td><b>${E(o.name)}</b></td><td>${acctSpan(o.account)}</td><td onclick="event.stopPropagation()"><select class="inp text-xs" style="width:auto;padding:4px 24px 4px 8px" aria-label="Priority" onchange="setPriority(${o.id},this.value)">${prioOptions(o.priority)}</select></td><td>${M(o.amount)}</td><td>${fd(o.close)}</td><td onclick="event.stopPropagation()">${repCell(o)}</td><td>${quoteNumbers}</td>${canSeeInvoices() ? `<td>${invoiceNumbers}</td>` : ''}</tr>`;
-    };
-    const box = (label, deals, index) => {
-      const droppable = index != null;
-      const sum = deals.reduce((s, o) => s + (+o.amount || 0), 0);
-      return `<section class="stage-box card mb-3" ${droppable ? `ondragover="event.preventDefault();this.classList.add('over')" ondragleave="if(!this.contains(event.relatedTarget))this.classList.remove('over')" ondrop="this.classList.remove('over');drop(event,${index})"` : ''}><div class="stage-box-head"><b>${label}</b><span class="mut">${deals.length} ${deals.length === 1 ? 'deal' : 'deals'} · ${M(sum)}</span></div>${
-        deals.length
-          ? `<div class="overflow-x-auto"><table class="stage-table"><colgroup><col style="width:36px"><col style="width:24%"><col style="width:15%"><col style="width:11%"><col style="width:10%"><col style="width:10%"><col style="width:13%"><col style="width:9%">${canSeeInvoices() ? '<col style="width:8%">' : ''}</colgroup><thead><tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${deals.map((o) => row(o, droppable)).join('')}</tbody></table></div>`
-          : `<div class="stage-box-empty mut">${droppable ? 'Drop a deal here to move it to ' + label : 'No deals'}</div>`
-      }</section>`;
-    };
-    const lost = all.filter((o) => o.lost);
-    return (
-      top +
-      `<p class="mut mb-2 flex items-center gap-1"><span class="ms">info</span>Drag a deal into another stage box to update its stage.</p>` +
-      ST.map((stage, index) =>
-        box(
-          stage,
-          all.filter((o) => o.stage === index && !o.lost),
-          index
-        )
-      ).join('') +
-      (lost.length ? box('Closed Lost', lost, null) : '')
-    );
-  }
+  if (S.view === 'list') return top + oppStageLanes(all, { docMeta, repCell });
   return (
     top +
     `<p class="mut mb-2 flex items-center gap-1"><span class="ms">info</span>Drag a deal to another stage to update it. Assigned rep, quotation and invoice references are visible on every opportunity.</p><div class="flex gap-3 overflow-x-auto pb-3">${ST.map(

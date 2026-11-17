@@ -41,14 +41,7 @@ function assignableReps() {
     ? activeReps().filter((u) => u.ownerCode === roleNow().owner)
     : activeReps();
 }
-function repOptions(selected) {
-  return assignableReps()
-    .map(
-      (u) =>
-        `<option value="${E(u.ownerCode)}" ${u.ownerCode === selected ? 'selected' : ''}>${E(u.name)}</option>`
-    )
-    .join('');
-}
+
 function defaultRepCode() {
   return S.role === 'rep' ? roleNow().owner : activeReps()[0]?.ownerCode || roleNow().owner;
 }
@@ -81,13 +74,6 @@ function brandMark(size = 44) {
     return `<img class="doc-logo-img" src="${E(co.logo)}" alt="${E(co.name || 'Company')} logo" style="max-height:${size}px;max-width:${size * 3.2}px">`;
   return `<svg class="doc-logo-mark" width="${size}" height="${size}" viewBox="0 0 48 48" role="img" aria-label="Logo" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="dlg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1b96ff"/><stop offset="1" stop-color="#0b4f9c"/></linearGradient></defs><rect width="48" height="48" rx="12" fill="url(#dlg)"/><path d="M15.5 33h17.2a6.3 6.3 0 0 0 .9-12.5 8.6 8.6 0 0 0-16.4 2.1 5.2 5.2 0 0 0-1.7 10.4z" fill="#fff"/><path d="M19 27.5l3.4 3.2 6.6-7" fill="none" stroke="#0b5cab" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
-const brandInitials = (name) =>
-  String(name || 'Ceph CRM')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0].toUpperCase())
-    .join('');
 
 // Letterhead used at the top of a quotation or invoice.
 // meta: [[label, value], ...] printed on the right under the document title.
@@ -373,36 +359,10 @@ function table(h, rows) {
   return `<div class="card overflow-x-auto"><table><thead><tr>${h.map((x) => `<th>${x}</th>`).join('')}</tr></thead><tbody>${rows || `<tr><td colspan="9" class="mut">Nothing here yet. Use New to add the first record.</td></tr>`}</tbody></table></div>`;
 }
 
-// Home dashboard, pipeline board and stage drag/drop.
+// View registry, pipeline board and stage drag/drop.
 
 const V = {};
-V.home = () => {
-  const op = S.opps.filter((o) => o.stage < 5),
-    won = S.opps.filter((o) => o.stage == 5 && !o.lost).reduce((a, o) => a + o.amount, 0),
-    pipe = op.reduce((a, o) => a + o.amount, 0),
-    w = op.reduce((a, o) => a + (o.amount * prob(o)) / 100, 0),
-    Q = 2000000;
-  const by = ST.slice(0, 5).map((s, i) => [
-      s,
-      S.opps.filter((o) => o.stage == i).reduce((a, o) => a + o.amount, 0),
-    ]),
-    mx = Math.max(...by.map((b) => b[1]), 1);
-  const soon = [...op].sort((a, b) => (a.close < b.close ? -1 : 1)).slice(0, 5);
-  const hr = new Date().getHours(),
-    g = hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
-  const kp = (l, v, s) =>
-    `<div class="card p-4"><div class="mut font-semibold">${l}</div><div class="text-2xl font-bold mt-1">${v}</div><div class="mut mt-1">${s}</div></div>`;
-  const hot = S.opps.find((o) => o.id == 7 && o.stage < 5);
-  return `<div class="mb-4"><h1 class="text-2xl font-bold">${g}, Alex</h1><p class="mut">You have ${op.filter((o) => days(o.close) <= 7).length} deals closing within a week and ${S.tasks.length} open tasks.</p></div>
- <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">${kp('Open pipeline', M(pipe), op.length + ' active deals')}${kp('Weighted forecast', M(w), 'Based on stage probability')}${kp('Closed won this quarter', M(won), Math.round((won / Q) * 100) + '% of ' + M(Q) + ' quota')}${kp('Win rate', Math.round((S.opps.filter((o) => o.stage == 5).length / S.opps.length) * 100) + '%', 'Across ' + S.opps.length + ' opportunities')}</div>
- <div class="grid lg:grid-cols-3 gap-3">
- <div class="card p-4 lg:col-span-2"><b>Pipeline by stage</b><div class="mt-3 space-y-2">${by.map(([s, v], i) => `<div class="flex items-center gap-3 cursor-pointer" onclick="S.view='kanban';nav('opps')"><span class="w-32 shrink-0">${s}</span><div class="flex-1 h-6 rounded" style="background:var(--hov)"><div class="h-6 rounded" style="width:${(v / mx) * 100}%;background:var(--pr);opacity:${0.45 + i * 0.12}"></div></div><b class="w-24 text-right">${M(v)}</b></div>`).join('')}</div>
- <div class="mt-4"><div class="flex justify-between mb-1"><b>Quota attainment</b><span>${M(won)} of ${M(Q)}</span></div><div class="h-3 rounded" style="background:var(--hov)"><div class="h-3 rounded" style="width:${Math.min(100, (won / Q) * 100)}%;background:var(--ok)"></div></div></div></div>
- <div class="card p-4"><b class="flex items-center gap-1"><span class="ms" style="color:var(--pr)">auto_awesome</span>Einstein suggests</b>
-  ${hot ? `<p class="mt-2">${E(hot.account)} is standardising procurement for next quarter. Offer a Platinum Support voucher if they sign before ${fd(hot.close)}.</p><button class="btn btn-p mt-3" onclick="nav('opp-detail',7)">Review deal</button>` : '<p class="mt-2 mut">No urgent recommendations right now.</p>'}</div>
- <div class="card lg:col-span-2"><div class="p-4 pb-2"><b>Closing soon</b></div>${table(['Deal', 'Account', 'Amount', 'Close date'], soon.map((o) => `<tr class="r" onclick="nav('opp-detail',${o.id})"><td><b>${E(o.name)}</b></td><td>${E(o.account)}</td><td>${M(o.amount)}</td><td><span class="chip ${chipC(o)}">${days(o.close) < 0 ? 'Overdue' : days(o.close) == 0 ? 'Today' : 'In ' + days(o.close) + ' days'}</span></td></tr>`).join(''))}</div>
- <div class="card p-4"><b>My tasks</b><div class="mt-2">${S.tasks.map((t, i) => `<label class="flex gap-2 py-2 border-b" style="border-color:var(--bd)"><input type="checkbox" onchange="S.tasks.splice(${i},1);save();toast('Task completed');render()"><span class="flex-1">${E(t.t)}<br><small class="mut">${t.due}</small></span></label>`).join('') || '<p class="mut mt-2">All caught up. Nice work.</p>'}</div></div></div>`;
-};
+
 V.opps = () => {
   const q = (S.q || '').toLowerCase(),
     L = S.opps.filter(
@@ -880,19 +840,9 @@ function logAct(e) {
   render();
 }
 
-// Leads list and lead-to-opportunity conversion.
+// Lead-to-opportunity conversion.
 
-V.leads = () =>
-  `<div class="flex items-center mb-3"><h1 class="text-xl font-bold flex-1">Leads</h1><button class="btn btn-p" onclick="modal('lead')"><span class="ms">add</span>New lead</button></div>` +
-  table(
-    ['Name', 'Company', 'Source', 'Status', ''],
-    S.leads
-      .map(
-        (l, i) =>
-          `<tr><td><b>${E(l[0])}</b></td><td>${E(l[1])}</td><td>${E(l[2])}</td><td><span class="chip ${l[3] == 'New' ? '' : 'wr'}">${l[3]}</span></td><td class="text-right">${canAddOpportunity() ? `<button class="btn" onclick="convert(${i})">Convert to deal</button>` : ''}</td></tr>`
-      )
-      .join('')
-  );
+
 function convert(i) {
   const l = S.leads.splice(i, 1)[0],
     id = Math.max(0, ...S.opps.map((o) => o.id)) + 1;
@@ -920,119 +870,20 @@ function convert(i) {
   nav('opp-detail');
 }
 
-// Accounts list.
+// Quote totals: subtotal, discount and total.
 
-V.accounts = () => {
-  const A = [...new Set(S.opps.map((o) => o.account))];
-  return (
-    `<h1 class="text-xl font-bold mb-3">Accounts</h1>` +
-    table(
-      ['Account', 'Open deals', 'Open pipeline', 'Won'],
-      A.map((a) => {
-        const x = S.opps.filter((o) => o.account == a);
-        return `<tr class="r" onclick="S.q='${E(a).replace(/'/g, '')}';nav('opps')"><td><b>${E(a)}</b></td><td>${x.filter((o) => o.stage < 5).length}</td><td>${M(x.filter((o) => o.stage < 5).reduce((s, o) => s + o.amount, 0))}</td><td>${M(x.filter((o) => o.stage == 5).reduce((s, o) => s + o.amount, 0))}</td></tr>`;
-      }).join('')
-    )
-  );
-};
 
-// Base contacts list.
-
-V.contacts = () =>
-  `<h1 class="text-xl font-bold mb-3">Contacts</h1>` +
-  table(
-    ['Name', 'Title', 'Account', 'Email'],
-    S.contacts
-      .map(
-        (c) =>
-          `<tr><td><b>${E(c[0])}</b></td><td>${E(c[1])}</td><td>${E(c[2])}</td><td><a style="color:var(--pr)" href="mailto:${E(c[3])}">${E(c[3])}</a></td></tr>`
-      )
-      .join('')
-  );
-
-// Base quotation list, totals and the first quote editor.
-
-V.quotes = () =>
-  `<h1 class="text-xl font-bold mb-3">Quotes</h1>` +
-  table(
-    ['Quote', 'Opportunity', 'Total', 'Status', 'Expires'],
-    S.quotes
-      .map((q) => {
-        const o = S.opps.find((x) => x.id == q.opp) || { name: '(deleted)' };
-        return `<tr class="r" onclick="openQuote(${q.opp})"><td><b>${q.no}</b></td><td>${E(o.name)}</td><td>${M(qcalc(q).tot)}</td><td><span class="chip ${q.status == 'Approved' ? 'ok' : q.status == 'In Review' ? 'wr' : ''}">${q.status}</span></td><td>${fd(q.exp)}</td></tr>`;
-      })
-      .join('')
-  );
 function qcalc(q = S.qd) {
   const sub = q.items.reduce((a, i) => a + i.p * i.q, 0),
     dis = q.items.reduce((a, i) => a + (i.p * i.q * i.d) / 100, 0);
   return { sub, dis, tot: sub - dis, pct: sub ? (dis / sub) * 100 : 0 };
 }
-function openQuote(id) {
-  const o = S.opps.find((x) => x.id == id),
-    ex = S.quotes.find((q) => q.opp == id);
-  S.cur = id;
-  S.qd = ex
-    ? clone(ex)
-    : {
-        opp: id,
-        no: 'Q-' + (1001 + S.quotes.length),
-        exp: D(quoteDefaultsSetting().validityDays),
-        status: 'Draft',
-        terms: quoteDefaultsSetting().terms,
-        items: clone(o.items),
-      };
-  nav('quote');
-}
-function qsum() {
-  const c = qcalc(),
-    ok = c.pct <= 10;
-  return `<div class="flex justify-between py-1"><span class="mut">Subtotal (list)</span>${M(c.sub)}</div><div class="flex justify-between py-1"><span class="mut">Discounts</span>-${M(c.dis)}</div><div class="flex justify-between py-2 border-t text-lg font-bold" style="border-color:var(--bd)"><span>Grand total</span>${M(c.tot)}</div>
-<div class="p-3 rounded mt-2 ${ok ? 'ok' : 'wr'}"><b>${ok ? 'Fast-track approval' : 'Approval required'}</b><br>Blended discount ${c.pct.toFixed(1)}% against your 10% limit. ${ok ? 'You can send this quote right away.' : 'A manager must approve before it goes out.'}</div>`;
-}
-V.quote = () => {
-  const q = S.qd,
-    o = cur();
-  if (!q || !o) return V.opps();
-  return `<div class="mut cursor-pointer mb-1" onclick="nav('opp-detail')">‹ Back to ${E(o.name)}</div><h1 class="text-xl font-bold mb-3">Quote ${q.no}</h1>
- <div class="grid lg:grid-cols-3 gap-3"><div class="lg:col-span-2 space-y-3"><div class="card p-4 grid sm:grid-cols-3 gap-3"><label>Quote status<select class="inp" disabled><option>${q.status}</option></select></label><label>Expires<input type="date" class="inp" value="${q.exp}" onchange="S.qd.exp=this.value"></label><label>Payment terms<select class="inp" onchange="S.qd.terms=this.value">${['Net 30', 'Net 45', 'Net 60', 'Due on receipt'].map((t) => `<option ${t == q.terms ? 'selected' : ''}>${t}</option>`).join('')}</select></label></div>
- <div class="card"><div class="p-4 pb-2 flex flex-wrap gap-2 items-center"><b class="flex-1">Line items</b><select class="inp" style="width:auto" onchange="qadd(this.value);this.value=''"><option value="">Add product…</option>${CAT.map((c, i) => `<option value="${i}">${c[0]}</option>`).join('')}</select></div>
- ${table(['Product', 'List price', 'Qty', 'Discount %', 'Total', ''], q.items.map((i, k) => `<tr><td>${E(i.n)}<br><small class="mut">${i.c}</small></td><td>${M(i.p)}</td><td><input type="number" min="1" class="inp" style="width:70px" value="${i.q}" oninput="qset(${k},'q',this.value)"></td><td><input type="number" min="0" max="100" class="inp" style="width:70px" value="${i.d}" oninput="qset(${k},'d',this.value)"></td><td id="qr${k}"><b>${M(i.p * i.q * (1 - i.d / 100))}</b></td><td><span class="ms mut" style="cursor:pointer" title="Remove" onclick="S.qd.items.splice(${k},1);render()">delete</span></td></tr>`).join(''))}</div></div>
- <div class="card p-4 h-fit"><div id="qsum">${qsum()}</div><div class="flex flex-col gap-2 mt-4"><button class="btn btn-p justify-center" onclick="saveQ(1)">Save &amp; generate quote</button><button class="btn justify-center" onclick="saveQ(0)">Save as draft</button><button class="btn justify-center" onclick="nav('opp-detail')">Cancel</button></div></div></div>`;
-};
-function qset(k, f, v) {
-  const i = S.qd.items[k];
-  i[f] = Math.max(0, +v || 0);
-  $('#qr' + k).innerHTML = '<b>' + M(i.p * i.q * (1 - i.d / 100)) + '</b>';
-  $('#qsum').innerHTML = qsum();
-}
-function qadd(i) {
-  if (i === '') return;
-  const c = CAT[i],
-    x = S.qd.items.find((t) => t.c == c[1]);
-  x ? x.q++ : S.qd.items.push({ n: c[0], c: c[1], p: c[2], q: 1, d: 0 });
-  render();
-}
-function saveQ(gen) {
-  const q = S.qd,
-    o = cur(),
-    c = qcalc();
-  if (!q.items.length) return toast('Add at least one product first');
-  q.status = gen ? (c.pct > 10 ? 'In Review' : 'Approved') : 'Draft';
-  const n = S.quotes.findIndex((x) => x.opp == q.opp);
-  n < 0 ? S.quotes.push(clone(q)) : (S.quotes[n] = clone(q));
-  o.items = clone(q.items);
-  if (gen) o.amount = Math.round(c.tot);
-  save();
-  if (!gen) {
-    toast('Draft saved');
-    return nav('opp-detail');
-  }
-  $('#modal').innerHTML =
-    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><div class="card p-6 w-full max-w-2xl max-h-full overflow-auto"><div class="flex justify-between"><div><h2 class="text-xl font-bold">Quote ${q.no}</h2><div class="mut">Prepared for ${E(o.account)} · Valid until ${fd(q.exp)} · ${q.terms}</div></div><span class="chip ${c.pct > 10 ? 'wr' : 'ok'}">${q.status}</span></div>
- <div class="my-4">${table(['Item', 'Qty', 'Total'], q.items.map((i) => `<tr><td>${E(i.n)}</td><td>${i.q}</td><td>${M(i.p * i.q * (1 - i.d / 100))}</td></tr>`).join(''))}</div><div class="text-right text-lg font-bold">Total ${M(c.tot)}</div>
- <div class="flex gap-2 justify-end mt-4"><button class="btn" onclick="window.print()">Print or save PDF</button><button class="btn btn-p" onclick="$('#modal').innerHTML='';toast('Quote ${q.no} sent to ${E(o.account)}');nav('opp-detail')">Send to customer</button></div></div></div>`;
-}
+
+
+
+
+
+
 
 // Base modal forms and their submit handler.
 
@@ -1463,7 +1314,7 @@ function saveProduct(e, oldCode) {
   render();
 }
 
-// Portal-aware home, opportunity board and quotes views.
+// Portal-aware home dashboard.
 
 V.home = () => {
   const all = visibleOpps(),
@@ -1497,54 +1348,21 @@ V.home = () => {
     S.tasks
       .filter((t) => S.role !== 'rep' || all.some((o) => o.id == t.opp))
       .map(
-        (t, i) =>
+        (t) =>
           `<div class="py-2 border-b" style="border-color:var(--bd)">${E(t.t)} <small class="mut">· ${t.due}</small></div>`
       )
       .join('') || '<p class="mut mt-2">No open tasks.</p>'
   }</div></div>`;
 };
-const prototypeOpportunityBoard = V.opps;
-V.opps = () => {
-  S.mine = !seesAllOpps();
-  return prototypeOpportunityBoard();
-};
-V.quotes = () => {
-  const list = S.quotes.filter((q) => S.role !== 'rep' || visibleOpps().some((o) => o.id == q.opp));
-  return (
-    `<h1 class="text-xl font-bold mb-3">Quotations</h1><p class="mut mb-3">Rep discounts need approval · Admin authority ${adminDiscountLimit()}% · CEO unlimited. Below-minimum product prices always require CEO approval.</p>` +
-    table(
-      ['Quotation no.', 'Opportunity', 'Total', 'Discount', 'Status', 'Invoice no.'],
-      list
-        .map((q) => {
-          const o = S.opps.find((x) => x.id == q.opp) || {},
-            inv = q.invoiceId && S.invoices.find((x) => x.id === q.invoiceId);
-          return `<tr class="r" title="Open quotation ${q.no}" onclick="openQuoteRecord('${q.no}')"><td><b>${q.no}</b></td><td>${E(o.name || '')}</td><td>${M(quoteTotal(q))}</td><td>${quoteDiscount(q).toFixed(2)}%</td><td>${E(q.status)}</td><td>${inv ? `<a style="color:var(--pr)" onclick="event.stopPropagation();openInvoice('${inv.id}')">${inv.invoiceNo}</a>` : '—'}</td></tr>`;
-        })
-        .join('')
-    )
-  );
-};
 
-// 4-step quote builder: pricing, line items, terms and preview.
 
-// ---------------------------------------------------------------------------
-// Quote builder (4-step layout: details & pricing → line items → terms → preview)
-// ---------------------------------------------------------------------------
-const QUOTE_STEPS = [
-  'Quote Details & Pricing',
-  'Line Items & Discounts',
-  'Terms & Approvals',
-  'Preview & Send',
-];
+
+
+// Quote line items: payment terms, defaults, line rows, pricing, adding and changing products.
+
+
 const PAYMENT_TERMS = ['Net 30', 'Net 45', 'Net 60', 'Due on receipt'];
-// Highest blended discount each role can approve on their own (CEO is unlimited).
-const ROLE_DISCOUNT_LIMIT = {
-  rep: 0,
-  get admin() {
-    return adminDiscountLimit();
-  },
-  ceo: null,
-};
+
 
 // Defaults shown in the form until the user edits a field.
 function quoteDefaults(q, o) {
@@ -1598,68 +1416,14 @@ function quoteLinesCard(q, locked, withActions) {
   return `<section class="qt-section"><div class="qt-section-head"><span class="ms">inventory_2</span><b>Line Items &amp; Product Bundling</b><span class="chip ok">${q.items.length} ${q.items.length === 1 ? 'Item' : 'Items'}</span><span class="flex-1"></span>${tools}</div><div class="overflow-x-auto"><table class="qt-table"><thead><tr>${head}</tr></thead><tbody>${quoteLineRows(q, locked, withActions)}</tbody></table></div></section>`;
 }
 
-function quoteSummaryRow(q) {
-  return `<div class="qt-bottom"><div class="qt-totals"><div class="qt-total-row qt-grand"><b>Grand Total</b><b>${M(quoteTotal(q))}</b></div><small class="mut qt-r" style="display:block">All figures formatted in INR (₹)</small></div></div>`;
-}
 
-V.quote = () => {
-  const q = S.qd,
-    o = cur();
-  if (!q || !o) return V.opps();
-  const step = S.qstep || 1;
-  const inv = q.invoiceId && S.invoices.find((i) => i.id === q.invoiceId);
-  const locked = !['Draft', 'Rejected'].includes(q.status);
-  const floor = belowProductFloor(q);
-  const route = quoteRoute(q);
-  const d = quoteDefaults(q, o);
-  if (!locked) {
-    // keep the autofilled addresses on the quote so they are saved with it
-    if (q.address === undefined) q.address = d.address;
-    if (q.shipping === undefined) q.shipping = d.shipping;
-    if (q.toEmail === undefined) q.toEmail = d.toEmail;
-    if (q.toPhone === undefined) q.toPhone = d.toPhone;
-  }
-  const dis = locked ? 'disabled' : '';
 
-  const field = (label, control, required) =>
-    `<label class="qt-field"><span>${label}${required ? ' <i class="qt-req">*</i>' : ''}</span>${control}</label>`;
 
-  const infoCard = `<section class="qt-section"><div class="qt-section-head"><span class="ms">badge</span><b>Quote Information</b></div><div class="qt-grid">${field('Quote Name', `<input class="inp" value="${E(d.name)}" ${dis} onchange="S.qd.name=this.value">`, true)}${field('Expiration Date', `<input type="date" class="inp" value="${q.exp}" ${dis} onchange="S.qd.exp=this.value">`)}${field('Status', q.status === 'Draft' ? quoteOtherSelect('label', QUOTE_STATUS_CHOICES, q.label || 'Draft', false) : `<select class="inp" disabled><option>${E(q.status)}</option></select>`)}${contactsOfAccount(o.account).length ? field('Customer Contact', `<select class="inp" ${dis} onchange="pickQuoteContact(this.value)"><option value="">Choose a contact…</option>${contactOptions(o.account, String(d.preparedFor).replace(/\s*\(.*\)\s*$/, ''))}</select>`) : ''}${field('Prepared For', `<input class="inp" value="${E(d.preparedFor)}" ${dis} onchange="S.qd.preparedFor=this.value">`)}${field('Send To (Email)', `<input class="inp" type="email" value="${E(d.toEmail)}" placeholder="customer@company.com" ${dis} onchange="S.qd.toEmail=this.value">`)}${field('WhatsApp Number', `<input class="inp" type="tel" value="${E(d.toPhone)}" placeholder="+91 98765 43210" ${dis} onchange="S.qd.toPhone=this.value">`)}${field('Sales Rep / Owner', `<input class="inp" value="${E(ownerLabel(o.owner))}" disabled>`)}${field('Billing Address', `<input class="inp" value="${E(d.address)}" placeholder="Street, city, state, PIN" ${dis} onchange="S.qd.address=this.value">`)}${field('Shipping Address', `<input class="inp" value="${E(d.shipping)}" placeholder="Street, city, state, PIN" ${dis} onchange="S.qd.shipping=this.value">`)}</div></section>`;
-
-  const approvalCard = approvalSection(q, floor, locked);
-
-  const previewCard = `<section class="qt-section"><div class="qt-section-head"><span class="ms">visibility</span><b>Preview</b></div><div class="qt-body"><p><b>${E(d.name)}</b></p><p class="mut">Prepared for ${E(d.preparedFor || '—')} · Expires ${fd(q.exp)}</p>${d.address ? `<p class="mut">Billing: ${E(d.address)}</p>` : ''}${d.shipping ? `<p class="mut">Shipping: ${E(d.shipping)}</p>` : ''}<p style="margin-top:8px"><b>Terms &amp; conditions</b></p><p style="white-space:pre-wrap">${E(effectiveTnc(q))}</p></div></section>`;
-
-  const body =
-    step === 1
-      ? infoCard + quoteLinesCard(q, locked, true) + quoteSummaryRow(q, o, floor, route)
-      : step === 2
-        ? quoteLinesCard(q, locked, true) + quoteSummaryRow(q, o, floor, route)
-        : step === 3
-          ? approvalCard + quoteSummaryRow(q, o, floor, route)
-          : previewCard + quoteLinesCard(q, locked, false) + quoteSummaryRow(q, o, floor, route);
-
-  const stepper = QUOTE_STEPS.map(
-    (label, n) =>
-      `<button class="qt-step ${n + 1 === step ? 'on' : ''} ${n + 1 < step ? 'done' : ''}" onclick="S.qstep=${n + 1};render()">${n + 1}. ${label}</button>`
-  ).join('');
-
-  const footer = `<div class="qt-foot">${locked ? '<span></span>' : `<button class="btn" onclick="saveQuoteDraft()">Save as Draft</button>`}<span class="flex-1"></span><button class="btn" onclick="nav('opp-detail')">Cancel</button><button class="btn" ${step === 1 ? 'disabled' : ''} onclick="S.qstep=${step - 1};render()">Back</button>${step < 4 ? `<button class="btn" onclick="S.qstep=${step + 1};render()">Next</button>` : ''}${canReview(q) ? `<button class="btn" style="color:var(--err)" onclick="rejectQuote('${E(q.no)}')">Reject</button><button class="btn btn-p" onclick="approveQuote('${E(q.no)}')">Approve</button>` : ''}${inv && canSeeInvoices() ? `<button class="btn btn-p" onclick="openInvoice('${inv.id}')">Open ${E(inv.invoiceNo)}</button>` : ''}${locked ? '' : `<button class="btn btn-p" onclick="submitQuote()">Save &amp; Generate PDF Quote<span class="ms">chevron_right</span></button>`}</div>`;
-
-  return `<div class="qt-wrap card"><header class="qt-head"><span class="qt-head-icon"><span class="ms">description</span></span><div><h1>Generate Quote — ${E(o.name)}</h1><p>Primary Opportunity: <b>${E(o.name)}</b> &nbsp;|&nbsp; Account: <b>${acctSpan(o.account)}</b> &nbsp;|&nbsp; Stage: <b>${E(ST[o.stage] || '—')}</b></p></div></header><nav class="qt-steps">${stepper}</nav><div class="qt-content">${approvalBanner(q, inv)}${body}</div>${footer}</div>`;
-};
 function removeQuoteItem(k) {
   S.qd.items.splice(k, 1);
   render();
 }
-// Quantity tiers: 1 unit = 0%, 2–3 units = 5%, 4+ units = 10%.
-function applyTieredDiscount() {
-  S.qd.items.forEach((i) => {
-    i.d = i.q >= 4 ? 10 : i.q >= 2 ? 5 : 0;
-  });
-  toast('Tiered discount applied');
-  render();
-}
+
 function calculateQuotePricing() {
   toast('Pricing recalculated');
   render();
@@ -1740,31 +1504,6 @@ V.products = () =>
           .join('')
       );
 
-// Invoice list and invoice detail views.
-
-V.invoices = () => {
-  const list = S.invoices.filter(
-    (i) => S.role !== 'rep' || visibleOpps().some((o) => o.id == i.opp)
-  );
-  return (
-    `<h1 class="text-xl font-bold mb-3">Invoices</h1>` +
-    table(
-      ['Invoice no.', 'Quotation no.', 'Opportunity', 'Customer', 'Total', 'Status'],
-      list
-        .map(
-          (i) =>
-            `<tr class="r" onclick="openInvoice('${i.id}')"><td><b>${i.invoiceNo}</b></td><td>${i.quoteNo}</td><td>${E(i.opportunity)}</td><td>${E(i.account)}</td><td>${M(i.total)}</td><td>${E(i.status)}</td></tr>`
-        )
-        .join('')
-    )
-  );
-};
-V['invoice-detail'] = () => {
-  const i = S.invoices.find((x) => x.id === S.currentInvoice);
-  if (!i) return V.invoices();
-  return `<div class="mut cursor-pointer mb-2" onclick="nav('invoices')">‹ Back to invoices</div><div class="card p-5"><h1 class="text-xl font-bold">Invoice ${i.invoiceNo}</h1><p class="mut">Generated from quotation ${i.quoteNo}</p><div class="mt-4"><b>${E(i.account)}</b><div class="mut">${E(i.opportunity)}</div></div>${billLinesTable(i.items, !!i.showDiscount)}<div class="text-right text-lg font-bold mt-3">Grand total: ${M(i.total)}</div><div class="flex justify-end gap-2 mt-4"><button class="btn" onclick="window.print()">Print / Save PDF</button>${i.status !== 'Submitted to client' ? `<button class="btn btn-p" onclick="sendInvoice('${i.id}')">Submit to client</button>` : '<span class="chip ok">Submitted to client</span>'}</div></div>`;
-};
-
 // Portal picker added to the header.
 
 // Preserve the prototype's opportunity detail UI and add clickable quote/invoice history.
@@ -1784,46 +1523,11 @@ if (headerActions) {
   if (avatar) avatar.parentNode.insertBefore(rolePicker, avatar);
 }
 
-// Contacts with mobile number: list, form and edit.
+// Edit a contact's mobile number.
 
-// Extend contact creation and display with mobile number.
-V.contacts = () =>
-  `<div class="flex items-center mb-3"><h1 class="text-xl font-bold flex-1">Contacts</h1><button class="btn btn-p" onclick="openContactForm()">New contact</button></div>` +
-  table(
-    ['Name', 'Title', 'Account', 'Email', 'Mobile'],
-    S.contacts
-      .map(
-        (c) =>
-          `<tr><td><b>${E(c[0])}</b></td><td>${E(c[1])}</td><td>${E(c[2])}</td><td><a style="color:var(--pr)" href="mailto:${E(c[3])}">${E(c[3])}</a></td><td><a style="color:var(--pr)" href="tel:${E(c[4])}">${E(c[4] || '—')}</a></td></tr>`
-      )
-      .join('')
-  );
-function openContactForm() {
-  $('#modal').innerHTML =
-    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><form class="card p-5 w-full max-w-md space-y-3" onsubmit="saveContact(event)"><h2 class="text-lg font-bold">New contact</h2>${[
-      ['name', 'Full name'],
-      ['title', 'Job title'],
-      ['account', 'Account'],
-      ['email', 'Email'],
-      ['mobile', 'Mobile number'],
-    ]
-      .map(
-        ([n, l]) =>
-          `<label class="block">${l}<input class="inp" name="${n}" ${n === 'email' ? 'type="email"' : ''} ${n === 'mobile' ? 'type="tel"' : ''} required></label>`
-      )
-      .join(
-        ''
-      )}<div class="flex justify-end gap-2"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">Save</button></div></form></div>`;
-}
-function saveContact(e) {
-  e.preventDefault();
-  const v = Object.fromEntries(new FormData(e.target));
-  S.contacts.push([v.name, v.title, v.account, v.email, v.mobile]);
-  $('#modal').innerHTML = '';
-  save();
-  toast('Contact added');
-  render();
-}
+
+
+
 function editContactMobile(name) {
   const c = S.contacts.find((x) => x[0] === name);
   if (!c) return;
@@ -1862,11 +1566,7 @@ const LEAD_SOURCES = [
   'Outbound',
   'Referral',
 ];
-const prioChip = (o) => {
-  const p = o.priority || 'Medium';
-  const tone = p === 'Critical' || p === 'High' ? 'wr' : p === 'Low' ? 'ok' : '';
-  return `<span class="chip ${tone}" title="Priority">${p}</span>`;
-};
+
 const prioOptions = (selected) =>
   PRIORITIES.map(
     (p) => `<option ${p === (selected || 'Medium') ? 'selected' : ''}>${p}</option>`
@@ -2230,24 +1930,9 @@ function logoutUser() {
   render();
 }
 
-// User list and create-user form.
+// Create-user form.
 
-V.users = () => {
-  const u = S.users.filter((x) => x.active !== false);
-  return (
-    `<div class="flex items-center mb-3"><div class="flex-1"><h1 class="text-xl font-bold">User accounts</h1><p class="mut">Manage portal access and team accounts</p></div><button class="btn btn-p" onclick="openUserForm()">Create account</button></div>` +
-    table(
-      ['Name', 'Username', 'Role', 'Owner code', 'Status'],
-      u
-        .map(
-          (x) =>
-            `<tr><td><b>${E(x.name)}</b></td><td>${E(x.username)}</td><td>${roleTitle(x)}</td><td>${E(x.ownerCode || '—')}</td><td><span class="chip ok">Active</span></td></tr>`
-        )
-        .join('')
-    ) +
-    `<p class="mut mt-3">Admins can create Rep accounts. CEOs can create Admin and Rep accounts.</p>`
-  );
-};
+
 // teamId is optional: pass it to open the form already set to "Rep" on that team.
 function openUserForm(teamId = '') {
   const role = S.role,
@@ -2615,55 +2300,11 @@ function deleteLead(i) {
   render();
 }
 
-// Contact edit and delete.
+// Delete a contact.
 
-// Contacts: edit and delete
-V.contacts = () =>
-  `<div class="flex items-center mb-3"><h1 class="text-xl font-bold flex-1">Contacts</h1><button class="btn btn-p" onclick="openContactForm()">New contact</button></div>` +
-  table(
-    ['Name', 'Title', 'Account', 'Email', 'Mobile', ''],
-    S.contacts
-      .map(
-        (c, i) =>
-          `<tr><td><b>${E(c[0])}</b></td><td>${E(c[1])}</td><td>${E(c[2])}</td><td><a style="color:var(--pr)" href="mailto:${E(c[3])}">${E(c[3])}</a></td><td><a style="color:var(--pr)" href="tel:${E(c[4])}">${E(c[4] || '—')}</a></td><td class="text-right whitespace-nowrap"><button class="btn" onclick="openContactEditor(${i})">Edit</button> <button class="btn" style="color:var(--err)" onclick="deleteContact(${i})">Delete</button></td></tr>`
-      )
-      .join('')
-  );
-function openContactEditor(i) {
-  const c = S.contacts[i];
-  if (!c) return;
-  $('#modal').innerHTML =
-    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><form class="card p-5 w-full max-w-md space-y-3" onsubmit="saveContactEdit(event,${i})"><h2 class="text-lg font-bold">Edit contact</h2>${[
-      ['name', 'Full name', 0],
-      ['title', 'Job title', 1],
-      ['account', 'Account', 2],
-      ['email', 'Email', 3],
-      ['mobile', 'Mobile number', 4],
-    ]
-      .map(
-        ([n, l, k]) =>
-          `<label class="block">${l}<input class="inp" name="${n}" value="${E(c[k] || '')}" ${n === 'email' ? 'type="email"' : n === 'mobile' ? 'type="tel"' : ''} ${n === 'mobile' ? '' : 'required'}></label>`
-      )
-      .join(
-        ''
-      )}<div class="flex justify-end gap-2"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">Save changes</button></div></form></div>`;
-}
-function saveContactEdit(e, i) {
-  e.preventDefault();
-  const v = Object.fromEntries(new FormData(e.target));
-  if (!S.contacts[i]) return;
-  S.contacts[i] = [
-    v.name.trim(),
-    v.title.trim(),
-    v.account.trim(),
-    v.email.trim(),
-    v.mobile.trim(),
-  ];
-  $('#modal').innerHTML = '';
-  save();
-  toast('Contact updated');
-  render();
-}
+
+
+
 function deleteContact(i) {
   const c = S.contacts[i];
   if (!c || !confirm('Delete contact ' + c[0] + '?')) return;
@@ -2717,46 +2358,15 @@ function saveResetPassword(e, id) {
   toast('Password reset for ' + u.name);
 }
 
-// Invoice terms block and mark-as-paid.
+// Invoice terms block.
 
-// Invoices: record payment after the invoice has been submitted
-const baseInvoiceDetail = V['invoice-detail'];
+
 function invoiceTermsBlock(i) {
   const tnc = i.tnc || effectiveTnc(S.quotes.find((q) => q.no === i.quoteNo));
   return `<div class="mt-3"><b>Terms &amp; conditions</b><div style="white-space:pre-wrap">${tnc ? E(tnc) : '<span class="mut">None</span>'}</div></div>`;
 }
-V['invoice-detail'] = () => {
-  const i = S.invoices.find((x) => x.id === S.currentInvoice);
-  const html = i
-    ? baseInvoiceDetail().replace(
-        '<div class="text-right text-lg font-bold mt-3">Grand total:',
-        invoiceTermsBlock(i) + '<div class="text-right text-lg font-bold mt-3">Grand total:'
-      )
-    : baseInvoiceDetail();
-  if (!i) return html;
-  if (i.status === 'Paid')
-    return html.replace(
-      /<button class="btn btn-p" onclick="sendInvoice\('[^']*'\)">Submit to client<\/button>/,
-      '<span class="chip ok">Paid</span>'
-    );
-  return html.replace(
-    '<span class="chip ok">Submitted to client</span>',
-    `<span class="chip ok">Submitted to client</span><button class="btn btn-p" onclick="markInvoicePaid('${i.id}')">Mark as paid</button>`
-  );
-};
-function markInvoicePaid(id) {
-  const inv = S.invoices.find((x) => x.id === id);
-  if (!inv || inv.status !== 'Submitted to client')
-    return toast('Submit the invoice to the client first');
-  inv.status = 'Paid';
-  inv.paidAt = Date.now();
-  const q = S.quotes.find((x) => x.no === inv.quoteNo);
-  if (q) q.status = 'Paid';
-  logOpp(inv.opp, 'sync', `Invoice ${inv.invoiceNo} marked as paid`);
-  save();
-  toast('Invoice marked as paid');
-  render();
-}
+
+
 
 // App launcher and favourites.
 
@@ -2861,50 +2471,7 @@ function setTheme(t) {
   toggleSettings();
 }
 applyTheme();
-V.settings = () => {
-  const theme = getTheme(),
-    user = currentUser();
-  const active = activeReps();
-  const owned = active.map((u) => ({
-    user: u,
-    count: S.opps.filter((o) => o.owner === u.ownerCode).length,
-  }));
-  return `<div class="mb-4"><div class="mut">Workspace</div><h1 class="text-2xl font-bold">Settings</h1><p class="mut mt-1">Manage your workspace preferences, team assignments and data.</p></div>
-  <div class="grid lg:grid-cols-3 gap-3 items-start">
-   <section class="card p-4 lg:col-span-2"><div class="flex items-center gap-2 mb-1"><span class="ms" style="color:var(--pr)">palette</span><h2 class="font-bold text-lg">Appearance</h2></div><p class="mut mb-3">Choose how Ceph CRM looks on this device.</p><div class="grid sm:grid-cols-3 gap-2">${[
-     ['system', 'System', 'brightness_auto'],
-     ['light', 'Light', 'light_mode'],
-     ['dark', 'Dark', 'dark_mode'],
-   ]
-     .map(
-       ([k, l, ic]) =>
-         `<button class="card p-3 flex items-center gap-2 ${theme === k ? '' : 'mut'}" style="border-color:${theme === k ? 'var(--pr)' : 'var(--bd)'};background:${theme === k ? 'var(--hov)' : 'var(--card)'}" onclick="setTheme('${k}')"><span class="ms">${ic}</span><b>${l}</b><span class="flex-1"></span>${theme === k ? '<span class="ms" style="color:var(--pr)">check_circle</span>' : ''}</button>`
-     )
-     .join('')}</div></section>
-   <section class="card p-4"><div class="flex items-center gap-2 mb-1"><span class="ms" style="color:var(--pr)">account_circle</span><h2 class="font-bold text-lg">My account</h2></div><p class="font-semibold mt-3">${E(user.name || roleNow().name)}</p><p class="mut">${E(user.username || '')} · ${(user.role || S.role).toUpperCase()}</p><p class="mut text-xs mt-3">Signed-in profile and portal access.</p><button class="btn mt-3" onclick="toggleUserMenu()">Account options</button></section>
-   <section class="card p-4 lg:col-span-2"><div class="flex justify-between items-start gap-3"><div><div class="flex items-center gap-2"><span class="ms" style="color:var(--pr)">groups</span><h2 class="font-bold text-lg">Sales team & assignments</h2></div><p class="mut mt-1">See which representative is handling each opportunity. Assign a rep when creating or editing an opportunity.</p></div><button class="btn" onclick="nav('users')">Manage users</button></div>
-    <div class="grid sm:grid-cols-2 gap-2 mt-4">${
-      owned
-        .map(
-          ({ user: u, count }) =>
-            `<div class="rounded-lg border p-3 flex items-center gap-3" style="border-color:var(--bd)"><div class="w-9 h-9 rounded-full grid place-items-center font-bold" style="background:var(--hov);color:var(--pr)">${E(
-              (u.name || '?')
-                .split(/\s+/)
-                .map((x) => x[0])
-                .slice(0, 2)
-                .join('')
-                .toUpperCase()
-            )}</div><div class="flex-1 min-w-0"><b>${E(u.name)}</b><div class="mut text-xs">${E(u.username)} · ${E(u.ownerCode)}</div></div><div class="text-right"><b>${count}</b><div class="mut text-xs">opportunities</div></div></div>`
-        )
-        .join('') ||
-      '<p class="mut">No active reps found. Create a Rep account to assign opportunities.</p>'
-    }</div>
-    <div class="mt-4 rounded-lg p-3" style="background:var(--hov)"><b class="text-sm">How assignment works</b><p class="mut text-xs mt-1">The assigned rep appears in the opportunity list, board and record details. Reps see opportunities assigned to their own account; Admins and CEOs can view and reassign all opportunities.</p></div>
-   </section>
-   <section class="card p-4"><div class="flex items-center gap-2 mb-1"><span class="ms" style="color:var(--pr)">database</span><h2 class="font-bold text-lg">Data management</h2></div><p class="mut mt-1">Restore the original demo records stored in this browser.</p><button class="btn mt-3 w-full justify-center" style="color:var(--err)" onclick="if(confirm('Reset all demo data? This will replace locally saved records.')){localStorage.removeItem(KEY);location.reload()}">Reset demo data</button><p class="mut text-xs mt-2">This action cannot be undone.</p></section>
-   <section class="card p-4 lg:col-span-3"><div class="flex items-center gap-2"><span class="ms" style="color:var(--pr)">info</span><h2 class="font-bold">About this workspace</h2></div><div class="grid sm:grid-cols-3 gap-3 mt-3"><div><div class="mut text-xs">Opportunities</div><b>${S.opps.length}</b></div><div><div class="mut text-xs">Active representatives</div><b>${active.length}</b></div><div><div class="mut text-xs">Attachments tracked</div><b>${S.opps.reduce((n, o) => n + (o.attachments || []).length, 0)}</b></div></div></section>
-  </div>`;
-};
+
 function toggleSettings() {
   closePanels();
   nav('settings');
@@ -3010,48 +2577,7 @@ V.opps = () => {
           .join('')}</select>${repOpenBtn(o.owner)}`
       : `<span>${repLink(o.owner)}</span>`;
   const top = `<div class="flex flex-wrap items-center gap-2 mb-3"><div><div class="mut">Opportunities</div><h1 class="text-xl font-bold">${S.role === 'rep' ? 'My opportunities' : 'All opportunities'}</h1></div><span class="mut ml-2">${all.length} items · Total ${M(total)}</span><span class="flex-1"></span><input class="inp" style="width:200px" placeholder="Filter this list" value="${E(S.q || '')}" oninput="S.q=this.value;clearTimeout(window.ft);window.ft=setTimeout(()=>{render();const i=document.querySelector('[placeholder=\\'Filter this list\\']');if(i){i.focus();i.setSelectionRange(99,99)}},250)"><button class="btn" onclick="S.view='${S.view === 'kanban' ? 'list' : 'kanban'}';render()"><span class="ms">${S.view === 'kanban' ? 'table_rows' : 'view_kanban'}</span>${S.view === 'kanban' ? 'List' : 'Board'}</button>${canAddOpportunity() ? `<button class="btn btn-p" onclick="modal('opp')"><span class="ms">add</span>New</button>` : ''}</div>`;
-  if (S.view === 'list') {
-    // List view: one box per stage, stacked top to bottom. Drag a row into another box to change its stage.
-    const head = [
-      '',
-      'Opportunity',
-      'Account',
-      'Priority',
-      'Amount',
-      'Close date',
-      'Assigned rep',
-      'Quotation no.',
-      ...(canSeeInvoices() ? ['Invoice no.'] : []),
-    ];
-    const row = (o, movable) => {
-      const docs = opportunityDocuments(o);
-      const quoteNumbers = docs.map((d) => E(d.quoteNo)).join('<br>') || '—';
-      const invoiceNumbers = docs.map((d) => E(d.invoiceNo || '—')).join('<br>') || '—';
-      return `<tr class="r${movable ? ' stage-row' : ''}" ${movable ? `draggable="true" ondragstart="event.dataTransfer.setData('t',${o.id});event.dataTransfer.effectAllowed='move';this.classList.add('dragging')" ondragend="this.classList.remove('dragging')"` : ''} onclick="nav('opp-detail',${o.id})"><td class="stage-grip" title="${movable ? 'Drag to another stage' : ''}">${movable ? '<span class="ms">drag_indicator</span>' : ''}</td><td><b>${E(o.name)}</b></td><td>${acctSpan(o.account)}</td><td onclick="event.stopPropagation()"><select class="inp text-xs" style="width:auto;padding:4px 24px 4px 8px" aria-label="Priority" onchange="setPriority(${o.id},this.value)">${prioOptions(o.priority)}</select></td><td>${M(o.amount)}</td><td>${fd(o.close)}</td><td onclick="event.stopPropagation()">${repCell(o)}</td><td>${quoteNumbers}</td>${canSeeInvoices() ? `<td>${invoiceNumbers}</td>` : ''}</tr>`;
-    };
-    const box = (label, deals, index) => {
-      const droppable = index != null;
-      const sum = deals.reduce((s, o) => s + (+o.amount || 0), 0);
-      return `<section class="stage-box card mb-3" ${droppable ? `ondragover="event.preventDefault();this.classList.add('over')" ondragleave="if(!this.contains(event.relatedTarget))this.classList.remove('over')" ondrop="this.classList.remove('over');drop(event,${index})"` : ''}><div class="stage-box-head"><b>${label}</b><span class="mut">${deals.length} ${deals.length === 1 ? 'deal' : 'deals'} · ${M(sum)}</span></div>${
-        deals.length
-          ? `<div class="overflow-x-auto"><table class="stage-table"><colgroup><col style="width:36px"><col style="width:24%"><col style="width:15%"><col style="width:11%"><col style="width:10%"><col style="width:10%"><col style="width:13%"><col style="width:9%">${canSeeInvoices() ? '<col style="width:8%">' : ''}</colgroup><thead><tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${deals.map((o) => row(o, droppable)).join('')}</tbody></table></div>`
-          : `<div class="stage-box-empty mut">${droppable ? 'Drop a deal here to move it to ' + label : 'No deals'}</div>`
-      }</section>`;
-    };
-    const lost = all.filter((o) => o.lost);
-    return (
-      top +
-      `<p class="mut mb-2 flex items-center gap-1"><span class="ms">info</span>Drag a deal into another stage box to update its stage.</p>` +
-      ST.map((stage, index) =>
-        box(
-          stage,
-          all.filter((o) => o.stage === index && !o.lost),
-          index
-        )
-      ).join('') +
-      (lost.length ? box('Closed Lost', lost, null) : '')
-    );
-  }
+  if (S.view === 'list') return top + oppStageLanes(all, { docMeta, repCell });
   return (
     top +
     `<p class="mut mb-2 flex items-center gap-1"><span class="ms">info</span>Drag a deal to another stage to update it. Assigned rep, quotation and invoice references are visible on every opportunity.</p><div class="flex gap-3 overflow-x-auto pb-3">${ST.map(
@@ -3077,9 +2603,90 @@ V.opps = () => {
   );
 };
 
-// Role-filtered quotations and invoices lists.
+// Opportunities list view as stage boxes: one full-width box per stage, stacked top to bottom, with each
+// opportunity as its own card inside. Drag a card into another box to move the deal to that stage.
+// Dropping uses drop() / setStage(), so the same rules apply as on the Board (only Admin / CEO can mark
+// Closed Won, and that opens the Closed Won pop-up).
 
-const previousQuotesView = V.quotes;
+function oppLaneCols() {
+  return canSeeInvoices()
+    ? 'minmax(220px,2.2fr) minmax(160px,1.6fr) 120px minmax(110px,1fr) minmax(110px,1fr) minmax(150px,1.3fr) minmax(90px,.9fr) minmax(90px,.9fr)'
+    : 'minmax(220px,2.2fr) minmax(160px,1.6fr) 120px minmax(110px,1fr) minmax(110px,1fr) minmax(150px,1.3fr) minmax(90px,.9fr)';
+}
+
+function oppStageLanes(all, { repCell }) {
+  const cols = oppLaneCols(),
+    inv = canSeeInvoices();
+  const head = [
+    'Opportunity',
+    'Account',
+    'Priority',
+    'Amount',
+    'Close date',
+    'Assigned rep',
+    'Quotation no.',
+  ]
+    .concat(inv ? ['Invoice no.'] : [])
+    .map((h) => `<div>${h}</div>`)
+    .join('');
+
+  const card = (o) => {
+    const docs = opportunityDocuments(o);
+    const quoteNos = docs.map((d) => E(d.quoteNo)).join('<br>') || '—';
+    const invoiceNos = docs.map((d) => E(d.invoiceNo || '—')).join('<br>') || '—';
+    return `<div class="lane-card card" draggable="${o.lost ? 'false' : 'true'}" style="grid-template-columns:${cols}" ondragstart="laneDragStart(event,${o.id})" ondragend="laneDragEnd()" onclick="nav('opp-detail',${o.id})">
+<div class="flex items-center gap-2 min-w-0"><span class="ms lane-grip" aria-hidden="true">drag_indicator</span><b class="truncate" title="${E(o.name)}">${E(o.name)}</b></div>
+<div class="min-w-0 truncate">${acctSpan(o.account)}</div>
+<div onclick="event.stopPropagation()"><select class="inp text-xs" style="width:auto;padding:4px 24px 4px 8px" aria-label="Priority" onchange="setPriority(${o.id},this.value)">${prioOptions(o.priority)}</select></div>
+<div>${M(o.amount)}</div>
+<div><span class="chip ${chipC(o)}">${fd(o.close)}</span></div>
+<div onclick="event.stopPropagation()">${repCell(o)}</div>
+<div>${quoteNos}</div>${inv ? `<div>${invoiceNos}</div>` : ''}</div>`;
+  };
+
+  const lane = (title, deals, index) => {
+    const total = deals.reduce((sum, o) => sum + (+o.amount || 0), 0);
+    const dropAttrs =
+      index == null
+        ? ''
+        : `ondragover="event.preventDefault();this.classList.add('over')" ondragleave="if(!this.contains(event.relatedTarget))this.classList.remove('over')" ondrop="this.classList.remove('over');drop(event,${index})"`;
+    return `<section class="lane card" ${dropAttrs}>
+<div class="lane-head"><b>${title}</b><span class="mut">${deals.length} ${deals.length === 1 ? 'deal' : 'deals'} · ${M(total)}${index == null ? '' : ` · ${PR[index]}%`}</span></div>
+<div class="lane-body">${deals.map(card).join('') || `<div class="lane-empty mut">${index == null ? 'No deals' : 'Drag an opportunity here to move it to ' + title}</div>`}</div></section>`;
+  };
+
+  const lost = all.filter((o) => o.lost);
+  return (
+    `<p class="mut mb-2 flex items-center gap-1"><span class="ms">info</span>Drag an opportunity into another box to change its stage. Click it to open the record.</p>` +
+    `<div class="lanes-scroll"><div class="lanes"><div class="lane-cols mut" style="grid-template-columns:${cols}">${head}</div>` +
+    ST.map((stage, index) =>
+      lane(
+        stage,
+        all.filter((o) => o.stage === index && !o.lost),
+        index
+      )
+    ).join('') +
+    (lost.length ? lane('Closed Lost', lost, null) : '') +
+    `</div></div>`
+  );
+}
+
+function laneDragStart(e, id) {
+  e.dataTransfer.setData('t', id);
+  e.dataTransfer.effectAllowed = 'move';
+  const el = e.currentTarget;
+  setTimeout(() => el.classList.add('dragging'), 0);
+  document.body.classList.add('lane-dragging');
+}
+function laneDragEnd() {
+  document.body.classList.remove('lane-dragging');
+  document.querySelectorAll('.lane-card.dragging').forEach((c) => c.classList.remove('dragging'));
+  document.querySelectorAll('.lane.over').forEach((l) => l.classList.remove('over'));
+}
+
+// Role-filtered quotations list.
+
+
 V.quotes = () => {
   const list = S.quotes.filter((q) => S.role !== 'rep' || visibleOpps().some((o) => o.id == q.opp));
   return (
@@ -3104,31 +2711,7 @@ V.quotes = () => {
     )
   );
 };
-V.invoices = () => {
-  const list = S.invoices.filter(
-    (i) => S.role !== 'rep' || visibleOpps().some((o) => o.id == i.opp)
-  );
-  return (
-    `<h1 class="text-xl font-bold mb-3">Invoices</h1>` +
-    table(
-      [
-        'Invoice no.',
-        'Quotation no.',
-        'Opportunity',
-        'Assigned rep',
-        'Customer',
-        'Total',
-        'Status',
-      ],
-      list
-        .map((i) => {
-          const o = S.opps.find((x) => x.id == i.opp) || {};
-          return `<tr class="r" onclick="openInvoice('${E(i.id)}')"><td><b>${E(i.invoiceNo)}</b></td><td>${E(i.quoteNo)}</td><td>${E(i.opportunity)}</td><td>${repLink(o.owner)}</td><td>${E(i.account)}</td><td>${M(i.total)}</td><td>${E(i.status)}</td></tr>`;
-        })
-        .join('')
-    )
-  );
-};
+
 
 // Contacts page with designation, email and primary-contact flag.
 
@@ -3234,25 +2817,8 @@ const pickOther = (values, name) =>
 
 // Quote page: same idea, but the value lives in S.qd.
 const QUOTE_STATUS_CHOICES = ['Draft', 'Presented to Customer', 'Under Negotiation', 'On Hold'];
-function quoteOtherSelect(field, options, current, disabled) {
-  const custom = !!current && !options.includes(current) && current !== 'Others';
-  const isOther = custom || current === 'Others';
-  const opts = options
-    .map((o) => `<option ${!isOther && o === current ? 'selected' : ''}>${E(o)}</option>`)
-    .join('');
-  return `<select class="inp" ${disabled ? 'disabled' : ''} onchange="quoteSelectOther(this,'${field}')">${opts}<option value="Others" ${isOther ? 'selected' : ''}>Others</option></select><input class="inp" style="margin-top:6px;display:${isOther ? '' : 'none'}" placeholder="Please specify" value="${custom ? E(current) : ''}" ${disabled ? 'disabled' : ''} oninput="S.qd.${field}=this.value.trim()||'Others'">`;
-}
-function quoteSelectOther(select, field) {
-  const box = select.parentNode.querySelector('input');
-  if (select.value === 'Others') {
-    box.style.display = '';
-    box.focus();
-    S.qd[field] = box.value.trim() || 'Others';
-  } else {
-    box.style.display = 'none';
-    S.qd[field] = select.value;
-  }
-}
+
+
 
 const whenText = (t) =>
   t ? new Date(t).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '';
@@ -3291,22 +2857,6 @@ function approvalBanner(q, inv) {
       q.notes ? `Notes: ${E(q.notes)}` : '',
     ]);
   return '';
-}
-
-// Step 3: notes for the approver, terms & conditions, and the approval trail.
-function approvalSection(q, floor, locked) {
-  const canEditTnc = !locked && ['admin', 'ceo'].includes(S.role);
-  const history = (q.history || [])
-    .slice()
-    .reverse()
-    .map(
-      (h) =>
-        `<div class="qt-hist"><b>${E(h.action)}</b> · ${E(h.by)} · <span class="mut">${whenText(h.t)}</span><div>${E(h.note || '')}</div></div>`
-    )
-    .join('');
-  return `<section class="qt-section"><div class="qt-section-head"><span class="ms">approval</span><b>Approval Authority</b></div><div class="qt-body"><p>Reps cannot give discounts · Admin up to <b>${adminDiscountLimit()}%</b> (set by the CEO) · CEO any discount. Any line priced below the product minimum always needs CEO approval.</p><p class="mut" style="margin-top:6px">${floor.length ? `Lines below minimum: ${floor.map((i) => E(i.c)).join(', ')}` : 'No lines are below their product minimum.'}</p></div></section>
-<section class="qt-section"><div class="qt-section-head"><span class="ms">edit_note</span><b>Notes for approval <i class="qt-req">*</i></b></div><div class="qt-body"><textarea class="inp" rows="3" ${locked ? 'disabled' : ''} placeholder="Explain the discount or pricing so the approver can decide. Required before submitting." oninput="S.qd.notes=this.value">${E(q.notes || '')}</textarea></div></section>
-${tncSection(q, locked)}${history ? `<section class="qt-section"><div class="qt-section-head"><span class="ms">history</span><b>Approval history</b></div><div class="qt-body">${history}</div></section>` : ''}`;
 }
 
 // Approve / reject now ask for notes (required) and, on approval, terms & conditions.
@@ -3957,13 +3507,8 @@ function canGiveDiscount() {
   return ['admin', 'ceo'].includes(S.role);
 }
 
-// Server-side style guards for the quote builder (the inputs are also disabled in the UI).
-// Reps may type a discount; the quote then goes to Admin or CEO for approval (see quoteRoute).
-const tieredBeforePolicy = applyTieredDiscount;
-applyTieredDiscount = function () {
-  if (!canGiveDiscount()) return toast('Only Admin and CEO can give discounts');
-  return tieredBeforePolicy.apply(this, arguments);
-};
+
+
 
 // CEO sets the Admin limit. Pending Admin approvals above a lowered limit move to the CEO.
 function saveAdminDiscountLimit(e) {
@@ -3973,7 +3518,6 @@ function saveAdminDiscountLimit(e) {
     n = Math.round(Number(raw) * 10) / 10;
   if (raw === '' || !Number.isFinite(n) || n < 0 || n > 100)
     return toast('Enter a limit between 0 and 100');
-  const before = adminDiscountLimit();
   S.settings.adminDiscountLimit = n;
   S.settings.adminDiscountLimitBy = roleNow().name;
   S.settings.adminDiscountLimitAt = Date.now();
@@ -4184,7 +3728,7 @@ submitQuote = function () {
 };
 
 const finishApprovalBeforePopups = finishApproval;
-finishApproval = function (e, no, mode) {
+finishApproval = function (e, no) {
   const before = (quoteOf(no) || {}).status;
   withoutToasts(/^(Quotation rejected|Approval granted)/, () =>
     finishApprovalBeforePopups.apply(this, arguments)
@@ -4621,13 +4165,6 @@ function quoteToolbar(q) {
     syncOk = !String(q.status).startsWith('Pending') && q.status !== 'Rejected';
   return `<div class="qt-toolbar"><button class="btn" ${syncOk ? '' : 'disabled'} title="${syncOk ? "Copy this quote's products and total to the opportunity" : 'Not available while the quote is pending or rejected'}" onclick="syncQuote()"><span class="ms">sync</span>Sync Quote</button><button class="btn" ${ok ? '' : 'disabled'} title="${why}" onclick="openSignForm()"><span class="ms">draw</span>Sign</button><button class="btn" ${ok ? '' : 'disabled'} title="${why}" onclick="openPoForm()"><span class="ms">receipt_long</span>PO</button><button class="btn" onclick="printQuote()"><span class="ms">print</span>Print / PDF</button>${q.syncedAt ? `<span class="chip ok">Synced ${ago(q.syncedAt)}</span>` : ''}${quoteSigner(q) ? `<span class="chip ok">${quoteSigner(q).via === 'customer' ? 'E-signed by' : 'Signed by'} ${E(quoteSigner(q).name)}</span>` : ''}${q.po ? `<span class="chip ok">PO ${E(q.po.no)}</span>` : ''}<span class="flex-1"></span><label class="qt-check" title="${canGiveDiscount() ? '' : 'Only Admin and CEO can change this'}"><input type="checkbox" ${q.showDiscount ? 'checked' : ''} ${canGiveDiscount() ? '' : 'disabled'} onchange="setShowDiscount(this.checked)"> Show discount on bill</label></div>`;
 }
-const quoteViewBeforeFlow = V.quote;
-V.quote = function () {
-  const html = quoteViewBeforeFlow.apply(this, arguments);
-  return S.qd
-    ? html.replace('<nav class="qt-steps">', quoteToolbar(S.qd) + '<nav class="qt-steps">')
-    : html;
-};
 
 function syncQuote() {
   const q = S.qd,
@@ -4789,88 +4326,6 @@ nav = function () {
   return navBeforeDefaultQuote.apply(this, arguments);
 };
 ensureDefaultQuotes();
-function openNewQuoteForm(o) {
-  const dq = S.quotes.find((x) => x.opp == o.id && x.isDefault && x.status === 'Draft'),
-    no = dq ? dq.no : 'Q-' + (1001 + S.quotes.length),
-    d = quoteDefaults({ no }, o),
-    field = (label, control, req) =>
-      `<label class="qt-field"><span>${label}${req ? ' <i class="qt-req">*</i>' : ''}</span>${control}</label>`,
-    lines = o.items.map((i) => `${E(i.n)} × ${i.q}`).join(', ');
-  $('#modal').innerHTML =
-    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><form class="card qt-section w-full max-w-3xl max-h-full overflow-auto" role="dialog" aria-modal="true" aria-label="New quote" onsubmit="createQuoteFromForm(event,${o.id})">` +
-    `<div class="qt-section-head"><span class="ms">badge</span><b>Quote Information</b></div><div class="qt-grid">` +
-    field('Quote Name', `<input class="inp" name="name" required value="${E(d.name)}">`, true) +
-    field(
-      'Expiration Date',
-      `<input type="date" class="inp" name="exp" required value="${D(quoteDefaultsSetting().validityDays)}">`
-    ) +
-    field(
-      'Status',
-      `<select class="inp" name="label">${QUOTE_STATUS_CHOICES.map((s) => `<option>${E(s)}</option>`).join('')}</select>`
-    ) +
-    (contactsOfAccount(o.account).length
-      ? field(
-          'Customer Contact',
-          `<select class="inp" onchange="fillQuoteFormContact(this)"><option value="">Choose a contact…</option>${contactOptions(o.account, String(d.preparedFor).replace(/\s*\(.*\)\s*$/, ''))}</select>`
-        )
-      : '') +
-    field('Prepared For', `<input class="inp" name="preparedFor" value="${E(d.preparedFor)}">`) +
-    field(
-      'Send To (Email)',
-      `<input class="inp" type="email" name="toEmail" value="${E(d.toEmail)}" placeholder="customer@company.com">`
-    ) +
-    field(
-      'WhatsApp Number',
-      `<input class="inp" type="tel" name="toPhone" value="${E(d.toPhone)}" placeholder="+91 98765 43210">`
-    ) +
-    field('Sales Rep / Owner', `<input class="inp" value="${E(ownerLabel(o.owner))}" disabled>`) +
-    field(
-      'Billing Address',
-      `<input class="inp" name="address" value="${E(d.address)}" placeholder="Street, city, state, PIN">`
-    ) +
-    field(
-      'Shipping Address',
-      `<input class="inp" name="shipping" value="${E(d.shipping)}" placeholder="Street, city, state, PIN">`
-    ) +
-    `</div><div class="qt-body"><div class="mut text-xs">Products from this opportunity (${o.items.length}) — added to the quote automatically</div><div>${lines || '—'}</div><div class="font-semibold mt-1">Total ${M(o.items.reduce((a, i) => a + i.p * i.q * (1 - i.d / 100), 0))}</div></div>` +
-    `<div class="flex justify-end gap-2 p-3"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">Create quote</button></div></form></div>`;
-  $('#modal input').focus();
-}
-function createQuoteFromForm(e, id) {
-  e.preventDefault();
-  const o = S.opps.find((x) => x.id == id),
-    v = Object.fromEntries(new FormData(e.target));
-  if (!o || !(v.name || '').trim() || !v.exp)
-    return toast('Quote name and expiry date are required');
-  // finishing the pop-up turns the opportunity's default quote into a real one (same number)
-  const dq = S.quotes.find((x) => x.opp == o.id && x.isDefault && x.status === 'Draft'),
-    no = dq ? dq.no : 'Q-' + (1001 + S.quotes.length);
-  S.qd = {
-    opp: o.id,
-    no,
-    name: v.name.trim(),
-    primary: true,
-    exp: v.exp,
-    status: 'Draft',
-    label: v.label,
-    preparedFor: (v.preparedFor || '').trim(),
-    toEmail: (v.toEmail || '').trim(),
-    toPhone: (v.toPhone || '').trim(),
-    address: (v.address || '').trim(),
-    shipping: (v.shipping || '').trim(),
-    showDiscount: false,
-    items: clone(o.items),
-    createdAt: Date.now(),
-    createdBy: roleNow().name,
-  };
-  storeQuote(S.qd);
-  if (S.qd.primary) S.quotes.forEach((x) => x.opp == o.id && x.no !== no && (x.primary = false));
-  S.cur = o.id;
-  S.qstep = 1;
-  $('#modal').innerHTML = '';
-  save();
-  nav('quote');
-}
 
 // ---------------------------------------------------------------------------
 // Closed Won: Admin / CEO only, with notes, once payment is received
@@ -4937,15 +4392,6 @@ function toggleClosedStage() {
 
 // ---------- customer contact on the quote ----------
 const contactsOfAccount = (acct) => S.contacts.filter((c) => c[2] === acct);
-function pickQuoteContact(name) {
-  const o = cur(),
-    c = o && S.contacts.find((x) => x[0] === name);
-  if (!c || !S.qd) return;
-  S.qd.preparedFor = `${c[0]}${c[1] ? ' (' + c[1] + ')' : ''}`;
-  S.qd.toEmail = c[3] || '';
-  S.qd.toPhone = c[4] || '';
-  render();
-}
 function fillQuoteFormContact(sel) {
   const c = S.contacts.find((x) => x[0] === sel.value),
     f = sel.form;
@@ -5182,8 +4628,7 @@ function renderCustomerQuote() {
   if (h) h.style.display = 'none';
   const app = $('#app');
   app.className = 'min-h-screen p-3 md:p-6 max-w-3xl mx-auto';
-  const q = quoteByToken(location.hash.slice(4)),
-    co = S.settings.company || {};
+  const q = quoteByToken(location.hash.slice(4));
   if (!q) {
     app.innerHTML = `<div class="card p-6 text-center"><h1 class="text-xl font-bold">Link not valid</h1><p class="mut mt-2">This quotation link is not valid. Please ask the sender for a new one.</p></div>`;
     return;
@@ -5363,8 +4808,8 @@ function maxDiscountFor(code, listPrice) {
   return Math.max(0, Math.floor((1 - p.minPrice / listPrice) * 1000) / 10);
 }
 
-// Replaces the fixed 5% / 10% tiers.
-applyTieredDiscount = function () {
+// Volume-tier discounts from the price book (Admin / CEO only).
+function applyTieredDiscount() {
   if (!canGiveDiscount()) return toast('Only Admin and CEO can give discounts');
   let capped = 0;
   S.qd.items.forEach((i) => {
@@ -5376,7 +4821,7 @@ applyTieredDiscount = function () {
   });
   toast('Volume tiers applied' + (capped ? ` · ${capped} line(s) held at the minimum price` : ''));
   render();
-};
+}
 
 function addQuoteBundle(id) {
   const b = priceBook().bundles.find((x) => x.id === id);
@@ -5393,7 +4838,7 @@ function addQuoteBundle(id) {
   render();
 }
 const quoteLinesCardBeforePB = quoteLinesCard;
-quoteLinesCard = function (q) {
+quoteLinesCard = function () {
   let html = quoteLinesCardBeforePB.apply(this, arguments);
   const bundles = priceBook().bundles.filter((b) => b.active !== false);
   if (bundles.length && html.includes('onclick="calculateQuotePricing()"'))
@@ -5992,8 +5437,7 @@ const PAY_METHODS = ['Bank transfer (NEFT/RTGS/IMPS)', 'UPI', 'Cheque', 'Cash', 
 const invPayable = (i) => invoiceCalc(i).payable;
 function invPaid(i) {
   if (!(i.payments || []).length) return i.status === 'Paid' ? invPayable(i) : 0;
-  // payments marked as not yet confirmed do not count as received
-  return r2(i.payments.filter((p) => !p.pending).reduce((s, p) => s + p.amount, 0));
+  return r2(i.payments.reduce((s, p) => s + p.amount, 0));
 }
 const invBalance = (i) => Math.max(0, r2(invPayable(i) - invPaid(i)));
 function invDueDate(i) {
@@ -6089,7 +5533,7 @@ function deletePayment(id, pid) {
   const o = S.opps.find((x) => x.id == i.opp);
   if (o && o.stage === 5 && !o.lost) return toast('The deal is already Closed Won');
   i.payments = (i.payments || []).filter((p) => p.id !== pid);
-  i.status = !i.payments.some((p) => !p.pending)
+  i.status = !i.payments.length
     ? 'Submitted to client'
     : invBalance(i) <= 0.5
       ? 'Paid'
@@ -6103,12 +5547,6 @@ function deletePayment(id, pid) {
   save();
   render();
 }
-// the old "Mark as paid" now records the full balance
-markInvoicePaid = function (id) {
-  const i = S.invoices.find((x) => x.id === id);
-  if (!i) return;
-  openPaymentForm(id);
-};
 const sendInvoiceBeforeBilling = sendInvoice;
 sendInvoice = function (id) {
   const i = S.invoices.find((x) => x.id === id);
@@ -6233,9 +5671,6 @@ function sendReminder(e, id) {
   render();
 }
 const lastReminder = (i) => (i.reminders || []).slice(-1)[0];
-const reminderDue = (i) =>
-  invOverdueDays(i) > 0 &&
-  (!lastReminder(i) || Date.now() - lastReminder(i).at > companyInfo().reminderEveryDays * 864e5);
 
 // notifications: overdue and due-soon invoices
 const allNotificationItemsBeforeBilling = allNotificationItems;
@@ -6603,7 +6038,7 @@ const NUM_KEYS = new Set([
   'renewalUsd',
   'ltcLength',
 ]);
-const YESNO = ['', 'Yes', 'No'];
+
 
 const SF_SECTIONS = [
   {
@@ -7578,8 +7013,7 @@ function qrClient(q, o, d) {
 
 // ---------- right column ----------
 function qrApprovals(q, floor, locked) {
-  const hist = (q.history || []).filter((h) => ['Submitted', 'Approved', 'Rejected', 'Escalated'].includes(h.action)),
-    pending = String(q.status).startsWith('Pending'),
+  const pending = String(q.status).startsWith('Pending'),
     done = ['Approved', 'Sent to client', 'Paid'].includes(q.status),
     rows = [];
   if (done)
@@ -7794,7 +7228,7 @@ function openNewQuoteForm(o) {
 }
 
 // Save opens the quote page; Save & New keeps the quote and opens a blank pop-up for the next one.
-createQuoteFromForm = function (e, id, again) {
+function createQuoteFromForm(e, id, again) {
   if (e && e.preventDefault) e.preventDefault();
   const o = S.opps.find((x) => x.id == id),
     form = (e && e.target && (e.target.form || e.target)) || document.querySelector('#modal form'),
@@ -7834,7 +7268,7 @@ createQuoteFromForm = function (e, id, again) {
   }
   $('#modal').innerHTML = '';
   nav('quote');
-};
+}
 
 // Keeps the client's e-signature in step everywhere in the CRM.
 // The quote page edits a working copy (S.qd). When the client signs from their link (often in another tab or
@@ -7947,7 +7381,6 @@ SETTINGS_PANELS.payments = function () {
   const p = paySettings(),
     ok = canManageBilling(),
     dis = ok ? '' : 'disabled',
-    co = companyInfo(),
     method = (k) => {
       const [ic, label, sub] = PAY_METHOD_INFO[k];
       return `<label class="pay-set-m"><input type="checkbox" name="m_${k}" ${p.methods[k] ? 'checked' : ''} ${dis}><span class="ms">${ic}</span><span><b>${label}</b><span class="mut text-xs block">${sub}</span></span></label>`;
@@ -8035,7 +7468,7 @@ function ensureInvoiceSubmitted(i) {
 function settleInvoiceStatus(i) {
   const left = invBalance(i);
   const was = i.status;
-  const received = (i.payments || []).some((p) => !p.pending);
+  const received = (i.payments || []).length > 0;
   i.status = received && left <= 0.5 ? 'Paid' : received ? 'Partially paid' : 'Submitted to client';
   const q = quoteOfInvoice(i);
   if (i.status === 'Paid') {
@@ -8090,7 +7523,7 @@ function recordClientPayment(i, pay) {
 }
 
 // ---------- client payment page ----------
-let PAY = { method: null, step: 'choose', receipt: null, busy: false };
+let PAY = { method: null, receipt: null, busy: false };
 function renderPaymentPage() {
   document.body.classList.add('cq-mode');
   const h = document.querySelector('header');
@@ -8303,7 +7736,7 @@ function printPayReceipt(invId, pid) {
 // ---------- routing for the client page ----------
 function applyPaymentRoute() {
   if (paymentRoute()) {
-    PAY = { method: PAY.method, step: 'choose', receipt: null, busy: false };
+    PAY = { method: PAY.method, receipt: null, busy: false };
     renderPaymentPage();
   }
 }
@@ -8354,7 +7787,7 @@ V['invoice-detail'] = function () {
   // badge the online rows in the payments table
   (i.payments || []).forEach((p) => {
     if (!p.online) return;
-    const tag = p.pending ? ' <span class="chip wr">Not confirmed</span>' : p.gateway === 'test' ? ' <span class="chip">Online · test</span>' : ' <span class="chip ok">Online</span>';
+    const tag = p.gateway === 'test' ? ' <span class="chip">Online · test</span>' : ' <span class="chip ok">Online</span>';
     html = html.replace(`<td>${E(p.method)}</td><td>${E(p.ref || '–')}</td>`, `<td>${E(p.method)}${tag}</td><td>${E(p.ref || '–')}</td>`);
   });
   if (admin && canPayOnline(i))
