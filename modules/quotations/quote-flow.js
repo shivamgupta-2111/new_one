@@ -260,6 +260,13 @@ function quoteToolbar(q) {
     syncOk = !String(q.status).startsWith('Pending') && q.status !== 'Rejected';
   return `<div class="qt-toolbar"><button class="btn" ${syncOk ? '' : 'disabled'} title="${syncOk ? "Copy this quote's products and total to the opportunity" : 'Not available while the quote is pending or rejected'}" onclick="syncQuote()"><span class="ms">sync</span>Sync Quote</button><button class="btn" ${ok ? '' : 'disabled'} title="${why}" onclick="openSignForm()"><span class="ms">draw</span>Sign</button><button class="btn" ${ok ? '' : 'disabled'} title="${why}" onclick="openPoForm()"><span class="ms">receipt_long</span>PO</button><button class="btn" onclick="printQuote()"><span class="ms">print</span>Print / PDF</button>${q.syncedAt ? `<span class="chip ok">Synced ${ago(q.syncedAt)}</span>` : ''}${quoteSigner(q) ? `<span class="chip ok">${quoteSigner(q).via === 'customer' ? 'E-signed by' : 'Signed by'} ${E(quoteSigner(q).name)}</span>` : ''}${q.po ? `<span class="chip ok">PO ${E(q.po.no)}</span>` : ''}<span class="flex-1"></span><label class="qt-check" title="${canGiveDiscount() ? '' : 'Only Admin and CEO can change this'}"><input type="checkbox" ${q.showDiscount ? 'checked' : ''} ${canGiveDiscount() ? '' : 'disabled'} onchange="setShowDiscount(this.checked)"> Show discount on bill</label></div>`;
 }
+const quoteViewBeforeFlow = V.quote;
+V.quote = function () {
+  const html = quoteViewBeforeFlow.apply(this, arguments);
+  return S.qd
+    ? html.replace('<nav class="qt-steps">', quoteToolbar(S.qd) + '<nav class="qt-steps">')
+    : html;
+};
 
 function syncQuote() {
   const q = S.qd,
@@ -421,6 +428,88 @@ nav = function () {
   return navBeforeDefaultQuote.apply(this, arguments);
 };
 ensureDefaultQuotes();
+function openNewQuoteForm(o) {
+  const dq = S.quotes.find((x) => x.opp == o.id && x.isDefault && x.status === 'Draft'),
+    no = dq ? dq.no : 'Q-' + (1001 + S.quotes.length),
+    d = quoteDefaults({ no }, o),
+    field = (label, control, req) =>
+      `<label class="qt-field"><span>${label}${req ? ' <i class="qt-req">*</i>' : ''}</span>${control}</label>`,
+    lines = o.items.map((i) => `${E(i.n)} × ${i.q}`).join(', ');
+  $('#modal').innerHTML =
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><form class="card qt-section w-full max-w-3xl max-h-full overflow-auto" role="dialog" aria-modal="true" aria-label="New quote" onsubmit="createQuoteFromForm(event,${o.id})">` +
+    `<div class="qt-section-head"><span class="ms">badge</span><b>Quote Information</b></div><div class="qt-grid">` +
+    field('Quote Name', `<input class="inp" name="name" required value="${E(d.name)}">`, true) +
+    field(
+      'Expiration Date',
+      `<input type="date" class="inp" name="exp" required value="${D(quoteDefaultsSetting().validityDays)}">`
+    ) +
+    field(
+      'Status',
+      `<select class="inp" name="label">${QUOTE_STATUS_CHOICES.map((s) => `<option>${E(s)}</option>`).join('')}</select>`
+    ) +
+    (contactsOfAccount(o.account).length
+      ? field(
+          'Customer Contact',
+          `<select class="inp" onchange="fillQuoteFormContact(this)"><option value="">Choose a contact…</option>${contactOptions(o.account, String(d.preparedFor).replace(/\s*\(.*\)\s*$/, ''))}</select>`
+        )
+      : '') +
+    field('Prepared For', `<input class="inp" name="preparedFor" value="${E(d.preparedFor)}">`) +
+    field(
+      'Send To (Email)',
+      `<input class="inp" type="email" name="toEmail" value="${E(d.toEmail)}" placeholder="customer@company.com">`
+    ) +
+    field(
+      'WhatsApp Number',
+      `<input class="inp" type="tel" name="toPhone" value="${E(d.toPhone)}" placeholder="+91 98765 43210">`
+    ) +
+    field('Sales Rep / Owner', `<input class="inp" value="${E(ownerLabel(o.owner))}" disabled>`) +
+    field(
+      'Billing Address',
+      `<input class="inp" name="address" value="${E(d.address)}" placeholder="Street, city, state, PIN">`
+    ) +
+    field(
+      'Shipping Address',
+      `<input class="inp" name="shipping" value="${E(d.shipping)}" placeholder="Street, city, state, PIN">`
+    ) +
+    `</div><div class="qt-body"><div class="mut text-xs">Products from this opportunity (${o.items.length}) — added to the quote automatically</div><div>${lines || '—'}</div><div class="font-semibold mt-1">Total ${M(o.items.reduce((a, i) => a + i.p * i.q * (1 - i.d / 100), 0))}</div></div>` +
+    `<div class="flex justify-end gap-2 p-3"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">Create quote</button></div></form></div>`;
+  $('#modal input').focus();
+}
+function createQuoteFromForm(e, id) {
+  e.preventDefault();
+  const o = S.opps.find((x) => x.id == id),
+    v = Object.fromEntries(new FormData(e.target));
+  if (!o || !(v.name || '').trim() || !v.exp)
+    return toast('Quote name and expiry date are required');
+  // finishing the pop-up turns the opportunity's default quote into a real one (same number)
+  const dq = S.quotes.find((x) => x.opp == o.id && x.isDefault && x.status === 'Draft'),
+    no = dq ? dq.no : 'Q-' + (1001 + S.quotes.length);
+  S.qd = {
+    opp: o.id,
+    no,
+    name: v.name.trim(),
+    primary: true,
+    exp: v.exp,
+    status: 'Draft',
+    label: v.label,
+    preparedFor: (v.preparedFor || '').trim(),
+    toEmail: (v.toEmail || '').trim(),
+    toPhone: (v.toPhone || '').trim(),
+    address: (v.address || '').trim(),
+    shipping: (v.shipping || '').trim(),
+    showDiscount: false,
+    items: clone(o.items),
+    createdAt: Date.now(),
+    createdBy: roleNow().name,
+  };
+  storeQuote(S.qd);
+  if (S.qd.primary) S.quotes.forEach((x) => x.opp == o.id && x.no !== no && (x.primary = false));
+  S.cur = o.id;
+  S.qstep = 1;
+  $('#modal').innerHTML = '';
+  save();
+  nav('quote');
+}
 
 // ---------------------------------------------------------------------------
 // Closed Won: Admin / CEO only, with notes, once payment is received

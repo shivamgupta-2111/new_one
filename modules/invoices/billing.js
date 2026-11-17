@@ -327,7 +327,8 @@ const PAY_METHODS = ['Bank transfer (NEFT/RTGS/IMPS)', 'UPI', 'Cheque', 'Cash', 
 const invPayable = (i) => invoiceCalc(i).payable;
 function invPaid(i) {
   if (!(i.payments || []).length) return i.status === 'Paid' ? invPayable(i) : 0;
-  return r2(i.payments.reduce((s, p) => s + p.amount, 0));
+  // payments marked as not yet confirmed do not count as received
+  return r2(i.payments.filter((p) => !p.pending).reduce((s, p) => s + p.amount, 0));
 }
 const invBalance = (i) => Math.max(0, r2(invPayable(i) - invPaid(i)));
 function invDueDate(i) {
@@ -423,7 +424,7 @@ function deletePayment(id, pid) {
   const o = S.opps.find((x) => x.id == i.opp);
   if (o && o.stage === 5 && !o.lost) return toast('The deal is already Closed Won');
   i.payments = (i.payments || []).filter((p) => p.id !== pid);
-  i.status = !i.payments.length
+  i.status = !i.payments.some((p) => !p.pending)
     ? 'Submitted to client'
     : invBalance(i) <= 0.5
       ? 'Paid'
@@ -437,6 +438,12 @@ function deletePayment(id, pid) {
   save();
   render();
 }
+// the old "Mark as paid" now records the full balance
+markInvoicePaid = function (id) {
+  const i = S.invoices.find((x) => x.id === id);
+  if (!i) return;
+  openPaymentForm(id);
+};
 const sendInvoiceBeforeBilling = sendInvoice;
 sendInvoice = function (id) {
   const i = S.invoices.find((x) => x.id === id);
@@ -561,6 +568,9 @@ function sendReminder(e, id) {
   render();
 }
 const lastReminder = (i) => (i.reminders || []).slice(-1)[0];
+const reminderDue = (i) =>
+  invOverdueDays(i) > 0 &&
+  (!lastReminder(i) || Date.now() - lastReminder(i).at > companyInfo().reminderEveryDays * 864e5);
 
 // notifications: overdue and due-soon invoices
 const allNotificationItemsBeforeBilling = allNotificationItems;

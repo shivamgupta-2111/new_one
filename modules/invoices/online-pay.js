@@ -51,6 +51,7 @@ SETTINGS_PANELS.payments = function () {
   const p = paySettings(),
     ok = canManageBilling(),
     dis = ok ? '' : 'disabled',
+    co = companyInfo(),
     method = (k) => {
       const [ic, label, sub] = PAY_METHOD_INFO[k];
       return `<label class="pay-set-m"><input type="checkbox" name="m_${k}" ${p.methods[k] ? 'checked' : ''} ${dis}><span class="ms">${ic}</span><span><b>${label}</b><span class="mut text-xs block">${sub}</span></span></label>`;
@@ -138,7 +139,7 @@ function ensureInvoiceSubmitted(i) {
 function settleInvoiceStatus(i) {
   const left = invBalance(i);
   const was = i.status;
-  const received = (i.payments || []).length > 0;
+  const received = (i.payments || []).some((p) => !p.pending);
   i.status = received && left <= 0.5 ? 'Paid' : received ? 'Partially paid' : 'Submitted to client';
   const q = quoteOfInvoice(i);
   if (i.status === 'Paid') {
@@ -193,7 +194,7 @@ function recordClientPayment(i, pay) {
 }
 
 // ---------- client payment page ----------
-let PAY = { method: null, receipt: null, busy: false };
+let PAY = { method: null, step: 'choose', receipt: null, busy: false };
 function renderPaymentPage() {
   document.body.classList.add('cq-mode');
   const h = document.querySelector('header');
@@ -406,7 +407,7 @@ function printPayReceipt(invId, pid) {
 // ---------- routing for the client page ----------
 function applyPaymentRoute() {
   if (paymentRoute()) {
-    PAY = { method: PAY.method, receipt: null, busy: false };
+    PAY = { method: PAY.method, step: 'choose', receipt: null, busy: false };
     renderPaymentPage();
   }
 }
@@ -457,7 +458,7 @@ V['invoice-detail'] = function () {
   // badge the online rows in the payments table
   (i.payments || []).forEach((p) => {
     if (!p.online) return;
-    const tag = p.gateway === 'test' ? ' <span class="chip">Online · test</span>' : ' <span class="chip ok">Online</span>';
+    const tag = p.pending ? ' <span class="chip wr">Not confirmed</span>' : p.gateway === 'test' ? ' <span class="chip">Online · test</span>' : ' <span class="chip ok">Online</span>';
     html = html.replace(`<td>${E(p.method)}</td><td>${E(p.ref || '–')}</td>`, `<td>${E(p.method)}${tag}</td><td>${E(p.ref || '–')}</td>`);
   });
   if (admin && canPayOnline(i))

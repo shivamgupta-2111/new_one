@@ -66,7 +66,7 @@ const NUM_KEYS = new Set([
   'renewalUsd',
   'ltcLength',
 ]);
-
+const YESNO = ['', 'Yes', 'No'];
 
 const SF_SECTIONS = [
   {

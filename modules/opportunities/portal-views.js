@@ -1,4 +1,4 @@
-// Portal-aware home dashboard.
+// Portal-aware home, opportunity board and quotes views.
 
 V.home = () => {
   const all = visibleOpps(),
@@ -32,12 +32,30 @@ V.home = () => {
     S.tasks
       .filter((t) => S.role !== 'rep' || all.some((o) => o.id == t.opp))
       .map(
-        (t) =>
+        (t, i) =>
           `<div class="py-2 border-b" style="border-color:var(--bd)">${E(t.t)} <small class="mut">· ${t.due}</small></div>`
       )
       .join('') || '<p class="mut mt-2">No open tasks.</p>'
   }</div></div>`;
 };
-
-
-
+const prototypeOpportunityBoard = V.opps;
+V.opps = () => {
+  S.mine = !seesAllOpps();
+  return prototypeOpportunityBoard();
+};
+V.quotes = () => {
+  const list = S.quotes.filter((q) => S.role !== 'rep' || visibleOpps().some((o) => o.id == q.opp));
+  return (
+    `<h1 class="text-xl font-bold mb-3">Quotations</h1><p class="mut mb-3">Rep discounts need approval · Admin authority ${adminDiscountLimit()}% · CEO unlimited. Below-minimum product prices always require CEO approval.</p>` +
+    table(
+      ['Quotation no.', 'Opportunity', 'Total', 'Discount', 'Status', 'Invoice no.'],
+      list
+        .map((q) => {
+          const o = S.opps.find((x) => x.id == q.opp) || {},
+            inv = q.invoiceId && S.invoices.find((x) => x.id === q.invoiceId);
+          return `<tr class="r" title="Open quotation ${q.no}" onclick="openQuoteRecord('${q.no}')"><td><b>${q.no}</b></td><td>${E(o.name || '')}</td><td>${M(quoteTotal(q))}</td><td>${quoteDiscount(q).toFixed(2)}%</td><td>${E(q.status)}</td><td>${inv ? `<a style="color:var(--pr)" onclick="event.stopPropagation();openInvoice('${inv.id}')">${inv.invoiceNo}</a>` : '—'}</td></tr>`;
+        })
+        .join('')
+    )
+  );
+};
