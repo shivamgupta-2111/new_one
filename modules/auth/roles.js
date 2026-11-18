@@ -46,6 +46,29 @@ const seesAllOpps = () =>
   S.role !== 'rep' || isSeniorRep((S.users || []).find((u) => u.id === S.authUser));
 const visibleOpps = () =>
   seesAllOpps() ? S.opps : S.opps.filter((o) => o.owner === roleNow().owner);
+// Team view: a rep also sees their teammates' opportunities (view-only).
+// Quotes, invoices and tasks still use visibleOpps(), so they stay private to each rep.
+function teamOwnerCodes() {
+  const me = (S.users || []).find((u) => u.id === S.authUser);
+  if (!me || !me.teamId) return [roleNow().owner];
+  return (S.users || [])
+    .filter((u) => u.role === 'rep' && u.teamId === me.teamId)
+    .map((u) => u.ownerCode);
+}
+function teamVisibleOpps() {
+  if (seesAllOpps()) return S.opps;
+  const codes = teamOwnerCodes();
+  return S.opps.filter((o) => o.owner === roleNow().owner || codes.includes(o.owner));
+}
+// Only the deal's owner, a Senior Rep, Admin or CEO can change a deal.
+function canEditOpp(o) {
+  return !!o && (seesAllOpps() || o.owner === roleNow().owner);
+}
+function oppTeamName(o) {
+  const u = (S.users || []).find((x) => x.role === 'rep' && x.ownerCode === o.owner);
+  const t = u && (S.teams || []).find((x) => x.id === u.teamId);
+  return t ? t.name : '';
+}
 const quoteTotal = (q) => q.items.reduce((a, i) => a + i.p * i.q * (1 - i.d / 100), 0);
 const quoteDiscount = (q) => {
   const sub = q.items.reduce((a, i) => a + i.p * i.q, 0);

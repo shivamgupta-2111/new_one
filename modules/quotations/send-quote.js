@@ -6,6 +6,15 @@
 
 // ---------- customer contact on the quote ----------
 const contactsOfAccount = (acct) => S.contacts.filter((c) => c[2] === acct);
+function pickQuoteContact(name) {
+  const o = cur(),
+    c = o && S.contacts.find((x) => x[0] === name);
+  if (!c || !S.qd) return;
+  S.qd.preparedFor = `${c[0]}${c[1] ? ' (' + c[1] + ')' : ''}`;
+  S.qd.toEmail = c[3] || '';
+  S.qd.toPhone = c[4] || '';
+  render();
+}
 function fillQuoteFormContact(sel) {
   const c = S.contacts.find((x) => x[0] === sel.value),
     f = sel.form;
@@ -242,7 +251,8 @@ function renderCustomerQuote() {
   if (h) h.style.display = 'none';
   const app = $('#app');
   app.className = 'min-h-screen p-3 md:p-6 max-w-3xl mx-auto';
-  const q = quoteByToken(location.hash.slice(4));
+  const q = quoteByToken(location.hash.slice(4)),
+    co = S.settings.company || {};
   if (!q) {
     app.innerHTML = `<div class="card p-6 text-center"><h1 class="text-xl font-bold">Link not valid</h1><p class="mut mt-2">This quotation link is not valid. Please ask the sender for a new one.</p></div>`;
     return;

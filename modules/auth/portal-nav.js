@@ -3,11 +3,13 @@
 // Portal-specific navigation and record access.
 const originalNav = nav;
 nav = function (v, id) {
-  if (id) S.cur = id;
-  if (!seesAllOpps() && v === 'opp-detail' && cur() && cur().owner !== roleNow().owner) {
-    toast('This opportunity is outside your portal access');
+  // check the deal being opened before switching to it, so a blocked attempt leaves the current page alone
+  const target = id ? S.opps.find((o) => o.id == id) : cur();
+  if (!seesAllOpps() && v === 'opp-detail' && target && !teamVisibleOpps().includes(target)) {
+    toast('This opportunity is outside your team');
     return;
   }
+  if (id) S.cur = id;
   if (S.role === 'rep' && ['approvals', 'products'].includes(v))
     return toast('This section is not available in the Rep portal');
   originalNav(v, id);
@@ -16,7 +18,7 @@ const originalRender = render;
 render = function () {
   let v = location.hash.slice(1) || 'home';
   if (S.role === 'rep' && ['approvals', 'products'].includes(v)) location.hash = '#home';
-  if (!seesAllOpps() && v === 'opp-detail' && cur() && cur().owner !== roleNow().owner)
+  if (!seesAllOpps() && v === 'opp-detail' && cur() && !teamVisibleOpps().includes(cur()))
     location.hash = '#home';
   originalRender();
   v = location.hash.slice(1) || 'home';

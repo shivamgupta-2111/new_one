@@ -66,7 +66,7 @@ const NUM_KEYS = new Set([
   'renewalUsd',
   'ltcLength',
 ]);
-
+const YESNO = ['', 'Yes', 'No'];
 
 const SF_SECTIONS = [
   {
@@ -367,7 +367,7 @@ function sidebarHtml(o) {
     relCard(
       'contacts',
       'groups',
-      '#0b63c5',
+      '#0f766e',
       'Contact Roles',
       R.length,
       R.map((r) => {

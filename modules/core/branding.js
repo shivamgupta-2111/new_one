@@ -6,8 +6,15 @@ function brandMark(size = 44) {
   const co = (S.settings && S.settings.company) || {};
   if (co.logo)
     return `<img class="doc-logo-img" src="${E(co.logo)}" alt="${E(co.name || 'Company')} logo" style="max-height:${size}px;max-width:${size * 3.2}px">`;
-  return `<svg class="doc-logo-mark" width="${size}" height="${size}" viewBox="0 0 48 48" role="img" aria-label="Logo" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="dlg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1b96ff"/><stop offset="1" stop-color="#0b4f9c"/></linearGradient></defs><rect width="48" height="48" rx="12" fill="url(#dlg)"/><path d="M15.5 33h17.2a6.3 6.3 0 0 0 .9-12.5 8.6 8.6 0 0 0-16.4 2.1 5.2 5.2 0 0 0-1.7 10.4z" fill="#fff"/><path d="M19 27.5l3.4 3.2 6.6-7" fill="none" stroke="#0b5cab" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  return `<svg class="doc-logo-mark" width="${size}" height="${size}" viewBox="0 0 48 48" role="img" aria-label="Logo" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="dlg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#14b8a6"/><stop offset="1" stop-color="#0b4f4a"/></linearGradient></defs><rect width="48" height="48" rx="12" fill="url(#dlg)"/><path d="M33.5 15.8A13 13 0 1 0 33.5 32.2" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/><circle cx="35.4" cy="24" r="3.8" fill="#f2c46d"/></svg>`;
 }
+const brandInitials = (name) =>
+  String(name || 'Ceph CRM')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('');
 
 // Letterhead used at the top of a quotation or invoice.
 // meta: [[label, value], ...] printed on the right under the document title.
@@ -16,14 +23,18 @@ function docLetterhead(title, meta) {
     name = co.name || 'Ceph CRM',
     lines = [
       co.address ? `<div class="doc-co-addr">${E(co.address)}</div>` : '',
-      co.gstin ? `<div>GSTIN <b>${E(co.gstin)}</b>${co.pan ? ` · PAN ${E(co.pan)}` : ''}</div>` : '',
+      co.gstin
+        ? `<div>GSTIN <b>${E(co.gstin)}</b>${co.pan ? ` · PAN ${E(co.pan)}` : ''}</div>`
+        : '',
       co.email || co.phone
         ? `<div>${[co.email, co.phone].filter(Boolean).map(E).join(' · ')}</div>`
         : '',
     ].join('');
   return `<div class="doc-head"><div class="doc-brand">${brandMark(co.logo ? 52 : 46)}<div><div class="doc-co">${E(name)}</div><div class="doc-co-sub">${lines || '<div>Sales &amp; Billing</div>'}</div></div></div><div class="doc-title"><div class="doc-kind">${E(title)}</div>${meta
     .filter((m) => m && m[1] !== '' && m[1] != null)
-    .map((m) => `<div class="doc-meta"><span>${E(m[0])}</span><b>${m[2] ? m[1] : E(m[1])}</b></div>`)
+    .map(
+      (m) => `<div class="doc-meta"><span>${E(m[0])}</span><b>${m[2] ? m[1] : E(m[1])}</b></div>`
+    )
     .join('')}</div></div><div class="doc-rule"></div>`;
 }
 
@@ -73,7 +84,13 @@ function signatureSvg(name, opts = {}) {
 }
 // via: 'customer' = the client typed their name on the quote link (a real e-signature);
 // 'staff' = someone in the team recorded a signature they received offline (shown as text, not as handwriting).
-function signatureBlock(name, at, label = 'Accepted & signed by', via = 'customer', recordedBy = '') {
+function signatureBlock(
+  name,
+  at,
+  label = 'Accepted & signed by',
+  via = 'customer',
+  recordedBy = ''
+) {
   if (!name) return '';
   const lab = label ? `<div class="sig-label">${E(label)}</div>` : '';
   if (via === 'staff')
@@ -86,7 +103,12 @@ function quoteSigner(q) {
   const c = q.customer;
   if (c && c.status === 'Accepted' && c.name) return { name: c.name, at: c.at, via: 'customer' };
   if (q.signedBy)
-    return { name: q.signedBy, at: q.signedAt, via: q.signedVia === 'customer' ? 'customer' : 'staff', by: q.signedRecordedBy };
+    return {
+      name: q.signedBy,
+      at: q.signedAt,
+      via: q.signedVia === 'customer' ? 'customer' : 'staff',
+      by: q.signedRecordedBy,
+    };
   return null;
 }
 const quoteSignatureHtml = (q, label) => {
@@ -105,7 +127,11 @@ function backToTop() {
   }
   // some layouts scroll an inner element instead of the window
   document.querySelectorAll('#app, #app *').forEach((el) => {
-    if (el.scrollTop > 0 && el.scrollHeight > el.clientHeight && getComputedStyle(el).overflowY !== 'visible')
+    if (
+      el.scrollTop > 0 &&
+      el.scrollHeight > el.clientHeight &&
+      getComputedStyle(el).overflowY !== 'visible'
+    )
       el.scrollTo({ top: 0, behavior: smooth ? 'smooth' : 'auto' });
   });
   const brand = document.querySelector('.hdr-brand');

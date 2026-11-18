@@ -36,8 +36,8 @@ function maxDiscountFor(code, listPrice) {
   return Math.max(0, Math.floor((1 - p.minPrice / listPrice) * 1000) / 10);
 }
 
-// Volume-tier discounts from the price book (Admin / CEO only).
-function applyTieredDiscount() {
+// Replaces the fixed 5% / 10% tiers.
+applyTieredDiscount = function () {
   if (!canGiveDiscount()) return toast('Only Admin and CEO can give discounts');
   let capped = 0;
   S.qd.items.forEach((i) => {
@@ -49,7 +49,7 @@ function applyTieredDiscount() {
   });
   toast('Volume tiers applied' + (capped ? ` · ${capped} line(s) held at the minimum price` : ''));
   render();
-}
+};
 
 function addQuoteBundle(id) {
   const b = priceBook().bundles.find((x) => x.id === id);
@@ -66,7 +66,7 @@ function addQuoteBundle(id) {
   render();
 }
 const quoteLinesCardBeforePB = quoteLinesCard;
-quoteLinesCard = function () {
+quoteLinesCard = function (q) {
   let html = quoteLinesCardBeforePB.apply(this, arguments);
   const bundles = priceBook().bundles.filter((b) => b.active !== false);
   if (bundles.length && html.includes('onclick="calculateQuotePricing()"'))

@@ -106,9 +106,79 @@ V['rep-detail'] = () => {
     )
     .join('');
   const logCard = `<div class="card p-4 mt-3"><div class="flex items-center gap-2 flex-wrap"><b class="flex-1">Activity log (${log.length})</b><input id="rep-log-q" class="inp" style="width:200px" placeholder="Filter log..." aria-label="Filter log" oninput="filterRepLog()"><select id="rep-log-k" class="inp" style="width:auto" aria-label="Filter by type" onchange="filterRepLog()"><option value="">All types</option>${kinds.map((k) => `<option value="${E(k)}">${E(k.replace(/_/g, ' '))}</option>`).join('')}</select></div><div id="rep-log">${logRows}<p id="rep-log-empty" class="mut mt-2" style="${log.length ? 'display:none' : ''}">No activity recorded for this rep yet.</p></div></div>`;
+  // ---- charts for this rep ----
+  const open = opps.filter((o) => o.stage < 5 && !o.lost),
+    wonDeals = opps.filter((o) => o.stage === 5 && !o.lost),
+    now = new Date();
+  const months = [...Array(6)].map((_, k) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 5 + k, 1),
+      key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    return {
+      label: d.toLocaleDateString('en-IN', { month: 'short' }),
+      value: wonDeals
+        .filter((o) => String(o.close).slice(0, 7) === key)
+        .reduce((x, o) => x + o.amount, 0),
+    };
+  });
+  const byStage = ST.slice(0, 5).map((stName, i) => {
+    const d = open.filter((o) => o.stage === i);
+    return {
+      label: stName,
+      value: d.reduce((x, o) => x + o.amount, 0),
+      sub: d.length + (d.length === 1 ? ' deal' : ' deals'),
+    };
+  });
+  const topDeals = [...open]
+    .sort((x, y) => y.amount - x.amount)
+    .slice(0, 5)
+    .map((o) => ({
+      label: o.name,
+      value: o.amount,
+      sub: o.account + ' · ' + ST[o.stage],
+      click: `nav('opp-detail',${o.id})`,
+    }));
+  const charts = `<div class="grid lg:grid-cols-3 gap-3 mb-3">${dashCard('Pipeline by stage', 'Open deal value at each stage', dashBars(byStage))}${dashCard('Won revenue by month', 'Last 6 months', dashColumns(months))}${dashCard('Top deals', 'Largest open opportunities', dashBars(topDeals))}</div>`;
+
+  // ---- the rep's team: compare teammates and list the team's opportunities ----
+  const mates = team
+      ? (S.users || []).filter(
+          (x) => x.role === 'rep' && x.teamId === u.teamId && x.active !== false
+        )
+      : [u],
+    codes = mates.map((x) => x.ownerCode),
+    teamOpps = S.opps.filter((o) => codes.includes(o.owner)),
+    teamOpen = teamOpps.filter((o) => o.stage < 5 && !o.lost);
+  const compare = mates
+    .map((x) => {
+      const mineOpen = teamOpen.filter((o) => o.owner === x.ownerCode);
+      return {
+        label: x.name + (x.ownerCode === u.ownerCode ? ' (this rep)' : ''),
+        value: mineOpen.reduce((y, o) => y + o.amount, 0),
+        sub:
+          mineOpen.length +
+          (mineOpen.length === 1 ? ' open deal' : ' open deals') +
+          ' · won ' +
+          M(repStats(x).won),
+        click: x.ownerCode === u.ownerCode ? '' : `openRep(${E(JSON.stringify(x.ownerCode))})`,
+      };
+    })
+    .sort((x, y) => y.value - x.value);
+  const teamRows = [...teamOpps]
+    .sort((x, y) => x.lost - y.lost || x.stage - y.stage || y.amount - x.amount)
+    .map(
+      (o) =>
+        `<tr class="r" onclick="nav('opp-detail',${o.id})"><td><b>${E(o.name)}</b></td><td>${E(o.account)}</td><td>${E(ownerLabel(o.owner))}${o.owner === u.ownerCode ? '<span class="you-tag">This rep</span>' : ''}</td><td><span class="team-chip">${E(team ? team.name : 'No team')}</span></td><td>${o.lost ? 'Lost' : ST[o.stage]}</td><td>${M(o.amount)}</td><td>${fd(o.close)}</td></tr>`
+    )
+    .join('');
+  const teamName = team ? E(team.name) : 'Team';
+  const teamSection = `<div class="grid lg:grid-cols-3 gap-3 mb-3">${dashCard(`${teamName}: open pipeline by rep`, 'How this rep compares with teammates · click a name to open them', dashBars(compare))}<div class="card p-4 lg:col-span-2"><div class="flex items-center gap-2 flex-wrap"><b class="flex-1">${teamName} opportunities (${teamOpps.length})</b><span class="mut text-xs">${teamOpen.length} open · ${M(teamOpen.reduce((y, o) => y + o.amount, 0))} pipeline</span></div><div style="max-height:360px;overflow:auto">${table(['Opportunity', 'Account', 'Rep', 'Team', 'Stage', 'Amount', 'Close'], teamRows)}</div></div></div>`;
+
   return (
     head +
     stats +
+    '<!--rep-activity-->' +
+    charts +
+    teamSection +
     `<div class="grid lg:grid-cols-2 gap-3"><div><b>Opportunities (${opps.length})</b>${table(['Name', 'Account', 'Stage', 'Amount', 'Close'], oppRows)}</div><div><b>Quotes (${quotes.length})</b>${table(['Quote', 'Opportunity', 'Total', 'Discount', 'Status'], quoteRows)}</div></div>` +
     logCard
   );

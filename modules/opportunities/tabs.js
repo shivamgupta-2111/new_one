@@ -6,7 +6,7 @@ const tabIsActive = (id) =>
 // Tabs the signed-in person is allowed to see, in bar order.
 function visibleTabIds() {
   S.openTabs = S.openTabs || [];
-  const allowed = new Set(visibleOpps().map((o) => o.id));
+  const allowed = new Set(teamVisibleOpps().map((o) => o.id));
   return S.openTabs.filter((id) => allowed.has(id));
 }
 

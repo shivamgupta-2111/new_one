@@ -41,7 +41,14 @@ function assignableReps() {
     ? activeReps().filter((u) => u.ownerCode === roleNow().owner)
     : activeReps();
 }
-
+function repOptions(selected) {
+  return assignableReps()
+    .map(
+      (u) =>
+        `<option value="${E(u.ownerCode)}" ${u.ownerCode === selected ? 'selected' : ''}>${E(u.name)}</option>`
+    )
+    .join('');
+}
 function defaultRepCode() {
   return S.role === 'rep' ? roleNow().owner : activeReps()[0]?.ownerCode || roleNow().owner;
 }

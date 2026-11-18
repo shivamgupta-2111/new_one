@@ -170,7 +170,7 @@ submitQuote = function () {
 };
 
 const finishApprovalBeforePopups = finishApproval;
-finishApproval = function (e, no) {
+finishApproval = function (e, no, mode) {
   const before = (quoteOf(no) || {}).status;
   withoutToasts(/^(Quotation rejected|Approval granted)/, () =>
     finishApprovalBeforePopups.apply(this, arguments)

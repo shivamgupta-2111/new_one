@@ -18,7 +18,11 @@ const LEAD_SOURCES = [
   'Outbound',
   'Referral',
 ];
-
+const prioChip = (o) => {
+  const p = o.priority || 'Medium';
+  const tone = p === 'Critical' || p === 'High' ? 'wr' : p === 'Low' ? 'ok' : '';
+  return `<span class="chip ${tone}" title="Priority">${p}</span>`;
+};
 const prioOptions = (selected) =>
   PRIORITIES.map(
     (p) => `<option ${p === (selected || 'Medium') ? 'selected' : ''}>${p}</option>`

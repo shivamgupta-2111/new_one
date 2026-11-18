@@ -87,7 +87,13 @@ function logAct(e) {
     S.tasks.unshift({ t: v.x, due: 'This week', opp: S.cur });
     toast('Task added');
   } else toast('Activity logged');
-  (S.acts[S.cur] = S.acts[S.cur] || []).unshift({ k: v.k, x: v.x, t: Date.now() });
+  (S.acts[S.cur] = S.acts[S.cur] || []).unshift({
+    k: v.k,
+    x: v.x,
+    t: Date.now(),
+    uid: S.authUser,
+    by: roleNow().name,
+  });
   save();
   render();
 }

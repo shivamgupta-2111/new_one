@@ -1,6 +1,6 @@
-// Role-filtered quotations list.
+// Role-filtered quotations and invoices lists.
 
-
+const previousQuotesView = V.quotes;
 V.quotes = () => {
   const list = S.quotes.filter((q) => S.role !== 'rep' || visibleOpps().some((o) => o.id == q.opp));
   return (
@@ -25,4 +25,28 @@ V.quotes = () => {
     )
   );
 };
-
+V.invoices = () => {
+  const list = S.invoices.filter(
+    (i) => S.role !== 'rep' || visibleOpps().some((o) => o.id == i.opp)
+  );
+  return (
+    `<h1 class="text-xl font-bold mb-3">Invoices</h1>` +
+    table(
+      [
+        'Invoice no.',
+        'Quotation no.',
+        'Opportunity',
+        'Assigned rep',
+        'Customer',
+        'Total',
+        'Status',
+      ],
+      list
+        .map((i) => {
+          const o = S.opps.find((x) => x.id == i.opp) || {};
+          return `<tr class="r" onclick="openInvoice('${E(i.id)}')"><td><b>${E(i.invoiceNo)}</b></td><td>${E(i.quoteNo)}</td><td>${E(i.opportunity)}</td><td>${repLink(o.owner)}</td><td>${E(i.account)}</td><td>${M(i.total)}</td><td>${E(i.status)}</td></tr>`;
+        })
+        .join('')
+    )
+  );
+};
