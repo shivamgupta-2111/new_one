@@ -137,7 +137,7 @@ V['rep-detail'] = () => {
       sub: o.account + ' · ' + ST[o.stage],
       click: `nav('opp-detail',${o.id})`,
     }));
-  const charts = `<div class="grid lg:grid-cols-3 gap-3 mb-3">${dashCard('Pipeline by stage', 'Open deal value at each stage', dashBars(byStage))}${dashCard('Won revenue by month', 'Last 6 months', dashColumns(months))}${dashCard('Top deals', 'Largest open opportunities', dashBars(topDeals))}</div>`;
+  const charts = `<div class="grid lg:grid-cols-3 gap-3 mb-3">${dashCard('Pipeline by stage', 'Open deal value at each stage', dashList(byStage))}${dashCard('Won revenue by month', 'Last 6 months', dashColumns(months))}${dashCard('Top deals', 'Largest open opportunities', dashList(topDeals))}</div>`;
 
   // ---- the rep's team: compare teammates and list the team's opportunities ----
   const mates = team

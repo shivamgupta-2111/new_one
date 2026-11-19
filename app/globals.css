@@ -3223,3 +3223,170 @@ select.qr-btn {
 #nav {
   display: none !important;
 }
+
+/* ---------- Paper signing on the customer quote link ---------- */
+.paper-sign {
+  display: none;
+}
+.paper-steps {
+  list-style: decimal;
+  padding-left: 20px;
+  display: grid;
+  gap: 4px;
+}
+@media print {
+  /* The general print rule shows only pop-up sheets (body > *:not(#modal)). When no sheet is open,
+     core/print-mode.js adds body.print-page before printing, and the page itself prints instead
+     (opportunity Printable view, Ctrl+P, the customer quote link): show the wrapper that holds #app. */
+  body.print-page > div:not(#modal):not(#toast),
+  body.print-page > main,
+  body.print-page #app {
+    display: block !important;
+  }
+  body.cq-mode header,
+  body.print-page header,
+  body.print-page .no-print,
+  body.print-page #crm-fab {
+    display: none !important;
+  }
+  body.cq-mode #app {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  body.cq-mode .doc-sheet {
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+  body.cq-mode #toast,
+  body.cq-mode .fab,
+  body.cq-mode #back-to-top {
+    display: none !important;
+  }
+  .paper-sign {
+    display: block;
+    margin-top: 28px;
+    padding-top: 14px;
+    border-top: 2px solid #222;
+    break-inside: avoid;
+    color: #111;
+  }
+  .paper-sign-title {
+    font-weight: 700;
+    font-size: 15px;
+    margin-bottom: 4px;
+  }
+  .paper-sign-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 34px 40px;
+    margin-top: 30px;
+  }
+  .paper-line {
+    border-bottom: 1px solid #222;
+    height: 30px;
+  }
+  .paper-lab {
+    font-size: 11px;
+    color: #444;
+    margin-top: 4px;
+  }
+  .paper-stamp {
+    margin-top: 26px;
+    width: 200px;
+    height: 96px;
+    border: 1px dashed #777;
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    color: #666;
+  }
+}
+
+/* Plain list (Pipeline by stage, Top deals): name, detail and amount, no bars */
+.dl {
+  margin-top: 10px;
+}
+.dl-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--bd);
+}
+.dl-row:last-child {
+  border-bottom: 0;
+}
+.dl-row.r {
+  cursor: pointer;
+  border-radius: 6px;
+}
+.dl-row.r:hover {
+  background: var(--hov);
+}
+.dl-label {
+  flex: 1;
+  min-width: 0;
+}
+.dl-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dl-sub {
+  font-size: 11px;
+  color: var(--mut);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dl-val {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Printing without relying on script: when no pop-up sheet is open, print the page itself.
+   (core/print-mode.js does the same with body.print-page for older browsers without :has.) */
+@media print {
+  body:not(:has(#modal > *)) > div:not(#modal):not(#toast),
+  body:not(:has(#modal > *)) > main,
+  body:not(:has(#modal > *)) #app {
+    display: block !important;
+  }
+  body:not(:has(#modal > *)) header,
+  body:not(:has(#modal > *)) .no-print,
+  body:not(:has(#modal > *)) #crm-fab {
+    display: none !important;
+  }
+}
+
+/* Bill receiver ("Kind attention") on quotations and invoices */
+.bill-attn {
+  margin-top: 8px;
+  padding-left: 8px;
+  border-left: 2px solid var(--pr);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.qr-blk .bill-attn {
+  margin-top: 0;
+}
+.doc-co-missing {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--ink);
+}
+.doc-co-missing a {
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 600;
+}
+@media print {
+  .bill-attn {
+    border-left-color: #0f766e;
+  }
+}

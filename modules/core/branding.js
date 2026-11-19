@@ -6,7 +6,8 @@ function brandMark(size = 44) {
   const co = (S.settings && S.settings.company) || {};
   if (co.logo)
     return `<img class="doc-logo-img" src="${E(co.logo)}" alt="${E(co.name || 'Company')} logo" style="max-height:${size}px;max-width:${size * 3.2}px">`;
-  return `<svg class="doc-logo-mark" width="${size}" height="${size}" viewBox="0 0 48 48" role="img" aria-label="Logo" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="dlg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#14b8a6"/><stop offset="1" stop-color="#0b4f4a"/></linearGradient></defs><rect width="48" height="48" rx="12" fill="url(#dlg)"/><path d="M33.5 15.8A13 13 0 1 0 33.5 32.2" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/><circle cx="35.4" cy="24" r="3.8" fill="#f2c46d"/></svg>`;
+  const gid = 'dlg' + Math.random().toString(36).slice(2, 8); // unique per logo, or a hidden copy breaks the colour
+  return `<svg class="doc-logo-mark" width="${size}" height="${size}" viewBox="0 0 48 48" role="img" aria-label="Logo" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#14b8a6"/><stop offset="1" stop-color="#0b4f4a"/></linearGradient></defs><rect width="48" height="48" rx="12" fill="url(#${gid})"/><path d="M33.5 15.8A13 13 0 1 0 33.5 32.2" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/><circle cx="35.4" cy="24" r="3.8" fill="#f2c46d"/></svg>`;
 }
 const brandInitials = (name) =>
   String(name || 'Ceph CRM')
@@ -30,7 +31,13 @@ function docLetterhead(title, meta) {
         ? `<div>${[co.email, co.phone].filter(Boolean).map(E).join(' · ')}</div>`
         : '',
     ].join('');
-  return `<div class="doc-head"><div class="doc-brand">${brandMark(co.logo ? 52 : 46)}<div><div class="doc-co">${E(name)}</div><div class="doc-co-sub">${lines || '<div>Sales &amp; Billing</div>'}</div></div></div><div class="doc-title"><div class="doc-kind">${E(title)}</div>${meta
+  // Staff-only reminder (never printed, never shown to the client) when the letterhead is incomplete.
+  const missing = [!co.address && 'address', !co.gstin && 'GSTIN'].filter(Boolean),
+    hint =
+      missing.length && !document.body.classList.contains('cq-mode')
+        ? `<div class="doc-co-missing no-print">Ceph CRM ${missing.join(' and ')} not set — ${['admin', 'ceo'].includes(S.role) ? `<a onclick="$('#modal').innerHTML='';S.setTab='company';nav('settings')">add it in Settings → Company &amp; GST</a>` : 'ask Admin or CEO to add it in Settings → Company &amp; GST'} so it prints on quotations and invoices.</div>`
+        : '';
+  return hint + `<div class="doc-head"><div class="doc-brand">${brandMark(co.logo ? 52 : 46)}<div><div class="doc-co">${E(name)}</div><div class="doc-co-sub">${lines || '<div>Sales &amp; Billing</div>'}</div></div></div><div class="doc-title"><div class="doc-kind">${E(title)}</div>${meta
     .filter((m) => m && m[1] !== '' && m[1] != null)
     .map(
       (m) => `<div class="doc-meta"><span>${E(m[0])}</span><b>${m[2] ? m[1] : E(m[1])}</b></div>`
@@ -93,6 +100,8 @@ function signatureBlock(
 ) {
   if (!name) return '';
   const lab = label ? `<div class="sig-label">${E(label)}</div>` : '';
+  if (via === 'paper')
+    return `<div class="sig-block">${lab}<div class="sig-recorded"><span class="ms">description</span>Signed on paper</div><div class="sig-line"></div><div class="sig-name"><b>${E(name)}</b>${at ? ` · ${whenText(at)}` : ''}</div><div class="sig-note">Signed copy uploaded by the client</div></div>`;
   if (via === 'staff')
     return `<div class="sig-block">${lab}<div class="sig-recorded"><span class="ms">edit_document</span>Signed copy received</div><div class="sig-line"></div><div class="sig-name"><b>${E(name)}</b>${at ? ` · ${whenText(at)}` : ''}</div><div class="sig-note">Recorded by ${E(recordedBy || 'the sales team')}</div></div>`;
   return `<div class="sig-block">${lab}${signatureSvg(name)}<div class="sig-line"></div><div class="sig-name"><b>${E(name)}</b>${at ? ` · ${whenText(at)}` : ''}</div><div class="sig-note">Signed electronically by the client</div></div>`;
@@ -101,12 +110,13 @@ function signatureBlock(
 function quoteSigner(q) {
   if (!q) return null;
   const c = q.customer;
-  if (c && c.status === 'Accepted' && c.name) return { name: c.name, at: c.at, via: 'customer' };
+  if (c && c.status === 'Accepted' && c.name)
+    return { name: c.name, at: c.at, via: c.via === 'paper' ? 'paper' : 'customer' };
   if (q.signedBy)
     return {
       name: q.signedBy,
       at: q.signedAt,
-      via: q.signedVia === 'customer' ? 'customer' : 'staff',
+      via: ['customer', 'paper'].includes(q.signedVia) ? q.signedVia : 'staff',
       by: q.signedRecordedBy,
     };
   return null;

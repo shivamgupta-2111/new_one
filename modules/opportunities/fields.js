@@ -108,7 +108,8 @@ const gv = (o, k) => {
       orig: o.amount,
     };
   // churn reasons saved earlier as one list now fill Churn 1, 2 and 3
-  if (/^churn[123]$/.test(k) && !(k in f) && Array.isArray(f.churnWhy)) return f.churnWhy[+k.slice(5) - 1] || '';
+  if (/^churn[123]$/.test(k) && !(k in f) && Array.isArray(f.churnWhy))
+    return f.churnWhy[+k.slice(5) - 1] || '';
   return k in f ? f[k] : (m[k] ?? '');
 };
 const riskOf = (o) => {
@@ -131,7 +132,11 @@ const fld = (o, [k, l, t, op]) => {
       S.ed == k
         ? `<select class="inp" aria-label="${E(l)}" data-ed onchange="sf('${k}',this.value)" onblur="S.ed=null;render()">${currencyOptions(cv)}</select>`
         : `<div>${E(currencyLabel(cv))}</div>`;
-    return sfRow(l, body, `<span class="ms" title="Edit ${E(l)}" onclick="S.ed='${k}';render()">edit</span>`);
+    return sfRow(
+      l,
+      body,
+      `<span class="ms" title="Edit ${E(l)}" onclick="S.ed='${k}';render()">edit</span>`
+    );
   }
   const v = gv(o, k),
     ed = S.ed == k && t != 'ro' && t != 'b';

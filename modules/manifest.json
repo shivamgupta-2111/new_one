@@ -3,6 +3,7 @@
   "modules/core/branding.js",
   "modules/core/seed.js",
   "modules/core/state.js",
+  "modules/core/file-store.js",
   "modules/opportunities/board.js",
   "modules/opportunities/fields.js",
   "modules/opportunities/attachments.js",
@@ -63,9 +64,12 @@
   "modules/teams/rep-detail.js",
   "modules/opportunities/tabs.js",
   "modules/quotations/quote-record.js",
+  "modules/quotations/bill-receiver.js",
   "modules/quotations/signature-sync.js",
   "modules/invoices/online-pay.js",
   "modules/core/fab-hook.js",
   "modules/teams/activity.js",
-  "modules/opportunities/team-view.js"
+  "modules/opportunities/team-view.js",
+  "modules/invoices/rep-share.js",
+  "modules/core/print-mode.js"
 ]

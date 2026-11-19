@@ -8,7 +8,7 @@ function roleTitle(u) {
   return isSeniorRep(u) ? 'SENIOR REP' : String((u && u.role) || '').toUpperCase();
 }
 // A Senior Rep can create opportunities (for any rep), and sees all opportunities, teams and rep names.
-// Senior Reps can also reassign an opportunity's owner. Editing account addresses stays with Admin and CEO.
+// Senior Reps can also reassign an opportunity's owner.
 function hasSeniorRights() {
   if (['admin', 'ceo'].includes(S.role)) return true;
   return isSeniorRep((S.users || []).find((u) => u.id === S.authUser));
@@ -19,9 +19,16 @@ function canAddOpportunity() {
 function canEditOwner() {
   return hasSeniorRights(); // change an opportunity's assigned rep (Senior Rep, Admin, CEO)
 }
-function canEditAddress() {
-  return ['admin', 'ceo'].includes(S.role); // account address and shipping address
+// Account address and shipping address: Admin, CEO and Senior Reps can edit any account;
+// a rep can edit the accounts on their own deals (not teammates' or other teams' accounts).
+// Called without an account name, it answers "can this person edit any addresses at all".
+function canEditAddress(account) {
+  if (hasSeniorRights()) return true;
+  if (S.role !== 'rep') return false;
+  const mine = visibleOpps();
+  return account == null ? mine.length > 0 : mine.some((o) => o.account === account);
 }
+const NO_ADDRESS_MSG = 'You can edit addresses only for accounts on your own deals';
 // Invoices are for Admin and CEO only. A Senior Rep's extra rights are just: add opportunities,
 // edit account addresses and reassign opportunities to any rep (plus seeing all teams).
 function canSeeInvoices() {

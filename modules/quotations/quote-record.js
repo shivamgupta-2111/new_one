@@ -38,7 +38,13 @@ function qrSortedItems(q) {
 }
 function qrCycleSort() {
   S.qSort = !S.qSort ? 'name' : S.qSort === 'name' ? 'sub' : '';
-  toast(S.qSort === 'name' ? 'Sorted by product name' : S.qSort === 'sub' ? 'Sorted by subtotal' : 'Original order');
+  toast(
+    S.qSort === 'name'
+      ? 'Sorted by product name'
+      : S.qSort === 'sub'
+        ? 'Sorted by subtotal'
+        : 'Original order'
+  );
   render();
 }
 function qrToggleEdit() {
@@ -59,9 +65,7 @@ function qrLines(q, locked) {
       .map((p) => `<option value="${E(p.code)}">${E(p.name)} · ${M(p.listPrice)}</option>`)
       .join(''),
     bundles =
-      typeof priceBook === 'function'
-        ? priceBook().bundles.filter((b) => b.active !== false)
-        : [],
+      typeof priceBook === 'function' ? priceBook().bundles.filter((b) => b.active !== false) : [],
     rows = qrSortedItems(q)
       .map(({ i, k }, n) => {
         const net = i.p * (1 - i.d / 100),
@@ -121,13 +125,34 @@ function qrInfo(q, o, d, locked) {
     return qrCard(
       'Quote Information',
       f('Quote name', `<input class="inp" value="${E(d.name)}" onchange="S.qd.name=this.value">`) +
-        f('Expiration date', `<input type="date" class="inp" value="${E(q.exp || '')}" onchange="S.qd.exp=this.value">`) +
-        f('Payment terms', `<select class="inp" onchange="S.qd.terms=this.value">${PAYMENT_TERMS.map((t) => `<option ${t === (q.terms || 'Net 30') ? 'selected' : ''}>${t}</option>`).join('')}</select>`) +
-        f('Prepared for', `<input class="inp" value="${E(d.preparedFor)}" onchange="S.qd.preparedFor=this.value">`) +
-        f('Email', `<input class="inp" type="email" value="${E(d.toEmail)}" placeholder="customer@company.com" onchange="S.qd.toEmail=this.value">`) +
-        f('WhatsApp', `<input class="inp" type="tel" value="${E(d.toPhone)}" placeholder="+91 98765 43210" onchange="S.qd.toPhone=this.value">`) +
-        f('Billing address', `<textarea class="inp" rows="2" onchange="S.qd.address=this.value">${E(d.address)}</textarea>`) +
-        f('Shipping address', `<textarea class="inp" rows="2" onchange="S.qd.shipping=this.value">${E(d.shipping)}</textarea>`) +
+        f(
+          'Expiration date',
+          `<input type="date" class="inp" value="${E(q.exp || '')}" onchange="S.qd.exp=this.value">`
+        ) +
+        f(
+          'Payment terms',
+          `<select class="inp" onchange="S.qd.terms=this.value">${PAYMENT_TERMS.map((t) => `<option ${t === (q.terms || 'Net 30') ? 'selected' : ''}>${t}</option>`).join('')}</select>`
+        ) +
+        f(
+          'Prepared for',
+          `<input class="inp" value="${E(d.preparedFor)}" onchange="S.qd.preparedFor=this.value">`
+        ) +
+        f(
+          'Email',
+          `<input class="inp" type="email" value="${E(d.toEmail)}" placeholder="customer@company.com" onchange="S.qd.toEmail=this.value">`
+        ) +
+        f(
+          'WhatsApp',
+          `<input class="inp" type="tel" value="${E(d.toPhone)}" placeholder="+91 98765 43210" onchange="S.qd.toPhone=this.value">`
+        ) +
+        f(
+          'Billing address',
+          `<textarea class="inp" rows="2" onchange="S.qd.address=this.value">${E(d.address)}</textarea>`
+        ) +
+        f(
+          'Shipping address',
+          `<textarea class="inp" rows="2" onchange="S.qd.shipping=this.value">${E(d.shipping)}</textarea>`
+        ) +
         `<div class="qr-actions"><button class="qr-btn" onclick="qrToggleInfo()">Close</button><button class="qr-btn pri" onclick="storeQuote(S.qd);save();S.qInfoEdit=false;toast('Quote details saved');render()">Save</button></div>`,
       ''
     );
@@ -153,10 +178,22 @@ function qrClient(q, o, d) {
       'BILLING ADDRESS',
       `<div class="qr-strong">${E(o.account)}</div><div style="white-space:pre-wrap">${E(d.address || acc.address || '—')}</div>`
     ) +
-      block('EMAIL', d.toEmail ? `<a class="qr-link" href="mailto:${E(d.toEmail)}">${E(d.toEmail)}</a>` : '—') +
+      block(
+        'EMAIL',
+        d.toEmail ? `<a class="qr-link" href="mailto:${E(d.toEmail)}">${E(d.toEmail)}</a>` : '—'
+      ) +
       block(
         'PRIMARY CONTACT',
         `<div class="qr-strong">${E(name || '—')}</div>${title ? `<div>${E(title)}</div>` : ''}${d.toPhone ? `<a class="qr-link" href="tel:${E(d.toPhone)}">${E(d.toPhone)}</a>` : ''}`
+      ) +
+      block(
+        'BILL RECEIVER (KIND ATTENTION)',
+        (billReceiverOf(q)
+          ? billReceiverHtml(billReceiverOf(q), '')
+          : `<div class="mut">Not filled yet — add the person who receives the bill.</div>`) +
+          (canEditBillReceiver(q)
+            ? `<a class="qr-link" onclick="openBillReceiver()">${billReceiverOf(q) ? 'Change' : 'Add bill receiver'}</a>`
+            : '')
       ) +
       (quoteSigner(q) ? block('CUSTOMER SIGNATURE', quoteSignatureHtml(q, '')) : '')
   );
@@ -164,7 +201,9 @@ function qrClient(q, o, d) {
 
 // ---------- right column ----------
 function qrApprovals(q, floor, locked) {
-  const hist = (q.history || []).filter((h) => ['Submitted', 'Approved', 'Rejected', 'Escalated'].includes(h.action)),
+  const hist = (q.history || []).filter((h) =>
+      ['Submitted', 'Approved', 'Rejected', 'Escalated'].includes(h.action)
+    ),
     pending = String(q.status).startsWith('Pending'),
     done = ['Approved', 'Sent to client', 'Paid'].includes(q.status),
     rows = [];
@@ -189,30 +228,41 @@ function qrApprovals(q, floor, locked) {
       : `<label class="qr-field"><span>Notes for approval <i class="qt-req">*</i></span><textarea id="qr-notes" class="inp" rows="3" placeholder="Explain the discount or pricing so the approver can decide." oninput="S.qd.notes=this.value">${E(q.notes || '')}</textarea></label><div class="qr-sub">${route.approver ? 'Will go to: <b>' + E(route.approver) + '</b>' : ''}${floor.length ? ' · Below minimum price → CEO' : ''}</div>`;
   return qrCard(
     'Approvals',
-    (rows.join('') || (locked ? '' : '')) + notes + (!rows.length && locked ? '<div class="qr-sub">No approval needed.</div>' : ''),
+    (rows.join('') || (locked ? '' : '')) +
+      notes +
+      (!rows.length && locked ? '<div class="qr-sub">No approval needed.</div>' : ''),
     `<span class="qr-pill ${done ? 'ok' : ''}">${count}</span>`
   );
 }
 function qrPdfs(q) {
-  const list = q.pdfs || [];
+  const list = q.pdfs || [],
+    sc = q.signedCopy,
+    signedRow = sc
+      ? `<div class="qr-pdf"><span class="qr-pdfi" style="background:var(--done)">${sc.type === 'application/pdf' ? 'PDF' : 'IMG'}</span><div><b>Signed copy · ${E(sc.signer || '')}</b><div class="qr-sub">Uploaded by the client ${ago(sc.at)} · ${Math.max(1, Math.round(sc.size / 1024))} KB · ${E(sc.name)}</div></div></div><div class="qr-links"><a class="qr-link" onclick="openSignedCopy('${E(q.no)}',false)">View</a><a class="qr-link" onclick="openSignedCopy('${E(q.no)}',true)">Download</a></div>`
+      : '';
   return qrCard(
     'Quote PDFs',
-    list.length
-      ? list
-          .slice()
-          .reverse()
-          .map(
-            (p) =>
-              `<div class="qr-pdf"><span class="qr-pdfi">PDF</span><div><b>${E(p.name)}</b><div class="qr-sub">Created ${ago(p.at)} · ${p.kb} KB</div></div></div><div class="qr-links"><a class="qr-link" onclick="printQuote()">View</a>${quoteIsSendable(q) ? '<a class="qr-link" onclick="openSendQuote()">Email PDF</a>' : ''}</div>`
-          )
-          .join('')
-      : '<div class="qr-sub">No PDF yet. Use “Create PDF”.</div>',
-    `<span class="qr-pill">${list.length}</span>`
+    signedRow +
+      (list.length
+        ? list
+            .slice()
+            .reverse()
+            .map(
+              (p) =>
+                `<div class="qr-pdf"><span class="qr-pdfi">PDF</span><div><b>${E(p.name)}</b><div class="qr-sub">Created ${ago(p.at)} · ${p.kb} KB</div></div></div><div class="qr-links"><a class="qr-link" onclick="printQuote()">View</a>${quoteIsSendable(q) ? '<a class="qr-link" onclick="openSendQuote()">Email PDF</a>' : ''}</div>`
+            )
+            .join('')
+        : sc
+          ? ''
+          : '<div class="qr-sub">No PDF yet. Use “Create PDF”.</div>'),
+    `<span class="qr-pill">${list.length + (sc ? 1 : 0)}</span>`
   );
 }
 function qrActivity(q, o) {
   const ev = [];
-  (q.history || []).forEach((h) => ev.push({ t: h.t, a: `${E(h.action)} · ${E(h.by)}`, n: h.note }));
+  (q.history || []).forEach((h) =>
+    ev.push({ t: h.t, a: `${E(h.action)} · ${E(h.by)}`, n: h.note })
+  );
   (q.sends || []).forEach((s) =>
     ev.push({ t: s.at, a: `Sent by ${s.channel === 'email' ? 'email' : 'WhatsApp'}`, n: s.to })
   );
@@ -241,15 +291,20 @@ function qrHeader(q, o, inv, locked) {
   const syncOk = !String(q.status).startsWith('Pending') && q.status !== 'Rejected',
     ok = quoteApproved(q),
     review = canReview(q),
-    menu = `<details class="qr-menu"><summary class="qr-btn" aria-label="More actions"><span class="ms">expand_more</span></summary><div class="qr-pop">` +
+    menu =
+      `<details class="qr-menu"><summary class="qr-btn" aria-label="More actions"><span class="ms">expand_more</span></summary><div class="qr-pop">` +
       `<button ${ok ? '' : 'disabled'} onclick="openSignForm()"><span class="ms">draw</span>Sign</button>` +
       `<button ${ok ? '' : 'disabled'} onclick="openPoForm()"><span class="ms">receipt_long</span>Customer PO</button>` +
       `<button ${quoteIsSendable(q) ? '' : 'disabled'} onclick="openSendQuote()"><span class="ms">send</span>Send to customer</button>` +
       ((q.status === 'Expired' || quoteExpired(q)) && S.role !== 'rep'
         ? `<button onclick="extendQuote()"><span class="ms">event_repeat</span>Extend expiry</button>`
         : '') +
-      (!locked ? `<button onclick="saveQuoteDraft()"><span class="ms">save</span>Save as draft</button>` : '') +
-      (inv && canSeeInvoices() ? `<button onclick="openInvoice('${inv.id}')"><span class="ms">receipt</span>Open ${E(inv.invoiceNo)}</button>` : '') +
+      (!locked
+        ? `<button onclick="saveQuoteDraft()"><span class="ms">save</span>Save as draft</button>`
+        : '') +
+      (inv && canSeeInvoices()
+        ? `<button onclick="openInvoice('${inv.id}')"><span class="ms">receipt</span>Open ${E(inv.invoiceNo)}</button>`
+        : '') +
       `<label class="qr-check" title="${canGiveDiscount() ? '' : 'Only Admin and CEO can change this'}"><input type="checkbox" ${q.showDiscount ? 'checked' : ''} ${canGiveDiscount() ? '' : 'disabled'} onchange="setShowDiscount(this.checked)"> Show discount on bill</label>` +
       `<button onclick="nav('opp-detail')"><span class="ms">arrow_back</span>Back to opportunity</button></div></details>`;
   return `<header class="qr-head"><div class="qr-title"><span class="qr-icon"><span class="ms">description</span></span><div><small>QUOTE</small><h1>${E(q.no)}</h1></div></div><div class="qr-acts">${q.syncedAt ? '<span class="qr-synced"><span class="ms">sync</span>Synced Quote</span>' : ''}${locked ? '' : `<button class="qr-btn" onclick="qrToggleInfo()">Edit</button>`}<button class="qr-btn" onclick="createQuotePdf()">Create PDF</button><button class="qr-btn ${q.syncedAt ? '' : 'pri'}" ${syncOk ? '' : 'disabled'} title="${syncOk ? "Copy this quote's products and total to the opportunity" : 'Not available while the quote is pending or rejected'}" onclick="syncQuote()"><span class="ms">sync</span>${q.syncedAt ? 'Re-sync' : 'Start Sync'}</button>${review ? `<button class="qr-btn bad" onclick="rejectQuote('${E(q.no)}')">Reject</button><button class="qr-btn pri" onclick="approveQuote('${E(q.no)}')">Approve</button>` : ''}${locked ? '' : `<button class="qr-btn pri" onclick="submitQuote()">Submit for Approval</button>`}${menu}</div></header>`;
@@ -272,13 +327,20 @@ V.quote = () => {
   const floor = belowProductFloor(q),
     chips = [
       `<span class="qr-pill ok">${E(quoteStatusInfo(q).text)}</span>`,
-      q.label && q.label !== 'Draft' && !locked ? `<span class="qr-pill blue">${E(q.label)}</span>` : '',
+      q.label && q.label !== 'Draft' && !locked
+        ? `<span class="qr-pill blue">${E(q.label)}</span>`
+        : '',
       q.status === 'Expired' || quoteExpired(q) ? '<span class="qr-pill bad">Expired</span>' : '',
-      quoteSigner(q) ? `<span class="qr-pill ok">${quoteSigner(q).via === 'customer' ? 'E-signed by' : 'Signed by'} ${E(quoteSigner(q).name)}</span>` : '',
+      quoteSigner(q)
+        ? `<span class="qr-pill ok">${quoteSigner(q).via === 'customer' ? 'E-signed by' : 'Signed by'} ${E(quoteSigner(q).name)}</span>`
+        : '',
       q.po ? `<span class="qr-pill ok">PO ${E(q.po.no)}</span>` : '',
-      typeof sendQuoteChips === 'function' ? sendQuoteChips(q).replace(/class="chip/g, 'class="qr-pill') : '',
+      typeof sendQuoteChips === 'function'
+        ? sendQuoteChips(q).replace(/class="chip/g, 'class="qr-pill')
+        : '',
     ].join(' ');
-  return `<div class="qr-page"><div class="qr-crumb"><a onclick="nav('opps')">Opportunities</a> › <a onclick="nav('opp-detail')">${E(o.name)}</a> › <span>Quotes</span> › <b>${E(q.no)}</b></div>` +
+  return (
+    `<div class="qr-page"><div class="qr-crumb"><a onclick="nav('opps')">Opportunities</a> › <a onclick="nav('opp-detail')">${E(o.name)}</a> › <span>Quotes</span> › <b>${E(q.no)}</b></div>` +
     qrHeader(q, o, inv, locked) +
     `<div class="qr-strip"><div><small>Quote Number</small><b>${E(q.no)}</b></div><div><small>Account Name</small><b>${acctSpan(o.account)}</b><span>${E(q.name || d.name)}</span></div><div><small>Opportunity</small><a class="qr-link" onclick="nav('opp-detail')">${E(o.name)}</a></div><div class="qr-chips">${chips}</div></div>` +
     qrPath(q) +
@@ -286,7 +348,8 @@ V.quote = () => {
     (floor.length && !locked
       ? `<div class="qr-banner qt-banner wr"><span class="ms">warning</span><div><b>Below minimum price</b><div>${floor.map((i) => E(i.n)).join(', ')} — this quote goes to the CEO for approval.</div></div></div>`
       : '') +
-    `<div class="qr-cols"><aside>${qrInfo(q, o, d, locked)}${qrClient(q, o, d)}</aside><main>${qrLines(q, locked)}<div class="qr-two">${qrCard('Primary Address', qrRow('Billing', E(d.address || '—')) + qrRow('Shipping', E(d.shipping || '—')) + qrRow('Entity Name', E(o.account)) + qrRow('Prepared For', E(d.preparedFor || '—')) + qrRow('Payment Terms', E(q.terms || 'Net 30')) + qrRow('Account Executive', E(ownerLabel(o.owner))), '<span class="qr-mut">Account</span>')}${qrFinancial(q, o)}</div>${tncSection(q, locked)}</main><aside>${qrApprovals(q, floor, locked)}${qrPdfs(q)}${qrActivity(q, o)}</aside></div></div>`;
+    `<div class="qr-cols"><aside>${qrInfo(q, o, d, locked)}${qrClient(q, o, d)}</aside><main>${qrLines(q, locked)}<div class="qr-two">${qrCard('Primary Address', qrRow('Billing', E(d.address || '—')) + qrRow('Shipping', E(d.shipping || '—')) + qrRow('Entity Name', E(o.account)) + qrRow('Prepared For', E(d.preparedFor || '—')) + qrRow('Payment Terms', E(q.terms || 'Net 30')) + qrRow('Account Executive', E(ownerLabel(o.owner))), '<span class="qr-mut">Account</span>')}${qrFinancial(q, o)}</div>${tncSection(q, locked)}</main><aside>${qrApprovals(q, floor, locked)}${qrPdfs(q)}${qrActivity(q, o)}</aside></div></div>`
+  );
 };
 
 // "Create PDF": opens the print sheet and keeps a record of each PDF in the Quote PDFs card.
@@ -345,8 +408,15 @@ function openNewQuoteForm(o) {
       'info',
       'Quote Information',
       qfField('Quote Name', `<input class="inp" name="name" required value="${E(d.name)}">`, true) +
-        qfField('Expiration Date', `<input type="date" class="inp" name="exp" required value="${D(quoteDefaultsSetting().validityDays)}">`, true) +
-        qfField('Status', `<select class="inp" name="label">${QUOTE_STATUS_CHOICES.map((s) => `<option>${E(s)}</option>`).join('')}</select>`) +
+        qfField(
+          'Expiration Date',
+          `<input type="date" class="inp" name="exp" required value="${D(quoteDefaultsSetting().validityDays)}">`,
+          true
+        ) +
+        qfField(
+          'Status',
+          `<select class="inp" name="label">${QUOTE_STATUS_CHOICES.map((s) => `<option>${E(s)}</option>`).join('')}</select>`
+        ) +
         qfRead('Opportunity', E(o.name)) +
         qfRead('Sales Rep / Owner', E(ownerLabel(o.owner)))
     ) +
@@ -354,11 +424,49 @@ function openNewQuoteForm(o) {
       'prep',
       'Prepared For',
       (contacts.length
-        ? qfField('Customer Contact', `<select class="inp" onchange="fillQuoteFormContact(this)"><option value="">Choose a contact…</option>${contactOptions(o.account, contactName)}</select>`, false, true)
+        ? qfField(
+            'Customer Contact',
+            `<select class="inp" onchange="fillQuoteFormContact(this)"><option value="">Choose a contact…</option>${contactOptions(o.account, contactName)}</select>`,
+            false,
+            true
+          )
         : '') +
-        qfField('Prepared For', `<input class="inp" name="preparedFor" value="${E(d.preparedFor)}">`) +
-        qfField('Email', `<input class="inp" type="email" name="toEmail" value="${E(d.toEmail)}" placeholder="customer@company.com">`) +
-        qfField('Phone (WhatsApp)', `<input class="inp" type="tel" name="toPhone" value="${E(d.toPhone)}" placeholder="+91 98765 43210">`)
+        qfField(
+          'Prepared For',
+          `<input class="inp" name="preparedFor" value="${E(d.preparedFor)}">`
+        ) +
+        qfField(
+          'Email',
+          `<input class="inp" type="email" name="toEmail" value="${E(d.toEmail)}" placeholder="customer@company.com">`
+        ) +
+        qfField(
+          'Phone (WhatsApp)',
+          `<input class="inp" type="tel" name="toPhone" value="${E(d.toPhone)}" placeholder="+91 98765 43210">`
+        )
+    ) +
+    qfSection(
+      'bill',
+      'Bill Receiver (prints on quotation & invoice)',
+      qfField(
+        'Receiver Name',
+        `<input class="inp" name="billName" value="${E(billReceiverDraft(d).name)}" placeholder="Person who receives the bill">`
+      ) +
+        qfField(
+          'Designation',
+          `<input class="inp" name="billDesignation" value="${E(billReceiverDraft(d).designation)}" placeholder="e.g. Accounts Manager">`
+        ) +
+        qfField(
+          'Department',
+          `<input class="inp" name="billDepartment" value="${E(billReceiverDraft(d).department)}" placeholder="e.g. Finance">`
+        ) +
+        qfField(
+          'Receiver Phone',
+          `<input class="inp" type="tel" name="billPhone" value="${E(billReceiverDraft(d).phone)}">`
+        ) +
+        qfField(
+          'Receiver Email',
+          `<input class="inp" type="email" name="billEmail" value="${E(billReceiverDraft(d).email)}">`
+        )
     ) +
     qfSection(
       'tot',
@@ -371,8 +479,14 @@ function openNewQuoteForm(o) {
     qfSection(
       'addr',
       'Address Information',
-      qfField('Bill To', `<textarea class="inp" name="address" rows="3">${E(d.address)}</textarea>`) +
-        qfField('Ship To', `<textarea class="inp" name="shipping" rows="3">${E(d.shipping)}</textarea>`)
+      qfField(
+        'Bill To',
+        `<textarea class="inp" name="address" rows="3">${E(d.address)}</textarea>`
+      ) +
+        qfField(
+          'Ship To',
+          `<textarea class="inp" name="shipping" rows="3">${E(d.shipping)}</textarea>`
+        )
     ) +
     `</div><footer><button type="button" class="qf-btn" onclick="$('#modal').innerHTML=''">Cancel</button><button type="button" class="qf-btn" onclick="createQuoteFromForm(event,${o.id},true)">Save &amp; New</button><button class="qf-btn pri">Save</button></footer></form></div>`;
   const first = $('#modal input');
@@ -384,8 +498,11 @@ createQuoteFromForm = function (e, id, again) {
   if (e && e.preventDefault) e.preventDefault();
   const o = S.opps.find((x) => x.id == id),
     form = (e && e.target && (e.target.form || e.target)) || document.querySelector('#modal form'),
-    v = Object.fromEntries(new FormData(form.tagName === 'FORM' ? form : document.querySelector('#modal form')));
-  if (!o || !(v.name || '').trim() || !v.exp) return toast('Quote name and expiry date are required');
+    v = Object.fromEntries(
+      new FormData(form.tagName === 'FORM' ? form : document.querySelector('#modal form'))
+    );
+  if (!o || !(v.name || '').trim() || !v.exp)
+    return toast('Quote name and expiry date are required');
   const dq = S.quotes.find((x) => x.opp == o.id && x.isDefault && x.status === 'Draft'),
     no = dq ? dq.no : 'Q-' + (1001 + S.quotes.length);
   S.qd = {
@@ -402,6 +519,7 @@ createQuoteFromForm = function (e, id, again) {
     toPhone: (v.toPhone || '').trim(),
     address: (v.address || '').trim(),
     shipping: (v.shipping || '').trim(),
+    billTo: billReceiverFromForm(v),
     showDiscount: false,
     items: clone(o.items),
     createdAt: Date.now(),

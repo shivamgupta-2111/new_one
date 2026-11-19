@@ -101,7 +101,8 @@ function savePaySettings(e) {
 // ---------- links and amounts ----------
 const paymentRoute = () => /^#pay\//.test(location.hash);
 const clientRoute = () => customerRoute() || paymentRoute();
-const invoiceOfQuote = (q) => (q && q.invoiceId ? S.invoices.find((i) => i.id === q.invoiceId) : null);
+const invoiceOfQuote = (q) =>
+  q && q.invoiceId ? S.invoices.find((i) => i.id === q.invoiceId) : null;
 const quoteOfInvoice = (i) => S.quotes.find((q) => q.no === i.quoteNo);
 function paymentLink(i) {
   const q = quoteOfInvoice(i);
@@ -110,7 +111,10 @@ function paymentLink(i) {
 // what the client can still pay online
 const payableNow = (i) => invBalance(i);
 const canPayOnline = (i) =>
-  !!i && paySettings().enabled && i.status !== 'Paid' && Object.values(paySettings().methods).some(Boolean);
+  !!i &&
+  paySettings().enabled &&
+  i.status !== 'Paid' &&
+  Object.values(paySettings().methods).some(Boolean);
 
 // The client's tab only writes the shared records, never the sales team's open pages and drafts.
 const CLIENT_WRITE_KEYS = ['quotes', 'invoices', 'opps', 'acts', 'popups'];
@@ -123,7 +127,10 @@ save = function () {
       if (S[k] !== undefined) stored[k] = S[k];
     });
     localStorage.setItem(KEY, JSON.stringify(stored));
-  } catch (e) {}
+    return true;
+  } catch (e) {
+    return storageWriteFailed(e);
+  }
 };
 
 // The invoice goes to the client automatically when they pay before it was formally submitted.
@@ -154,12 +161,17 @@ function settleInvoiceStatus(i) {
 function notifyTeam(kind, i, extra = {}) {
   const q = quoteOfInvoice(i),
     creator = q && S.users.find((u) => u.name === q.createdBy);
-  ['admin', 'ceo'].forEach((role) => queuePopup({ kind, inv: i.id, toRole: role, by: 'customer', ...extra }));
+  ['admin', 'ceo'].forEach((role) =>
+    queuePopup({ kind, inv: i.id, toRole: role, by: 'customer', ...extra })
+  );
   if (creator && creator.role === 'rep')
     queuePopup({ kind, inv: i.id, toUser: creator.id, by: 'customer', ...extra });
 }
 const txnId = (prefix) =>
-  prefix + '_' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 7).toUpperCase();
+  prefix +
+  '_' +
+  Date.now().toString(36).toUpperCase() +
+  Math.random().toString(36).slice(2, 7).toUpperCase();
 
 // Record a payment made by the client through the payment page.
 function recordClientPayment(i, pay) {
@@ -203,7 +215,8 @@ function renderPaymentPage() {
   app.className = 'min-h-screen p-3 md:p-6 max-w-3xl mx-auto';
   const q = quoteByToken(location.hash.slice(5)),
     i = invoiceOfQuote(q);
-  const shell = (body) => `<div class="pay-wrap">${body}<p class="pay-secure"><span class="ms">lock</span>Secure payment page · ${E(companyInfo().name || 'Ceph CRM')}</p></div>`;
+  const shell = (body) =>
+    `<div class="pay-wrap">${body}<p class="pay-secure"><span class="ms">lock</span>Secure payment page · ${E(companyInfo().name || 'Ceph CRM')}</p></div>`;
   if (!q || !i) {
     app.innerHTML = shell(
       `<div class="card p-6 text-center"><span class="ms" style="font-size:40px;color:var(--mut)">link_off</span><h1 class="text-xl font-bold mt-2">Payment link not available</h1><p class="mut mt-2">${q ? 'The invoice for this quotation is not ready yet.' : 'This payment link is not valid.'} Please contact the sender.</p></div>`
@@ -214,7 +227,11 @@ function renderPaymentPage() {
     due = payableNow(i),
     co = companyInfo(),
     contact = [co.email, co.phone].filter(Boolean).map(E).join(' · '),
-    head = `<div class="card p-4 md:p-6 doc-sheet">${docLetterhead('PAYMENT', [['Invoice', i.invoiceNo], ['Quotation', i.quoteNo], ['Due date', fd(invDueDate(i))]])}<div class="pay-sum"><div><div class="mut text-xs">Billed to</div><b>${E(i.account)}</b></div><div><div class="mut text-xs">Invoice total</div><b>${M(invPayable(i))}</b></div><div><div class="mut text-xs">Paid</div><b>${M(invPaid(i))}</b></div><div class="pay-due"><div class="mut text-xs">Amount due</div><b>${M(due)}</b></div></div></div>`;
+    head = `<div class="card p-4 md:p-6 doc-sheet">${docLetterhead('PAYMENT', [
+      ['Invoice', i.invoiceNo],
+      ['Quotation', i.quoteNo],
+      ['Due date', fd(invDueDate(i))],
+    ])}<div class="pay-sum"><div><div class="mut text-xs">Billed to</div><b>${E(i.account)}</b></div><div><div class="mut text-xs">Invoice total</div><b>${M(invPayable(i))}</b></div><div><div class="mut text-xs">Paid</div><b>${M(invPaid(i))}</b></div><div class="pay-due"><div class="mut text-xs">Amount due</div><b>${M(due)}</b></div></div></div>`;
 
   if (PAY.receipt) {
     const r = (i.payments || []).find((x) => x.id === PAY.receipt);
@@ -264,7 +281,23 @@ function payMethodBody(i, q, due) {
   if (PAY.method === 'card')
     return `<form class="pay-form" onsubmit="payByCard(event)" autocomplete="on"><label class="block">Card number<div class="pay-card-num"><input class="inp" name="num" inputmode="numeric" autocomplete="cc-number" placeholder="1234 5678 9012 3456" maxlength="23" required oninput="cardNumInput(this)"><span id="card-brand" class="pay-brand"></span></div></label><label class="block">Name on card<input class="inp" name="name" autocomplete="cc-name" required placeholder="As printed on the card"></label><div class="grid grid-cols-2 gap-3"><label class="block">Expiry (MM/YY)<input class="inp" name="exp" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/YY" maxlength="5" required oninput="cardExpInput(this)"></label><label class="block">CVV<input class="inp" name="cvv" type="password" inputmode="numeric" autocomplete="cc-csc" placeholder="•••" maxlength="4" required oninput="this.value=this.value.replace(/\\D/g,'')"></label></div><div id="pay-err" class="pay-err" role="alert"></div>${btn('Pay ' + M(due))}<p class="mut text-xs">Your card details are never stored. Only the card type and last 4 digits are kept on the receipt.</p></form>`;
   if (PAY.method === 'netbanking')
-    return `<form class="pay-form" onsubmit="payByBank(event)"><div class="pay-bank-grid">${PAY_BANKS.slice(0, 6).map((b) => `<label class="pay-bank-opt"><input type="radio" name="bank" value="${E(b)}" onchange="this.form.other.value=''"><span>${E(b)}</span></label>`).join('')}</div><label class="block">Other bank<select class="inp" name="other" onchange="if(this.value)[...this.form.bank].forEach(r=>r.checked=false)"><option value="">Choose a bank</option>${PAY_BANKS.slice(6).map((b) => `<option>${E(b)}</option>`).join('')}</select></label><div id="pay-err" class="pay-err" role="alert"></div>${btn('Pay ' + M(due))}<p class="mut text-xs">You will sign in to your bank to approve the payment.</p></form>`;
+    return `<form class="pay-form" onsubmit="payByBank(event)"><div class="pay-bank-grid">${PAY_BANKS.slice(
+      0,
+      6
+    )
+      .map(
+        (b) =>
+          `<label class="pay-bank-opt"><input type="radio" name="bank" value="${E(b)}" onchange="this.form.other.value=''"><span>${E(b)}</span></label>`
+      )
+      .join(
+        ''
+      )}</div><label class="block">Other bank<select class="inp" name="other" onchange="if(this.value)[...this.form.bank].forEach(r=>r.checked=false)"><option value="">Choose a bank</option>${PAY_BANKS.slice(
+      6
+    )
+      .map((b) => `<option>${E(b)}</option>`)
+      .join(
+        ''
+      )}</select></label><div id="pay-err" class="pay-err" role="alert"></div>${btn('Pay ' + M(due))}<p class="mut text-xs">You will sign in to your bank to approve the payment.</p></form>`;
   return `<form class="pay-form" onsubmit="payByWallet(event)"><div class="pay-bank-grid">${PAY_WALLETS.map((w) => `<label class="pay-bank-opt"><input type="radio" name="wallet" value="${E(w)}" required><span>${E(w)}</span></label>`).join('')}</div><div id="pay-err" class="pay-err" role="alert"></div>${btn('Pay ' + M(due))}</form>`;
 }
 function copyText(t, msg) {
@@ -303,7 +336,12 @@ function cardNumInput(el) {
   payError('');
   const d = el.value.replace(/\D/g, '').slice(0, 19),
     brand = cardBrand(d);
-  el.value = brand === 'Amex' ? d.replace(/^(\d{4})(\d{0,6})(\d{0,5}).*/, (m, a, b, c) => [a, b, c].filter(Boolean).join(' ')) : d.replace(/(\d{4})(?=\d)/g, '$1 ');
+  el.value =
+    brand === 'Amex'
+      ? d.replace(/^(\d{4})(\d{0,6})(\d{0,5}).*/, (m, a, b, c) =>
+          [a, b, c].filter(Boolean).join(' ')
+        )
+      : d.replace(/(\d{4})(?=\d)/g, '$1 ');
   const b = document.getElementById('card-brand');
   if (b) b.textContent = brand;
 }
@@ -324,7 +362,8 @@ function currentPayInvoice() {
 function gatewayRun(label, onDone) {
   if (PAY.busy) return;
   PAY.busy = true;
-  $('#modal').innerHTML = `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.45)"><div class="card p-6 w-full max-w-sm text-center"><div class="pay-spin" aria-hidden="true"></div><b class="block mt-3">${E(label)}</b><p class="mut text-sm mt-1">Please do not close or refresh this page.</p><p class="pay-test-inline mt-3">Test mode</p></div></div>`;
+  $('#modal').innerHTML =
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.45)"><div class="card p-6 w-full max-w-sm text-center"><div class="pay-spin" aria-hidden="true"></div><b class="block mt-3">${E(label)}</b><p class="mut text-sm mt-1">Please do not close or refresh this page.</p><p class="pay-test-inline mt-3">Test mode</p></div></div>`;
   setTimeout(() => {
     $('#modal').innerHTML = '';
     PAY.busy = false;
@@ -336,7 +375,13 @@ function finishGatewayPayment(method, ref) {
   if (!i) return;
   const due = payableNow(i);
   if (due <= 0) return renderPaymentPage();
-  const entry = recordClientPayment(i, { amount: due, method, ref, note: 'Paid online (test mode)', gateway: 'test' });
+  const entry = recordClientPayment(i, {
+    amount: due,
+    method,
+    ref,
+    note: 'Paid online (test mode)',
+    gateway: 'test',
+  });
   PAY.receipt = entry.id;
   renderPaymentPage();
   scrollTo(0, 0);
@@ -346,7 +391,9 @@ function payByCard(e) {
   const v = Object.fromEntries(new FormData(e.target)),
     num = String(v.num || '').replace(/\D/g, ''),
     brand = cardBrand(num) || 'Card',
-    [mm, yy] = String(v.exp || '').split('/').map((x) => +x),
+    [mm, yy] = String(v.exp || '')
+      .split('/')
+      .map((x) => +x),
     now = new Date(),
     cvvLen = brand === 'Amex' ? 4 : 3;
   if (!luhnOk(num)) return payError('Check the card number');
@@ -371,7 +418,9 @@ function payByBank(e) {
   const f = e.target,
     bank = (f.querySelector('input[name=bank]:checked') || {}).value || f.other.value;
   if (!bank) return payError('Choose your bank');
-  gatewayRun(`Connecting to ${bank}…`, () => finishGatewayPayment(`Net banking · ${bank}`, txnId('pay')));
+  gatewayRun(`Connecting to ${bank}…`, () =>
+    finishGatewayPayment(`Net banking · ${bank}`, txnId('pay'))
+  );
 }
 function payByWallet(e) {
   e.preventDefault();
@@ -391,7 +440,9 @@ function payReceiptCard(i, r, withActions) {
     ['Balance after this payment', M(r.balanceAfter ?? invBalance(i))],
   ]
     .map(([a, b]) => `<div class="pay-row"><span class="mut">${a}</span><span>${b}</span></div>`)
-    .join('')}</div>${r.gateway === 'test' ? '<p class="pay-test-inline mt-2">Test mode payment · no money moved</p>' : ''}${withActions ? `<div class="flex justify-center gap-2 mt-4 flex-wrap"><button class="btn" onclick="printPayReceipt('${E(i.id)}','${E(r.id)}')"><span class="ms">download</span>Download receipt</button>${payableNow(i) > 0.5 ? `<button class="btn btn-p" onclick="PAY.receipt=null;renderPaymentPage()">Pay remaining ${M(payableNow(i))}</button>` : ''}</div>` : ''}</div>`;
+    .join(
+      ''
+    )}</div>${r.gateway === 'test' ? '<p class="pay-test-inline mt-2">Test mode payment · no money moved</p>' : ''}${withActions ? `<div class="flex justify-center gap-2 mt-4 flex-wrap"><button class="btn" onclick="printPayReceipt('${E(i.id)}','${E(r.id)}')"><span class="ms">download</span>Download receipt</button>${payableNow(i) > 0.5 ? `<button class="btn btn-p" onclick="PAY.receipt=null;renderPaymentPage()">Pay remaining ${M(payableNow(i))}</button>` : ''}</div>` : ''}</div>`;
 }
 function showPayReceipt(pid) {
   PAY.receipt = pid;
@@ -401,7 +452,15 @@ function printPayReceipt(invId, pid) {
   const i = S.invoices.find((x) => x.id === invId),
     r = i && (i.payments || []).find((x) => x.id === pid);
   if (!i || !r) return;
-  $('#modal').innerHTML = `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><div class="card p-6 w-full max-w-xl max-h-full overflow-auto doc-sheet">${docLetterhead('PAYMENT RECEIPT', [['Receipt', 'RCPT-' + String(r.id).slice(3).toUpperCase()], ['Invoice', i.invoiceNo], ['Date', fd(r.date)]])}<div class="mb-2"><div class="mut text-xs">Received from</div><b>${E(i.account)}</b></div>${payReceiptCard(i, r, false)}<div class="doc-foot">This is a computer generated receipt.</div><div class="flex justify-end gap-2 mt-4 no-print"><button class="btn" onclick="$('#modal').innerHTML=''">Close</button><button class="btn btn-p" onclick="window.print()">Print / Save PDF</button></div></div></div>`;
+  $('#modal').innerHTML =
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><div class="card p-6 w-full max-w-xl max-h-full overflow-auto doc-sheet">${docLetterhead(
+      'PAYMENT RECEIPT',
+      [
+        ['Receipt', 'RCPT-' + String(r.id).slice(3).toUpperCase()],
+        ['Invoice', i.invoiceNo],
+        ['Date', fd(r.date)],
+      ]
+    )}<div class="mb-2"><div class="mut text-xs">Received from</div><b>${E(i.account)}</b></div>${payReceiptCard(i, r, false)}<div class="doc-foot">This is a computer generated receipt.</div><div class="flex justify-end gap-2 mt-4 no-print"><button class="btn" onclick="$('#modal').innerHTML=''">Close</button><button class="btn btn-p" onclick="window.print()">Print / Save PDF</button></div></div></div>`;
 }
 
 // ---------- routing for the client page ----------
@@ -446,7 +505,12 @@ function copyPaymentLink(invId) {
 const reminderTextBeforePay = reminderText;
 reminderText = function (i) {
   const t = reminderTextBeforePay.apply(this, arguments);
-  return canPayOnline(i) ? t.replace('Kindly arrange the payment at the earliest.', `Kindly arrange the payment at the earliest. You can pay online (card, net banking, wallet):\n${paymentLink(i)}`) : t;
+  return canPayOnline(i)
+    ? t.replace(
+        'Kindly arrange the payment at the earliest.',
+        `Kindly arrange the payment at the earliest. You can pay online (card, net banking, wallet):\n${paymentLink(i)}`
+      )
+    : t;
 };
 // Invoice page: payment link and badges on online payments.
 const invoiceDetailBeforePay = V['invoice-detail'];
@@ -458,8 +522,15 @@ V['invoice-detail'] = function () {
   // badge the online rows in the payments table
   (i.payments || []).forEach((p) => {
     if (!p.online) return;
-    const tag = p.pending ? ' <span class="chip wr">Not confirmed</span>' : p.gateway === 'test' ? ' <span class="chip">Online · test</span>' : ' <span class="chip ok">Online</span>';
-    html = html.replace(`<td>${E(p.method)}</td><td>${E(p.ref || '–')}</td>`, `<td>${E(p.method)}${tag}</td><td>${E(p.ref || '–')}</td>`);
+    const tag = p.pending
+      ? ' <span class="chip wr">Not confirmed</span>'
+      : p.gateway === 'test'
+        ? ' <span class="chip">Online · test</span>'
+        : ' <span class="chip ok">Online</span>';
+    html = html.replace(
+      `<td>${E(p.method)}</td><td>${E(p.ref || '–')}</td>`,
+      `<td>${E(p.method)}${tag}</td><td>${E(p.ref || '–')}</td>`
+    );
   });
   if (admin && canPayOnline(i))
     html = html.replace(
@@ -472,8 +543,7 @@ V['invoice-detail'] = function () {
 // Pop-ups for the team about online payments.
 const showBillPopupBeforePay = showBillPopup;
 showBillPopup = function (p) {
-  if (p.kind !== 'bill-online')
-    return showBillPopupBeforePay.apply(this, arguments);
+  if (p.kind !== 'bill-online') return showBillPopupBeforePay.apply(this, arguments);
   const i = S.invoices.find((x) => x.id === p.inv),
     pay = i && (i.payments || []).find((x) => x.id === p.pay);
   if (!i) return showNextPopup();
@@ -484,8 +554,12 @@ showBillPopup = function (p) {
     lines: [
       pay ? `${E(pay.method)} · Ref <code>${E(pay.ref)}</code> · ${whenText(pay.at)}` : '',
       `Balance due now ${M(invBalance(i))}.`,
-      pay && pay.gateway === 'test' ? '<span class="mut">Test mode payment: no money moved.</span>' : '',
+      pay && pay.gateway === 'test'
+        ? '<span class="mut">Test mode payment: no money moved.</span>'
+        : '',
     ],
-    actions: canSeeInvoices() ? [{ label: `Open ${i.invoiceNo}`, js: `openInvoice('${E(i.id)}')` }] : [],
+    actions: canSeeInvoices()
+      ? [{ label: `Open ${i.invoiceNo}`, js: `openInvoice('${E(i.id)}')` }]
+      : [],
   });
 };

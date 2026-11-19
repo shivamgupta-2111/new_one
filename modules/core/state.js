@@ -7,6 +7,22 @@ function load() {
     return null;
   }
 }
+// A failed save used to be silent, which looked like "the link is not valid" or "the file is missing" later.
+// Now it is reported (at most once every 20 seconds) and save() returns false.
+let storageWarnedAt = 0;
+function storageWriteFailed(e) {
+  console.warn('Ceph CRM could not save', e);
+  if (Date.now() - storageWarnedAt < 20000) return false;
+  storageWarnedAt = Date.now();
+  setTimeout(() => {
+    try {
+      toast(
+        'Could not save: browser storage is full. Use Settings → Data management → Reset demo, or remove old uploads.'
+      );
+    } catch (err) {}
+  }, 0);
+  return false;
+}
 function save() {
   try {
     const data = { ...S };
@@ -14,7 +30,10 @@ function save() {
     localStorage.setItem(KEY, JSON.stringify(data));
     if (S.authUser) sessionStorage.setItem('sc-auth-user', S.authUser);
     else sessionStorage.removeItem('sc-auth-user');
-  } catch (e) {}
+    return true;
+  } catch (e) {
+    return storageWriteFailed(e);
+  }
 }
 let S = load() || seed();
 try {

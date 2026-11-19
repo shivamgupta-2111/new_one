@@ -11,14 +11,16 @@ const CLIENT_OWNED_QUOTE_KEYS = [
   'views',
   'firstViewedAt',
   'paidOnlineAt',
+  'signedCopy',
 ];
 function adoptClientSignature(q) {
   if (!q || !q.customer || q.customer.status !== 'Accepted' || !q.customer.name) return false;
-  if (q.signedBy === q.customer.name && q.signedAt === q.customer.at && q.signedVia === 'customer')
+  const via = q.customer.via === 'paper' ? 'paper' : 'customer'; // e-signed, or a signed paper copy uploaded
+  if (q.signedBy === q.customer.name && q.signedAt === q.customer.at && q.signedVia === via)
     return false;
   q.signedBy = q.customer.name;
   q.signedAt = q.customer.at;
-  q.signedVia = 'customer';
+  q.signedVia = via;
   q.signedRecordedBy = undefined;
   return true;
 }
@@ -28,6 +30,10 @@ function syncOpenQuoteFromStore() {
   const q = S.qd,
     stored = q && (S.quotes || []).find((x) => x.no === q.no);
   if (stored) {
+    if (stored.token && q.token !== stored.token) {
+      q.token = stored.token; // the open copy always uses the link code the client has
+      changed = true;
+    }
     CLIENT_OWNED_QUOTE_KEYS.forEach((k) => {
       if (JSON.stringify(q[k]) !== JSON.stringify(stored[k])) {
         q[k] = stored[k] === undefined ? undefined : clone(stored[k]);
@@ -51,7 +57,10 @@ render = function () {
 addEventListener('storage', (e) => {
   if (e.key !== KEY || clientRoute()) return;
   syncOpenQuoteFromStore();
-  if (['quote', 'opp-detail', 'invoice-detail', 'invoices'].includes(location.hash.slice(1)) && S.authUser)
+  if (
+    ['quote', 'opp-detail', 'invoice-detail', 'invoices'].includes(location.hash.slice(1)) &&
+    S.authUser
+  )
     render();
 });
 syncOpenQuoteFromStore();

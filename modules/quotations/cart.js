@@ -3,7 +3,10 @@
 S.cart = S.cart || {};
 const cartCount = () => Object.values(S.cart).reduce((a, n) => a + n, 0);
 const cartTotal = () =>
-  Object.entries(S.cart).reduce((a, [c, n]) => a + ((S.products.find((p) => p.code === c) || {}).listPrice || 0) * n, 0);
+  Object.entries(S.cart).reduce(
+    (a, [c, n]) => a + ((S.products.find((p) => p.code === c) || {}).listPrice || 0) * n,
+    0
+  );
 
 const quoteLinesCardBeforeCart = quoteLinesCard;
 quoteLinesCard = function () {
@@ -12,25 +15,32 @@ quoteLinesCard = function () {
   if (html.includes(mark))
     html = html.replace(
       mark,
-      `<button class="btn qt-tool" onclick="openCart()"><span class="ms">shopping_cart</span>Cart${cartCount() ? ` <span class="chip ok">${cartCount()}</span>` : ''}</button>` + mark
+      `<button class="btn qt-tool" onclick="openCart()"><span class="ms">shopping_cart</span>Cart${cartCount() ? ` <span class="chip ok">${cartCount()}</span>` : ''}</button>` +
+        mark
     );
   return html;
 };
 function openCart() {
   const q = S.qd;
-  if (!q || !['Draft', 'Rejected'].includes(q.status)) return toast('Open a draft quote to use the cart');
+  if (!q || !['Draft', 'Rejected'].includes(q.status))
+    return toast('Open a draft quote to use the cart');
   const term = (S.cartQ || '').toLowerCase(),
-    prods = S.products.filter((p) => p.active !== false && (!term || (p.name + ' ' + p.code).toLowerCase().includes(term))),
-    rows = prods
-      .map(
-        (p) =>
-          `<div class="flex items-center gap-2 py-2" style="border-bottom:1px solid var(--bd)"><div class="flex-1 min-w-0"><b>${E(p.name)}</b><div class="mut text-xs">${E(p.code)} · ${M(p.listPrice)}</div></div><button class="btn" aria-label="Less" onclick="cartSet('${E(p.code)}',${(S.cart[p.code] || 0) - 1})">−</button><input class="inp" style="width:64px;text-align:center" type="number" min="0" value="${S.cart[p.code] || 0}" aria-label="Quantity of ${E(p.name)}" onchange="cartSet('${E(p.code)}',this.value)"><button class="btn" aria-label="More" onclick="cartSet('${E(p.code)}',${(S.cart[p.code] || 0) + 1})">+</button></div>`
-      )
-      .join('') || '<p class="mut py-3">No products match.</p>',
+    prods = S.products.filter(
+      (p) => p.active !== false && (!term || (p.name + ' ' + p.code).toLowerCase().includes(term))
+    ),
+    rows =
+      prods
+        .map(
+          (p) =>
+            `<div class="flex items-center gap-2 py-2" style="border-bottom:1px solid var(--bd)"><div class="flex-1 min-w-0"><b>${E(p.name)}</b><div class="mut text-xs">${E(p.code)} · ${M(p.listPrice)}</div></div><button class="btn" aria-label="Less" onclick="cartSet('${E(p.code)}',${(S.cart[p.code] || 0) - 1})">−</button><input class="inp" style="width:64px;text-align:center" type="number" min="0" value="${S.cart[p.code] || 0}" aria-label="Quantity of ${E(p.name)}" onchange="cartSet('${E(p.code)}',this.value)"><button class="btn" aria-label="More" onclick="cartSet('${E(p.code)}',${(S.cart[p.code] || 0) + 1})">+</button></div>`
+        )
+        .join('') || '<p class="mut py-3">No products match.</p>',
     lines = Object.entries(S.cart)
       .map(([c, n]) => {
         const p = S.products.find((x) => x.code === c);
-        return p ? `<div class="flex justify-between gap-2 text-sm py-1"><span>${n} × ${E(p.name)}</span><span>${M(p.listPrice * n)}</span></div>` : '';
+        return p
+          ? `<div class="flex justify-between gap-2 text-sm py-1"><span>${n} × ${E(p.name)}</span><span>${M(p.listPrice * n)}</span></div>`
+          : '';
       })
       .join('');
   $('#modal').innerHTML =

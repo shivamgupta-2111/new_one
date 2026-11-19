@@ -1,4 +1,5 @@
-// Account addresses: shown in a hover card on every account name; only Senior Reps, Admin and CEO can edit them.
+// Account addresses: shown in a hover card on every account name. Senior Reps, Admin and CEO can edit any
+// account; a rep can edit the accounts on their own deals.
 
 // Demo addresses for the accounts that ship with the sample data.
 const SAMPLE_ADDRESSES = [
@@ -34,7 +35,7 @@ const accountInfo = (name) => S.accountInfo[name] || { address: '', shipping: ''
 const acctAttr = (name) => `data-acct="${E(name)}" tabindex="0"`;
 const acctSpan = (name) => `<span class="acct-hover" ${acctAttr(name)}>${E(name)}</span>`;
 const acctEditBtn = (name) =>
-  canEditAddress()
+  canEditAddress(name)
     ? ` <button type="button" class="hdr-ic" style="width:26px;height:26px;vertical-align:middle" title="Edit addresses" aria-label="Edit addresses for ${E(name)}" onclick="event.stopPropagation();openAccountEditor(${E(JSON.stringify(name))})"><span class="ms" style="font-size:18px">edit_location_alt</span></button>`
     : '';
 
@@ -80,9 +81,9 @@ addEventListener('scroll', hideAcctCard, true);
 addEventListener('keydown', (e) => e.key === 'Escape' && hideAcctCard(), true);
 addEventListener('hashchange', hideAcctCard);
 
-// ----- editing (Senior Rep, Admin, CEO) -----
+// ----- editing (Admin, CEO, Senior Rep; reps for accounts on their own deals) -----
 function openAccountEditor(name) {
-  if (!canEditAddress()) return toast('Only Admin and CEO can edit addresses');
+  if (!canEditAddress(name)) return toast(NO_ADDRESS_MSG);
   hideAcctCard();
   const info = accountInfo(name);
   $('#modal').innerHTML =
@@ -95,7 +96,7 @@ function openAccountEditor(name) {
 }
 function saveAccountAddress(e, name) {
   e.preventDefault();
-  if (!canEditAddress()) return toast('Only Admin and CEO can edit addresses');
+  if (!canEditAddress(name)) return toast(NO_ADDRESS_MSG);
   const v = Object.fromEntries(new FormData(e.target)),
     address = (v.address || '').trim();
   S.accountInfo[name] = {
@@ -116,7 +117,7 @@ function saveAccountAddress(e, name) {
 // Accounts list: same columns as before, plus the address and an edit button for those allowed.
 V.accounts = () => {
   const names = [...new Set(S.opps.map((o) => o.account))],
-    edit = canEditAddress();
+    edit = canEditAddress(); // any edit button on the page (each row is checked separately)
   return (
     `<h1 class="text-xl font-bold mb-3">Accounts</h1>` +
     table(
@@ -126,7 +127,7 @@ V.accounts = () => {
           const x = S.opps.filter((o) => o.account == a),
             open = x.filter((o) => o.stage < 5),
             info = accountInfo(a);
-          return `<tr class="r" onclick="S.q='${E(a).replace(/'/g, '')}';nav('opps')"><td><b>${acctSpan(a)}</b></td><td>${open.length}</td><td>${M(open.reduce((s, o) => s + o.amount, 0))}</td><td>${M(x.filter((o) => o.stage == 5).reduce((s, o) => s + o.amount, 0))}</td><td class="mut text-xs">${info.address ? E(info.address) : 'Not added'}</td><td class="text-right">${edit ? `<button class="btn" onclick="event.stopPropagation();openAccountEditor(${E(JSON.stringify(a))})"><span class="ms">edit_location_alt</span>Edit</button>` : ''}</td></tr>`;
+          return `<tr class="r" onclick="S.q='${E(a).replace(/'/g, '')}';nav('opps')"><td><b>${acctSpan(a)}</b></td><td>${open.length}</td><td>${M(open.reduce((s, o) => s + o.amount, 0))}</td><td>${M(x.filter((o) => o.stage == 5).reduce((s, o) => s + o.amount, 0))}</td><td class="mut text-xs">${info.address ? E(info.address) : 'Not added'}</td><td class="text-right">${canEditAddress(a) ? `<button class="btn" onclick="event.stopPropagation();openAccountEditor(${E(JSON.stringify(a))})"><span class="ms">edit_location_alt</span>Edit</button>` : ''}</td></tr>`;
         })
         .join('')
     )

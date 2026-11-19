@@ -178,7 +178,7 @@ openAccountEditor = function (name) {
 };
 const saveAccountAddressBeforeGst = saveAccountAddress;
 saveAccountAddress = function (e, name) {
-  if (!canEditAddress()) return saveAccountAddressBeforeGst.apply(this, arguments);
+  if (!canEditAddress(name)) return saveAccountAddressBeforeGst.apply(this, arguments);
   const v = Object.fromEntries(new FormData(e.target)),
     gstin = (v.gstin || '').trim().toUpperCase();
   if (gstin && !GSTIN_RX.test(gstin)) {
@@ -708,8 +708,14 @@ function invoiceSheetHtml(i) {
     .join('');
   const addr = (t) => `<div style="white-space:pre-wrap">${E(t || '–')}</div>`;
   return (
-    `<div class="inv-sheet doc-sheet text-sm">${docLetterhead(tax ? 'TAX INVOICE' : 'INVOICE', [['Invoice no.', i.invoiceNo], ['Date', fd(new Date(i.sentAt || i.generatedAt || Date.now()).toISOString().slice(0, 10))], ['Due', fd(invDueDate(i))], ['Quotation', i.quoteNo], ['State', co.state || '']])}` +
-    `<div class="grid sm:grid-cols-2 gap-3 mt-3"><div><div class="mut text-xs">Bill to</div><b>${E(i.account)}</b>${addr(cu.address)}${cu.gstin ? `<div>GSTIN: <b>${E(cu.gstin)}</b></div>` : ''}</div><div><div class="mut text-xs">Ship to</div>${addr(cu.shipping || cu.address)}${tax ? `<div class="mt-1">Place of supply: <b>${E(cu.state || co.state || '–')}</b> (${intra ? 'intra-state: CGST + SGST' : 'inter-state: IGST'})</div>` : ''}</div></div>` +
+    `<div class="inv-sheet doc-sheet text-sm">${docLetterhead(tax ? 'TAX INVOICE' : 'INVOICE', [
+      ['Invoice no.', i.invoiceNo],
+      ['Date', fd(new Date(i.sentAt || i.generatedAt || Date.now()).toISOString().slice(0, 10))],
+      ['Due', fd(invDueDate(i))],
+      ['Quotation', i.quoteNo],
+      ['State', co.state || ''],
+    ])}` +
+    `<div class="grid sm:grid-cols-2 gap-3 mt-3"><div><div class="mut text-xs">Bill to</div><b>${E(i.account)}</b>${addr(cu.address)}${cu.gstin ? `<div>GSTIN: <b>${E(cu.gstin)}</b></div>` : ''}${billReceiverHtml(invoiceBillReceiver(i))}</div><div><div class="mut text-xs">Ship to</div>${addr(cu.shipping || cu.address)}${tax ? `<div class="mt-1">Place of supply: <b>${E(cu.state || co.state || '–')}</b> (${intra ? 'intra-state: CGST + SGST' : 'inter-state: IGST'})</div>` : ''}</div></div>` +
     `<div class="overflow-x-auto mt-3"><table class="w-full inv-table"><thead><tr>${head.map((h, k) => th(h, k > 2)).join('')}</tr></thead><tbody>${rows}</tbody></table></div>` +
     `<div class="grid sm:grid-cols-2 gap-4 mt-3"><div>${tax ? `<table class="w-full text-xs"><thead><tr><th class="text-left">HSN/SAC</th><th class="text-right">Taxable</th><th class="text-right">Rate</th><th class="text-right">Tax</th></tr></thead><tbody>${sumRows}</tbody></table>` : ''}</div><div><div class="flex justify-between"><span>Taxable value</span><span>${M(c.taxable)}</span></div>${tax ? (intra ? `<div class="flex justify-between"><span>CGST</span><span>${M(c.cgst)}</span></div><div class="flex justify-between"><span>SGST</span><span>${M(c.sgst)}</span></div>` : `<div class="flex justify-between"><span>IGST</span><span>${M(c.igst)}</span></div>`) : ''}${c.roundOff ? `<div class="flex justify-between"><span>Round off</span><span>${c.roundOff > 0 ? '+' : '−'}₹${Math.abs(c.roundOff).toFixed(2)}</span></div>` : ''}<div class="flex justify-between text-lg font-bold" style="border-top:1px solid var(--bd);margin-top:4px;padding-top:4px"><span>Total</span><span>${M(c.payable)}</span></div>${invPaid(i) ? `<div class="flex justify-between"><span>Received</span><span>${M(invPaid(i))}</span></div><div class="flex justify-between font-bold"><span>Balance due</span><span>${M(invBalance(i))}</span></div>` : ''}</div></div>` +
     `<div class="mt-2"><span class="mut">Amount in words:</span> <b>${rupeesInWords(c.payable)}</b></div>` +

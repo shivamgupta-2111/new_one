@@ -59,8 +59,20 @@ render = function () {
   if (sw) sw.value = S.role;
 };
 // Upgrade existing approved quotes and register the enhanced route renderer.
-S.quotes.forEach((q) => {
-  if (q.status === 'In Review') q.status = 'Pending Admin Approval';
-  if (q.status === 'Approved' && !q.invoiceId) newInvoice(q);
-});
+// Runs once every module has loaded: newInvoice() needs the terms helpers defined in later modules
+// (running it here crashed start-up whenever an approved quote had no invoice yet).
+setTimeout(() => {
+  let changed = false;
+  S.quotes.forEach((q) => {
+    if (q.status === 'In Review') {
+      q.status = 'Pending Admin Approval';
+      changed = true;
+    }
+    if (q.status === 'Approved' && !q.invoiceId) {
+      newInvoice(q);
+      changed = true;
+    }
+  });
+  if (changed) save();
+}, 0);
 addEventListener('hashchange', render);

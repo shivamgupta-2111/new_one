@@ -79,7 +79,8 @@ function brandMark(size = 44) {
   const co = (S.settings && S.settings.company) || {};
   if (co.logo)
     return `<img class="doc-logo-img" src="${E(co.logo)}" alt="${E(co.name || 'Company')} logo" style="max-height:${size}px;max-width:${size * 3.2}px">`;
-  return `<svg class="doc-logo-mark" width="${size}" height="${size}" viewBox="0 0 48 48" role="img" aria-label="Logo" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="dlg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#14b8a6"/><stop offset="1" stop-color="#0b4f4a"/></linearGradient></defs><rect width="48" height="48" rx="12" fill="url(#dlg)"/><path d="M33.5 15.8A13 13 0 1 0 33.5 32.2" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/><circle cx="35.4" cy="24" r="3.8" fill="#f2c46d"/></svg>`;
+  const gid = 'dlg' + Math.random().toString(36).slice(2, 8); // unique per logo, or a hidden copy breaks the colour
+  return `<svg class="doc-logo-mark" width="${size}" height="${size}" viewBox="0 0 48 48" role="img" aria-label="Logo" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#14b8a6"/><stop offset="1" stop-color="#0b4f4a"/></linearGradient></defs><rect width="48" height="48" rx="12" fill="url(#${gid})"/><path d="M33.5 15.8A13 13 0 1 0 33.5 32.2" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/><circle cx="35.4" cy="24" r="3.8" fill="#f2c46d"/></svg>`;
 }
 const brandInitials = (name) =>
   String(name || 'Ceph CRM')
@@ -103,7 +104,13 @@ function docLetterhead(title, meta) {
         ? `<div>${[co.email, co.phone].filter(Boolean).map(E).join(' · ')}</div>`
         : '',
     ].join('');
-  return `<div class="doc-head"><div class="doc-brand">${brandMark(co.logo ? 52 : 46)}<div><div class="doc-co">${E(name)}</div><div class="doc-co-sub">${lines || '<div>Sales &amp; Billing</div>'}</div></div></div><div class="doc-title"><div class="doc-kind">${E(title)}</div>${meta
+  // Staff-only reminder (never printed, never shown to the client) when the letterhead is incomplete.
+  const missing = [!co.address && 'address', !co.gstin && 'GSTIN'].filter(Boolean),
+    hint =
+      missing.length && !document.body.classList.contains('cq-mode')
+        ? `<div class="doc-co-missing no-print">Ceph CRM ${missing.join(' and ')} not set — ${['admin', 'ceo'].includes(S.role) ? `<a onclick="$('#modal').innerHTML='';S.setTab='company';nav('settings')">add it in Settings → Company &amp; GST</a>` : 'ask Admin or CEO to add it in Settings → Company &amp; GST'} so it prints on quotations and invoices.</div>`
+        : '';
+  return hint + `<div class="doc-head"><div class="doc-brand">${brandMark(co.logo ? 52 : 46)}<div><div class="doc-co">${E(name)}</div><div class="doc-co-sub">${lines || '<div>Sales &amp; Billing</div>'}</div></div></div><div class="doc-title"><div class="doc-kind">${E(title)}</div>${meta
     .filter((m) => m && m[1] !== '' && m[1] != null)
     .map(
       (m) => `<div class="doc-meta"><span>${E(m[0])}</span><b>${m[2] ? m[1] : E(m[1])}</b></div>`
@@ -166,6 +173,8 @@ function signatureBlock(
 ) {
   if (!name) return '';
   const lab = label ? `<div class="sig-label">${E(label)}</div>` : '';
+  if (via === 'paper')
+    return `<div class="sig-block">${lab}<div class="sig-recorded"><span class="ms">description</span>Signed on paper</div><div class="sig-line"></div><div class="sig-name"><b>${E(name)}</b>${at ? ` · ${whenText(at)}` : ''}</div><div class="sig-note">Signed copy uploaded by the client</div></div>`;
   if (via === 'staff')
     return `<div class="sig-block">${lab}<div class="sig-recorded"><span class="ms">edit_document</span>Signed copy received</div><div class="sig-line"></div><div class="sig-name"><b>${E(name)}</b>${at ? ` · ${whenText(at)}` : ''}</div><div class="sig-note">Recorded by ${E(recordedBy || 'the sales team')}</div></div>`;
   return `<div class="sig-block">${lab}${signatureSvg(name)}<div class="sig-line"></div><div class="sig-name"><b>${E(name)}</b>${at ? ` · ${whenText(at)}` : ''}</div><div class="sig-note">Signed electronically by the client</div></div>`;
@@ -174,12 +183,13 @@ function signatureBlock(
 function quoteSigner(q) {
   if (!q) return null;
   const c = q.customer;
-  if (c && c.status === 'Accepted' && c.name) return { name: c.name, at: c.at, via: 'customer' };
+  if (c && c.status === 'Accepted' && c.name)
+    return { name: c.name, at: c.at, via: c.via === 'paper' ? 'paper' : 'customer' };
   if (q.signedBy)
     return {
       name: q.signedBy,
       at: q.signedAt,
-      via: q.signedVia === 'customer' ? 'customer' : 'staff',
+      via: ['customer', 'paper'].includes(q.signedVia) ? q.signedVia : 'staff',
       by: q.signedRecordedBy,
     };
   return null;
@@ -358,6 +368,22 @@ function load() {
     return null;
   }
 }
+// A failed save used to be silent, which looked like "the link is not valid" or "the file is missing" later.
+// Now it is reported (at most once every 20 seconds) and save() returns false.
+let storageWarnedAt = 0;
+function storageWriteFailed(e) {
+  console.warn('Ceph CRM could not save', e);
+  if (Date.now() - storageWarnedAt < 20000) return false;
+  storageWarnedAt = Date.now();
+  setTimeout(() => {
+    try {
+      toast(
+        'Could not save: browser storage is full. Use Settings → Data management → Reset demo, or remove old uploads.'
+      );
+    } catch (err) {}
+  }, 0);
+  return false;
+}
 function save() {
   try {
     const data = { ...S };
@@ -365,7 +391,10 @@ function save() {
     localStorage.setItem(KEY, JSON.stringify(data));
     if (S.authUser) sessionStorage.setItem('sc-auth-user', S.authUser);
     else sessionStorage.removeItem('sc-auth-user');
-  } catch (e) {}
+    return true;
+  } catch (e) {
+    return storageWriteFailed(e);
+  }
 }
 let S = load() || seed();
 try {
@@ -391,6 +420,97 @@ const chipC = (o) => (o.stage == 5 ? 'ok' : days(o.close) <= 3 ? 'wr' : '');
 function table(h, rows) {
   return `<div class="card overflow-x-auto"><table><thead><tr>${h.map((x) => `<th>${x}</th>`).join('')}</tr></thead><tbody>${rows || `<tr><td colspan="9" class="mut">Nothing here yet. Use New to add the first record.</td></tr>`}</tbody></table></div>`;
 }
+
+// Uploaded files (for example a client's signed copy of a quotation) are kept in the browser's file
+// database (IndexedDB), not in the main saved data. The main data has a limit of about 5 MB; one large
+// photo used to fill it, after which nothing else could be saved (sent links then showed "Link not valid").
+// The saved data keeps only the file's details: { name, type, size, at, fileKey }.
+
+const FILE_DB = 'ceph-crm-files';
+let fileDbPromise;
+function fileDb() {
+  if (!fileDbPromise)
+    fileDbPromise = new Promise((resolve, reject) => {
+      const r = indexedDB.open(FILE_DB, 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('files');
+      r.onsuccess = () => resolve(r.result);
+      r.onerror = () => reject(r.error);
+    });
+  return fileDbPromise;
+}
+function fileTx(mode, run) {
+  return fileDb().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const tx = db.transaction('files', mode),
+          req = run(tx.objectStore('files'));
+        tx.oncomplete = () => resolve(req && req.result);
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      })
+  );
+}
+const filePut = (key, blob) => fileTx('readwrite', (st) => st.put(blob, key));
+const fileGet = (key) => fileTx('readonly', (st) => st.get(key));
+const fileDelete = (key) => fileTx('readwrite', (st) => st.delete(key));
+const signedCopyKey = (no) => 'signed-copy:' + no;
+
+// Open (new tab) or download a quote's signed copy.
+function openSignedCopy(no, download) {
+  const q = S.quotes.find((x) => x.no === no),
+    sc = q && q.signedCopy;
+  if (!sc) return;
+  const tab = download ? null : window.open('', '_blank'); // opened now, so pop-up blockers allow it
+  if (tab)
+    tab.document.write('<p style="font:16px sans-serif;padding:24px">Opening the signed copy…</p>');
+  const ext = (String(sc.name).match(/\.[a-z0-9]+$/i) || [''])[0];
+  fileGet(sc.fileKey || signedCopyKey(no))
+    .then((blob) => blob || (sc.data ? fetch(sc.data).then((r) => r.blob()) : null))
+    .then((blob) => {
+      if (!blob) {
+        if (tab) tab.close();
+        return toast('This file is not stored in this browser. Ask the client to upload it again.');
+      }
+      const url = URL.createObjectURL(blob);
+      if (download) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${no}-signed-copy${ext}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } else if (tab) tab.location.href = url;
+      setTimeout(() => URL.revokeObjectURL(url), 120000);
+    })
+    .catch(() => {
+      if (tab) tab.close();
+      toast('Could not open the file');
+    });
+}
+
+// One-time clean-up: copies uploaded before this change were kept inside the saved data. Move them into
+// the file database, which frees the main storage again.
+function moveUploadsToFileStore() {
+  const old = (S.quotes || []).filter((q) => q.signedCopy && q.signedCopy.data);
+  if (!old.length || typeof indexedDB === 'undefined') return;
+  Promise.all(
+    old.map((q) =>
+      fetch(q.signedCopy.data)
+        .then((r) => r.blob())
+        .then((blob) => filePut(signedCopyKey(q.no), blob))
+        .then(() => {
+          q.signedCopy.fileKey = signedCopyKey(q.no);
+          delete q.signedCopy.data;
+          if (S.qd && S.qd.no === q.no && S.qd.signedCopy) {
+            S.qd.signedCopy.fileKey = q.signedCopy.fileKey;
+            delete S.qd.signedCopy.data;
+          }
+        })
+        .catch((e) => console.warn('Could not move an uploaded file', e))
+    )
+  ).then(() => save());
+}
+setTimeout(moveUploadsToFileStore, 0);
 
 // Home dashboard, pipeline board and stage drag/drop.
 
@@ -588,7 +708,8 @@ const gv = (o, k) => {
       orig: o.amount,
     };
   // churn reasons saved earlier as one list now fill Churn 1, 2 and 3
-  if (/^churn[123]$/.test(k) && !(k in f) && Array.isArray(f.churnWhy)) return f.churnWhy[+k.slice(5) - 1] || '';
+  if (/^churn[123]$/.test(k) && !(k in f) && Array.isArray(f.churnWhy))
+    return f.churnWhy[+k.slice(5) - 1] || '';
   return k in f ? f[k] : (m[k] ?? '');
 };
 const riskOf = (o) => {
@@ -611,7 +732,11 @@ const fld = (o, [k, l, t, op]) => {
       S.ed == k
         ? `<select class="inp" aria-label="${E(l)}" data-ed onchange="sf('${k}',this.value)" onblur="S.ed=null;render()">${currencyOptions(cv)}</select>`
         : `<div>${E(currencyLabel(cv))}</div>`;
-    return sfRow(l, body, `<span class="ms" title="Edit ${E(l)}" onclick="S.ed='${k}';render()">edit</span>`);
+    return sfRow(
+      l,
+      body,
+      `<span class="ms" title="Edit ${E(l)}" onclick="S.ed='${k}';render()">edit</span>`
+    );
   }
   const v = gv(o, k),
     ed = S.ed == k && t != 'ro' && t != 'b';
@@ -1347,6 +1472,7 @@ function newInvoice(q) {
       terms: q.terms || 'Net 30',
       tnc: effectiveTnc(q),
       showDiscount: !!q.showDiscount,
+      billTo: q.billTo && q.billTo.name ? clone(q.billTo) : undefined,
       generatedAt: Date.now(),
       status: 'Ready to submit',
       currency: 'INR',
@@ -1525,6 +1651,16 @@ function dashBars(rows, tone = '', fmt = M) {
     )
     .join('')}</div>`;
 }
+// Plain list (no bars): rows = [{ label, value, sub, click }] shown as name, detail and amount.
+function dashList(rows, fmt = M) {
+  if (!rows.length) return '<p class="mut mt-3">Nothing to show yet.</p>';
+  return `<div class="dl">${rows
+    .map(
+      (r) =>
+        `<div class="dl-row${r.click ? ' r' : ''}" ${r.click ? `onclick="${r.click}"` : ''}><div class="dl-label"><div class="dl-name">${E(r.label)}</div>${r.sub ? `<div class="dl-sub">${E(r.sub)}</div>` : ''}</div><div class="dl-val">${fmt(r.value)}</div></div>`
+    )
+    .join('')}</div>`;
+}
 // Columns over time: cols = [{ label, value }]. Labels only on the latest and the highest column.
 function dashColumns(cols, fmt = M) {
   const mx = Math.max(1, ...cols.map((c) => c.value)),
@@ -1599,8 +1735,8 @@ V.home = () => {
   return `<div class="mb-4 flex flex-wrap items-end gap-3"><div class="flex-1"><h1 class="text-2xl font-bold">Good ${now.getHours() < 12 ? 'morning' : now.getHours() < 17 ? 'afternoon' : 'evening'}, ${E(roleNow().name)}</h1><p class="mut">${open.length} active deals · ${S.tasks.length} open tasks · ${pending.length} quotations awaiting approval${canSeeInvoices() ? ` · ${invCount} invoices` : ''}${rep && scope === 'team' ? ` · showing ${E(oppTeamName({ owner: roleNow().owner }) || 'your team')}` : ''}</p></div>${scopeToggle}</div>
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">${kp('Open pipeline', M(pipe), open.length + ' active deals')}${kp('Weighted forecast', M(weighted), 'Stage-weighted expected revenue', pipe ? (weighted / pipe) * 100 : 0)}${kp('Closed won revenue', M(won), wonDeals.length + (wonDeals.length === 1 ? ' won deal' : ' won deals'))}${kp('Win rate', winRate + '%', `${wonDeals.length} won of ${wonDeals.length + lostDeals.length} closed`, winRate)}</div>
 <!--dash-activity-->
-<div class="grid lg:grid-cols-2 gap-3 mb-3">${dashCard('Pipeline by stage', 'Open deal value at each stage · click to open the list', dashBars(byStage))}${dashCard('Won revenue by month', 'Closed won deals by close month, last 6 months', dashColumns(months))}</div>
-<div class="grid lg:grid-cols-2 gap-3 mb-3">${dashCard('Top deals', 'Five largest open opportunities', dashBars(top.map((o) => ({ label: o.name, value: o.amount, sub: o.account + ' · ' + ST[o.stage], click: `nav('opp-detail',${o.id})` }))))}${dashCard('<span class="inline-flex items-center gap-1"><span class="ms" style="color:var(--warn)">warning</span>Churn watchlist</span>', `${riskAll.length} ${riskAll.length === 1 ? 'deal' : 'deals'} at risk · renewals, support and high-risk flags`, churnBody)}</div>
+<div class="grid lg:grid-cols-2 gap-3 mb-3">${dashCard('Pipeline by stage', 'Open deal value at each stage · click to open the list', dashList(byStage))}${dashCard('Won revenue by month', 'Closed won deals by close month, last 6 months', dashColumns(months))}</div>
+<div class="grid lg:grid-cols-2 gap-3 mb-3">${dashCard('Top deals', 'Five largest open opportunities', dashList(top.map((o) => ({ label: o.name, value: o.amount, sub: o.account + ' · ' + ST[o.stage], click: `nav('opp-detail',${o.id})` }))))}${dashCard('<span class="inline-flex items-center gap-1"><span class="ms" style="color:var(--warn)">warning</span>Churn watchlist</span>', `${riskAll.length} ${riskAll.length === 1 ? 'deal' : 'deals'} at risk · renewals, support and high-risk flags`, churnBody)}</div>
 <!--dash-board-->
 <div class="grid lg:grid-cols-2 gap-3"><div class="card p-4"><b>Closing soon</b>${table(
     ['Deal', 'Account', 'Amount', 'Close'],
@@ -2264,10 +2400,22 @@ render = function () {
   if (sw) sw.value = S.role;
 };
 // Upgrade existing approved quotes and register the enhanced route renderer.
-S.quotes.forEach((q) => {
-  if (q.status === 'In Review') q.status = 'Pending Admin Approval';
-  if (q.status === 'Approved' && !q.invoiceId) newInvoice(q);
-});
+// Runs once every module has loaded: newInvoice() needs the terms helpers defined in later modules
+// (running it here crashed start-up whenever an approved quote had no invoice yet).
+setTimeout(() => {
+  let changed = false;
+  S.quotes.forEach((q) => {
+    if (q.status === 'In Review') {
+      q.status = 'Pending Admin Approval';
+      changed = true;
+    }
+    if (q.status === 'Approved' && !q.invoiceId) {
+      newInvoice(q);
+      changed = true;
+    }
+  });
+  if (changed) save();
+}, 0);
 addEventListener('hashchange', render);
 
 // Users seed, login screen, sign in and sign out.
@@ -4359,7 +4507,8 @@ addEventListener('storage', (e) => {
   if (e.key === KEY) setTimeout(showNextPopup, 0);
 });
 
-// Account addresses: shown in a hover card on every account name; only Senior Reps, Admin and CEO can edit them.
+// Account addresses: shown in a hover card on every account name. Senior Reps, Admin and CEO can edit any
+// account; a rep can edit the accounts on their own deals.
 
 // Demo addresses for the accounts that ship with the sample data.
 const SAMPLE_ADDRESSES = [
@@ -4395,7 +4544,7 @@ const accountInfo = (name) => S.accountInfo[name] || { address: '', shipping: ''
 const acctAttr = (name) => `data-acct="${E(name)}" tabindex="0"`;
 const acctSpan = (name) => `<span class="acct-hover" ${acctAttr(name)}>${E(name)}</span>`;
 const acctEditBtn = (name) =>
-  canEditAddress()
+  canEditAddress(name)
     ? ` <button type="button" class="hdr-ic" style="width:26px;height:26px;vertical-align:middle" title="Edit addresses" aria-label="Edit addresses for ${E(name)}" onclick="event.stopPropagation();openAccountEditor(${E(JSON.stringify(name))})"><span class="ms" style="font-size:18px">edit_location_alt</span></button>`
     : '';
 
@@ -4441,9 +4590,9 @@ addEventListener('scroll', hideAcctCard, true);
 addEventListener('keydown', (e) => e.key === 'Escape' && hideAcctCard(), true);
 addEventListener('hashchange', hideAcctCard);
 
-// ----- editing (Senior Rep, Admin, CEO) -----
+// ----- editing (Admin, CEO, Senior Rep; reps for accounts on their own deals) -----
 function openAccountEditor(name) {
-  if (!canEditAddress()) return toast('Only Admin and CEO can edit addresses');
+  if (!canEditAddress(name)) return toast(NO_ADDRESS_MSG);
   hideAcctCard();
   const info = accountInfo(name);
   $('#modal').innerHTML =
@@ -4456,7 +4605,7 @@ function openAccountEditor(name) {
 }
 function saveAccountAddress(e, name) {
   e.preventDefault();
-  if (!canEditAddress()) return toast('Only Admin and CEO can edit addresses');
+  if (!canEditAddress(name)) return toast(NO_ADDRESS_MSG);
   const v = Object.fromEntries(new FormData(e.target)),
     address = (v.address || '').trim();
   S.accountInfo[name] = {
@@ -4477,7 +4626,7 @@ function saveAccountAddress(e, name) {
 // Accounts list: same columns as before, plus the address and an edit button for those allowed.
 V.accounts = () => {
   const names = [...new Set(S.opps.map((o) => o.account))],
-    edit = canEditAddress();
+    edit = canEditAddress(); // any edit button on the page (each row is checked separately)
   return (
     `<h1 class="text-xl font-bold mb-3">Accounts</h1>` +
     table(
@@ -4487,7 +4636,7 @@ V.accounts = () => {
           const x = S.opps.filter((o) => o.account == a),
             open = x.filter((o) => o.stage < 5),
             info = accountInfo(a);
-          return `<tr class="r" onclick="S.q='${E(a).replace(/'/g, '')}';nav('opps')"><td><b>${acctSpan(a)}</b></td><td>${open.length}</td><td>${M(open.reduce((s, o) => s + o.amount, 0))}</td><td>${M(x.filter((o) => o.stage == 5).reduce((s, o) => s + o.amount, 0))}</td><td class="mut text-xs">${info.address ? E(info.address) : 'Not added'}</td><td class="text-right">${edit ? `<button class="btn" onclick="event.stopPropagation();openAccountEditor(${E(JSON.stringify(a))})"><span class="ms">edit_location_alt</span>Edit</button>` : ''}</td></tr>`;
+          return `<tr class="r" onclick="S.q='${E(a).replace(/'/g, '')}';nav('opps')"><td><b>${acctSpan(a)}</b></td><td>${open.length}</td><td>${M(open.reduce((s, o) => s + o.amount, 0))}</td><td>${M(x.filter((o) => o.stage == 5).reduce((s, o) => s + o.amount, 0))}</td><td class="mut text-xs">${info.address ? E(info.address) : 'Not added'}</td><td class="text-right">${canEditAddress(a) ? `<button class="btn" onclick="event.stopPropagation();openAccountEditor(${E(JSON.stringify(a))})"><span class="ms">edit_location_alt</span>Edit</button>` : ''}</td></tr>`;
         })
         .join('')
     )
@@ -4509,7 +4658,9 @@ S.tncRequests = S.tncRequests || [];
 
 const isAdminOrCeo = () => ['admin', 'ceo'].includes(S.role);
 const standardTnc = () => S.settings.tnc.text;
-const effectiveTnc = (q) => (q && q.tnc ? q.tnc : standardTnc());
+function effectiveTnc(q) {
+  return q && q.tnc ? q.tnc : standardTnc();
+}
 const pendingTnc = (q) => S.tncRequests.find((r) => r.quoteNo === q.no && r.status === 'Pending');
 const lastTncDecision = (q) =>
   S.tncRequests
@@ -4717,7 +4868,15 @@ function printQuote() {
     o = cur();
   if (!q || !o) return;
   $('#modal').innerHTML =
-    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><div class="card p-6 w-full max-w-3xl max-h-full overflow-auto doc-sheet">${docLetterhead('QUOTATION', [['Quote no.', q.no], ['Date', fd(new Date(q.createdAt || Date.now()).toISOString().slice(0, 10))], ['Valid until', fd(q.exp)], ['Status', q.status]])}<div class="doc-for"><div><div class="mut text-xs">Prepared for</div><b>${E(q.preparedFor || o.account)}</b><div>${E(o.account)}</div></div><div class="text-right"><div class="mut text-xs">Subject</div><b>${E(q.name || o.name || '')}</b></div></div>` +
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><div class="card p-6 w-full max-w-3xl max-h-full overflow-auto doc-sheet">${docLetterhead(
+      'QUOTATION',
+      [
+        ['Quote no.', q.no],
+        ['Date', fd(new Date(q.createdAt || Date.now()).toISOString().slice(0, 10))],
+        ['Valid until', fd(q.exp)],
+        ['Status', q.status],
+      ]
+    )}<div class="doc-for"><div><div class="mut text-xs">Prepared for</div><b>${E(q.preparedFor || o.account)}</b><div>${E(o.account)}</div>${billReceiverHtml(billReceiverOf(q))}</div><div class="text-right"><div class="mut text-xs">Subject</div><b>${E(q.name || o.name || '')}</b></div></div>` +
     `<div class="grid sm:grid-cols-2 gap-3 mt-3 text-sm"><div><div class="mut text-xs">Billing address</div><div style="white-space:pre-wrap">${E(q.address || '–')}</div></div><div><div class="mut text-xs">Shipping address</div><div style="white-space:pre-wrap">${E(q.shipping || '–')}</div></div></div>` +
     `<div class="my-4">${billLinesTable(q.items, !!q.showDiscount)}</div><div class="text-right text-lg font-bold">Grand total ${M(quoteTotal(q))}</div>` +
     `<div class="mt-4"><b>Terms &amp; conditions</b><div style="white-space:pre-wrap" class="text-sm">${E(effectiveTnc(q))}</div></div>` +
@@ -4910,6 +5069,11 @@ function ensureDefaultQuotes() {
 const storeQuoteBeforeDefault = storeQuote;
 storeQuote = function (q) {
   delete q.isDefault; // once someone saves a quote it is no longer the auto-filled default
+  const was = S.quotes.find((x) => x.no === q.no);
+  if (was)
+    ['token', 'signMode', 'sends', 'sentAt', 'signedCopy', 'billTo'].forEach((k) => {
+      if (q[k] === undefined && was[k] !== undefined) q[k] = clone(was[k]);
+    });
   return storeQuoteBeforeDefault.apply(this, arguments);
 };
 const renderBeforeDefaultQuote = render;
@@ -5098,8 +5262,30 @@ const contactOptions = (acct, selectedName) =>
     .join('');
 
 // ---------- links, messages ----------
-const quoteToken = (q) =>
-  q.token || (q.token = 'cq' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36));
+// A quote's link code is created once and then never changes: a second code would make the link the
+// client already has show "Link not valid". Reuse the stored quote's code, and save a new one at once.
+function quoteToken(q) {
+  const stored = S.quotes.find((x) => x.no === q.no);
+  if (stored && stored.token) return (q.token = stored.token);
+  if (q.token) {
+    if (stored) {
+      stored.token = q.token;
+      save();
+    }
+    return q.token;
+  }
+  const t = 'cq' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  q.token = t;
+  if (stored) stored.token = t;
+  if (S.qd && S.qd.no === q.no) S.qd.token = t;
+  save();
+  return t;
+}
+// true when the link code (and send details) really reached browser storage
+function quoteLinkSaved(q) {
+  const back = load() || {};
+  return !!(back.quotes || []).find((x) => x.no === q.no && x.token && x.token === q.token);
+}
 const quoteLink = (q) => `${location.origin}${location.pathname}#cq/${quoteToken(q)}`;
 const phoneDigits = (p) => {
   const d = String(p || '').replace(/\D/g, '');
@@ -5108,13 +5294,16 @@ const phoneDigits = (p) => {
 const quoteExpired = (q) => !q.customer && !['Paid'].includes(q.status) && q.exp && days(q.exp) < 0;
 const quoteIsSendable = (q) => ['Approved', 'Sent to client', 'Paid'].includes(q.status);
 
-function quoteMessage(q, o) {
+// How the client signs: 'link' (accept and e-sign online) or 'pdf' (download, sign by hand, upload).
+// Chosen in the Send dialog; the customer page then offers only that method.
+const quoteSignMode = (q) => (q && q.signMode === 'pdf' ? 'pdf' : 'link');
+function quoteMessage(q, o, mode = quoteSignMode(q)) {
   const co = (S.settings.company || {}).name || 'our team',
     first =
       String(q.preparedFor || '')
         .replace(/\s*\(.*\)\s*$/, '')
         .split(' ')[0] || 'there';
-  return `Hello ${first},\n\nPlease find quotation ${q.no} for ${o.account}.\nTotal: ${M(quoteTotal(q))}\nValid until: ${fd(q.exp)}\n\nView, accept and sign it here:\n${quoteLink(q)}\n\nRegards,\n${roleNow().name}\n${co}`;
+  return `Hello ${first},\n\nPlease find quotation ${q.no} for ${o.account}.\nTotal: ${M(quoteTotal(q))}\nValid until: ${fd(q.exp)}${mode === 'pdf' ? `\n\nPlease download the quotation PDF from this link, print it, sign and stamp it, and upload the signed copy on the same page (or reply with it):\n${quoteLink(q)}` : `\n\nView, accept and sign it online here:\n${quoteLink(q)}`}\n\nRegards,\n${roleNow().name}\n${co}`;
 }
 
 // ---------- Send modal ----------
@@ -5125,19 +5314,21 @@ function openSendQuote() {
   if (!quoteIsSendable(q)) return toast('Quotes can be sent once they are approved');
   if (q.status === 'Expired' || quoteExpired(q))
     return toast('This quote has expired. Extend the expiry first');
-  const ch = S.sendChan === 'whatsapp' ? 'whatsapp' : 'email';
+  const ch = S.sendChan === 'whatsapp' ? 'whatsapp' : 'email',
+    mode = S.sendMode && S.sendMode.no === q.no ? S.sendMode.mode : quoteSignMode(q);
   $('#modal').innerHTML =
     `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><form class="card p-5 w-full max-w-lg max-h-full overflow-auto space-y-3" onsubmit="doSendQuote(event)"><h2 class="text-lg font-bold">Send quotation ${E(q.no)}</h2>` +
     `<div class="flex gap-2"><button type="button" class="btn ${ch === 'email' ? 'btn-p' : ''}" onclick="S.sendChan='email';openSendQuote()"><span class="ms">mail</span>Email</button><button type="button" class="btn ${ch === 'whatsapp' ? 'btn-p' : ''}" onclick="S.sendChan='whatsapp';openSendQuote()"><span class="ms">chat</span>WhatsApp</button></div>` +
     (contactsOfAccount(o.account).length
       ? `<label class="block">Contact<select class="inp" onchange="const c=S.contacts.find(x=>x[0]===this.value);if(c){this.form.elements.to.value=${ch === 'email' ? 'c[3]' : 'c[4]'}||''}"><option value="">Choose a contact…</option>${contactOptions(o.account, '')}</select></label>`
       : '') +
-    `<input type="hidden" name="chan" value="${ch}">` +
+    `<div><div class="text-sm font-semibold mb-1">How will the client sign?</div><div class="flex gap-2 flex-wrap"><button type="button" class="btn ${mode === 'link' ? 'btn-p' : ''}" onclick="S.sendMode={no:S.qd.no,mode:'link'};openSendQuote()"><span class="ms">draw</span>Sign online (link)</button><button type="button" class="btn ${mode === 'pdf' ? 'btn-p' : ''}" onclick="S.sendMode={no:S.qd.no,mode:'pdf'};openSendQuote()"><span class="ms">picture_as_pdf</span>Print &amp; sign (PDF)</button></div></div>` +
+    `<input type="hidden" name="chan" value="${ch}"><input type="hidden" name="mode" value="${mode}">` +
     (ch === 'email'
       ? `<label class="block">To (email) *<input class="inp" name="to" type="email" required value="${E(q.toEmail || '')}" placeholder="customer@company.com"></label><label class="block">Subject<input class="inp" name="subject" value="${E(`Quotation ${q.no} – ${o.account}`)}"></label>`
       : `<label class="block">WhatsApp number *<input class="inp" name="to" type="tel" required value="${E(q.toPhone || '')}" placeholder="+91 98765 43210"></label>`) +
-    `<label class="block">Message<textarea class="inp" name="msg" rows="9">${E(quoteMessage(q, o))}</textarea></label>` +
-    `<p class="mut text-xs">This opens your ${ch === 'email' ? 'email app' : 'WhatsApp'} with the message filled in. The link lets the customer view, accept and sign the quote, and you will see when it is opened.</p>` +
+    `<label class="block">Message<textarea class="inp" name="msg" rows="9">${E(quoteMessage(q, o, mode))}</textarea></label>` +
+    `<p class="mut text-xs">This opens your ${ch === 'email' ? 'email app' : 'WhatsApp'} with the message filled in. ${mode === 'pdf' ? 'The customer gets a PDF to print, sign by hand and upload back on the same page. They will not see the online signing option.' : 'The customer views the quote and accepts it with an online signature. They will not see the PDF / paper option.'} You will see when the link is opened.</p>` +
     `<div class="flex justify-end gap-2 flex-wrap"><button type="button" class="btn" onclick="copyQuoteLink()"><span class="ms">link</span>Copy link</button><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">${ch === 'email' ? 'Open email' : 'Open WhatsApp'}</button></div></form></div>`;
   const t = $('#modal [name=to]');
   if (t && !t.value) t.focus();
@@ -5145,8 +5336,13 @@ function openSendQuote() {
 function copyQuoteLink() {
   const q = S.qd;
   if (!q) return;
-  const l = quoteLink(q);
-  patchQuote(q.no, { token: q.token });
+  const l = quoteLink(q),
+    m = $('#modal [name=mode]');
+  patchQuote(q.no, { token: quoteToken(q), signMode: m ? m.value : quoteSignMode(q) });
+  if (!quoteLinkSaved(q))
+    return toast(
+      'Could not save the link (browser storage is full), so it would not open for the client'
+    );
   (navigator.clipboard ? navigator.clipboard.writeText(l) : Promise.reject()).then(
     () => toast('Link copied'),
     () => prompt('Copy this link', l)
@@ -5167,16 +5363,24 @@ function doSendQuote(e) {
       ? `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(v.subject || '')}&body=${encodeURIComponent(v.msg || '')}`
       : `https://wa.me/${phoneDigits(to)}?text=${encodeURIComponent(v.msg || '')}`;
   const sends = [...(q.sends || []), { channel: v.chan, to, at: Date.now(), by: roleNow().name }];
+  const signMode = v.mode === 'pdf' ? 'pdf' : 'link';
+  sends[sends.length - 1].signMode = signMode;
+  S.sendMode = undefined;
   patchQuote(q.no, {
     token: quoteToken(q),
+    signMode,
     sends,
     sentAt: Date.now(),
     ...(v.chan === 'email' ? { toEmail: to } : { toPhone: to }),
   });
+  if (!quoteLinkSaved(q))
+    return toast(
+      'Could not save the link (browser storage is full), so it would not open for the client. Nothing was sent.'
+    );
   logOpp(
     o.id,
     v.chan === 'email' ? 'mail' : 'sync',
-    `Quote ${q.no} sent to ${to} by ${v.chan === 'email' ? 'email' : 'WhatsApp'} (${roleNow().name})`
+    `Quote ${q.no} sent to ${to} by ${v.chan === 'email' ? 'email' : 'WhatsApp'} · ${signMode === 'pdf' ? 'print & sign (PDF)' : 'sign online (link)'} (${roleNow().name})`
   );
   $('#modal').innerHTML = '';
   const a = document.createElement('a');
@@ -5328,7 +5532,7 @@ function renderCustomerQuote() {
     expired = q.status === 'Expired' || quoteExpired(q),
     cs = q.customer,
     banner = cs
-      ? `<div class="qt-banner ${cs.status === 'Accepted' ? 'ok' : 'wr'}"><span class="ms">${cs.status === 'Accepted' ? 'verified' : 'info'}</span><div><b>${cs.status === 'Accepted' ? 'Thank you. You accepted and signed this quotation.' : 'You declined this quotation'}</b><div>${E(cs.name || '')} · ${whenText(cs.at)}</div>${cs.reason ? `<div>Reason: ${E(cs.reason)}</div>` : ''}</div></div>`
+      ? `<div class="qt-banner ${cs.status === 'Accepted' ? 'ok' : 'wr'}"><span class="ms">${cs.status === 'Accepted' ? 'verified' : 'info'}</span><div><b>${cs.status === 'Accepted' ? (cs.via === 'paper' ? 'Thank you. We received your signed copy of this quotation.' : 'Thank you. You accepted and signed this quotation.') : 'You declined this quotation'}</b><div>${E(cs.name || '')} · ${whenText(cs.at)}</div>${cs.reason ? `<div>Reason: ${E(cs.reason)}</div>` : ''}</div></div>`
       : expired
         ? `<div class="qt-banner wr"><span class="ms">event_busy</span><div><b>This quotation has expired</b><div>It was valid until ${fd(q.exp)}. Please contact us for an updated quote.</div></div></div>`
         : !quoteIsSendable(q)
@@ -5336,17 +5540,36 @@ function renderCustomerQuote() {
           : '';
   const actions =
     !cs && !expired && quoteIsSendable(q)
-      ? `<form id="cq-sign" class="card p-4 md:p-5 mt-3 space-y-3" onsubmit="customerRespond(event,'${E(q.token)}','Accepted')" oninput="cqSignUpdate(this)" onchange="cqSignUpdate(this)"><div class="flex items-center gap-2"><span class="ms" style="color:var(--pr)">draw</span><b class="text-lg">Accept and sign</b></div><p class="mut text-sm">Type your full name. Your signature is created from it automatically.</p><label class="block">Your full name *<input class="inp mt-1" name="name" required minlength="2" maxlength="60" autocomplete="name" placeholder="e.g. ${E(String(q.preparedFor || 'Priya Sharma').replace(/\s*\(.*\)\s*$/, ''))}"></label><div class="sig-pad" aria-live="polite"><div class="sig-label">Your signature</div><div class="sig-pad-ink"><span class="mut text-sm">Your signature appears here as you type</span></div><div class="sig-line"></div><div class="sig-name mut">${fd(D(0))}</div></div><label class="flex items-start gap-2"><input type="checkbox" name="agree" required class="mt-1"> <span>I agree to this quotation and its terms &amp; conditions, and I accept the signature above as my electronic signature.</span></label><div class="flex gap-2 flex-wrap"><button class="btn btn-p" id="cq-accept" disabled><span class="ms">verified</span>Agree &amp; submit</button><button type="button" class="btn" style="color:var(--err)" onclick="customerDecline('${E(q.token)}')">Decline</button></div></form>`
+      ? quoteSignMode(q) === 'pdf'
+        ? ''
+        : `<form id="cq-sign" class="card p-4 md:p-5 mt-3 space-y-3 no-print" onsubmit="customerRespond(event,'${E(q.token)}','Accepted')" oninput="cqSignUpdate(this)" onchange="cqSignUpdate(this)"><div class="flex items-center gap-2"><span class="ms" style="color:var(--pr)">draw</span><b class="text-lg">Accept and sign</b></div><p class="mut text-sm">Type your full name. Your signature is created from it automatically.</p><label class="block">Your full name *<input class="inp mt-1" name="name" required minlength="2" maxlength="60" autocomplete="name" placeholder="e.g. ${E(String(q.preparedFor || 'Priya Sharma').replace(/\s*\(.*\)\s*$/, ''))}"></label><div class="sig-pad" aria-live="polite"><div class="sig-label">Your signature</div><div class="sig-pad-ink"><span class="mut text-sm">Your signature appears here as you type</span></div><div class="sig-line"></div><div class="sig-name mut">${fd(D(0))}</div></div><label class="flex items-start gap-2"><input type="checkbox" name="agree" required class="mt-1"> <span>I agree to this quotation and its terms &amp; conditions, and I accept the signature above as my electronic signature.</span></label><div class="flex gap-2 flex-wrap"><button class="btn btn-p" id="cq-accept" disabled><span class="ms">verified</span>Agree &amp; submit</button><button type="button" class="btn" style="color:var(--err)" onclick="customerDecline('${E(q.token)}')">Decline</button></div></form>`
       : '';
+  // Paper option: download / print the quotation, sign it by hand and upload the signed copy.
+  const canSign = !cs && !expired && quoteIsSendable(q) && quoteSignMode(q) === 'pdf';
+  const toolbar =
+    quoteSignMode(q) === 'pdf' && (quoteIsSendable(q) || cs)
+      ? `<div class="flex flex-wrap items-center gap-2 mb-2 no-print"><span class="mut text-sm flex-1">Quotation ${E(q.no)} from ${E(co.name || 'Ceph CRM')}</span><button type="button" class="btn" onclick="cqDownloadPdf()"><span class="ms">picture_as_pdf</span>Download PDF</button></div>`
+      : '';
+  const paperBlock = canSign
+    ? `<div class="paper-sign"><div class="paper-sign-title">Customer acceptance (sign by hand)</div><p class="text-sm">We accept this quotation and its terms and conditions.</p><div class="paper-sign-grid"><div><div class="paper-line"></div><div class="paper-lab">Name</div></div><div><div class="paper-line"></div><div class="paper-lab">Designation</div></div><div><div class="paper-line"></div><div class="paper-lab">Signature</div></div><div><div class="paper-line"></div><div class="paper-lab">Date</div></div></div><div class="paper-stamp">Company stamp</div><p class="text-xs mt-2">For ${E(o.account || q.preparedFor || 'the customer')} · Quote ${E(q.no)} · Grand total ${M(quoteTotal(q))}</p></div>`
+    : '';
+  const paperCard = canSign
+    ? `<form id="cq-paper" class="card p-4 md:p-5 mt-3 space-y-3 no-print" onsubmit="customerUploadSigned(event,'${E(q.token)}')"><div class="flex items-center gap-2"><span class="ms" style="color:var(--pr)">print</span><b class="text-lg">Prefer to sign on paper?</b></div><ol class="paper-steps text-sm"><li><b>Download the PDF</b> and print it. It has space for your name, signature, date and company stamp.</li><li><b>Sign and stamp</b> the acceptance section at the end of the quotation.</li><li><b>Upload</b> a scan or clear photo of the signed page below${co.email ? `, or email it to ${E(co.email)}` : ''}.</li></ol><button type="button" class="btn" onclick="cqDownloadPdf()"><span class="ms">picture_as_pdf</span>Download PDF to sign</button><div class="grid sm:grid-cols-2 gap-3"><label class="block">Signed by (full name) *<input class="inp mt-1" name="name" required minlength="2" maxlength="60" autocomplete="name"></label><label class="block">Signed copy (PDF, JPG or PNG, up to 10 MB) *<input class="inp mt-1" name="file" type="file" required accept="application/pdf,image/jpeg,image/png"></label></div><button class="btn btn-p"><span class="ms">upload_file</span>Upload signed copy</button></form>`
+    : '';
   app.innerHTML =
-    `<div class="card p-4 md:p-6 doc-sheet">${docLetterhead('QUOTATION', [['Quote no.', q.no], ['Valid until', fd(q.exp)]])}${q.name ? `<div class="font-semibold">${E(q.name)}</div>` : ''}${banner ? `<div class="mt-3">${banner}</div>` : ''}` +
-    `<div class="grid sm:grid-cols-2 gap-3 mt-4 text-sm"><div><div class="mut text-xs">Prepared for</div><b>${E(q.preparedFor || o.account || '')}</b><div class="mut">${E(o.account || '')}</div></div><div><div class="mut text-xs">Billing address</div><div style="white-space:pre-wrap">${E(q.address || '–')}</div><div class="mut text-xs mt-2">Shipping address</div><div style="white-space:pre-wrap">${E(q.shipping || '–')}</div></div></div>` +
+    toolbar +
+    `<div class="card p-4 md:p-6 doc-sheet">${docLetterhead('QUOTATION', [
+      ['Quote no.', q.no],
+      ['Valid until', fd(q.exp)],
+    ])}${q.name ? `<div class="font-semibold">${E(q.name)}</div>` : ''}${banner ? `<div class="mt-3">${banner}</div>` : ''}` +
+    `<div class="grid sm:grid-cols-2 gap-3 mt-4 text-sm"><div><div class="mut text-xs">Prepared for</div><b>${E(q.preparedFor || o.account || '')}</b><div class="mut">${E(o.account || '')}</div>${billReceiverHtml(billReceiverOf(q))}</div><div><div class="mut text-xs">Billing address</div><div style="white-space:pre-wrap">${E(q.address || '–')}</div><div class="mut text-xs mt-2">Shipping address</div><div style="white-space:pre-wrap">${E(q.shipping || '–')}</div></div></div>` +
     `<div class="my-4 overflow-x-auto">${billLinesTable(q.items, !!q.showDiscount)}</div><div class="text-right text-lg font-bold">Grand total ${M(quoteTotal(q))}</div>` +
     `<div class="mt-4"><b>Terms &amp; conditions</b><div style="white-space:pre-wrap" class="text-sm">${E(effectiveTnc(q))}</div></div>` +
     (cs && cs.status === 'Accepted' && cs.name
-      ? `<div class="doc-sign-row">${signatureBlock(cs.name, cs.at)}</div>`
+      ? `<div class="doc-sign-row">${signatureBlock(cs.name, cs.at, 'Accepted & signed by', cs.via === 'paper' ? 'paper' : 'customer')}</div>`
       : '') +
-    `</div>${actions}`;
+    paperBlock +
+    `</div>${actions}${paperCard}`;
 }
 // Live signature preview: Agree & submit unlocks once a full name is typed and the box is ticked.
 function cqSignUpdate(form) {
@@ -5459,6 +5682,84 @@ function applyCustomerRoute() {
 }
 addEventListener('hashchange', applyCustomerRoute); // runs after the app's own hashchange renderers
 setTimeout(applyCustomerRoute, 0);
+
+// ---------- paper signing from the customer link ----------
+// Download PDF (cqDownloadPdf, in core/print-mode.js) opens the browser's print dialog ("Save as PDF").
+// An unsigned quote prints with an empty acceptance section (name, designation, signature, date, stamp).
+const SIGNED_COPY_MAX = 10 * 1024 * 1024; // kept in the browser's file database, not the main saved data
+function customerUploadSigned(e, token) {
+  e.preventDefault();
+  const q = quoteByToken(token),
+    form = e.target,
+    file = form.elements.file.files[0],
+    signer = String(form.elements.name.value || '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  if (!q || q.customer || q.status === 'Expired' || quoteExpired(q)) return;
+  if (signer.length < 2) return toast('Enter the name of the person who signed');
+  if (!file) return toast('Choose the signed copy to upload');
+  if (!/^(application\/pdf|image\/(jpeg|png))$/.test(file.type))
+    return toast('Upload a PDF, JPG or PNG file');
+  if (file.size > SIGNED_COPY_MAX)
+    return toast(
+      'That file is over 10 MB. Please upload a smaller scan or photo of the signed page.'
+    );
+  const btn = form.querySelector('.btn-p'),
+    key = signedCopyKey(q.no);
+  btn.disabled = true;
+  filePut(key, file)
+    .then(() => {
+      const at = Date.now();
+      q.signedCopy = {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        at,
+        signer,
+        fileKey: key,
+      };
+      q.customer = { status: 'Accepted', name: signer, at, via: 'paper' };
+      q.signedBy = signer;
+      q.signedAt = at;
+      q.signedVia = 'paper';
+      q.signedRecordedBy = undefined;
+      if (!save()) {
+        ['signedCopy', 'customer', 'signedBy', 'signedAt', 'signedVia', 'signedRecordedBy'].forEach(
+          (k) => delete q[k]
+        );
+        fileDelete(key).catch(() => {});
+        btn.disabled = false;
+        return toast('Could not save your upload here. Please email the signed copy instead.');
+      }
+      if (S.qd && S.qd.no === q.no)
+        Object.assign(S.qd, {
+          customer: clone(q.customer),
+          signedBy: q.signedBy,
+          signedAt: q.signedAt,
+          signedVia: q.signedVia,
+          signedCopy: clone(q.signedCopy),
+        });
+      addQuoteHistory(q, 'Customer uploaded signed copy', `${signer} · ${file.name}`);
+      const o = S.opps.find((x) => x.id == q.opp);
+      if (o) logOpp(o.id, 'sync', `Customer uploaded a signed copy of quote ${q.no} (${signer})`);
+      const creator = S.users.find((u) => u.name === q.createdBy);
+      queuePopup({
+        kind: 'cq-accepted',
+        no: q.no,
+        toUser: creator ? creator.id : undefined,
+        toRole: creator ? undefined : 'admin',
+        by: 'customer',
+      });
+      save();
+      toast('Thank you. Your signed copy was received.');
+      renderCustomerQuote();
+      window.scrollTo(0, 0);
+    })
+    .catch(() => {
+      btn.disabled = false;
+      toast('Could not store that file. Please try again or email the signed copy.');
+    });
+}
 
 // Price book: configurable volume tiers (global, with optional per-product override), bundles,
 // and minimum / maximum selling price per product. Admin and CEO manage it in Settings → Price book.
@@ -5729,7 +6030,10 @@ SETTINGS_PANELS.pricebook = function () {
 S.cart = S.cart || {};
 const cartCount = () => Object.values(S.cart).reduce((a, n) => a + n, 0);
 const cartTotal = () =>
-  Object.entries(S.cart).reduce((a, [c, n]) => a + ((S.products.find((p) => p.code === c) || {}).listPrice || 0) * n, 0);
+  Object.entries(S.cart).reduce(
+    (a, [c, n]) => a + ((S.products.find((p) => p.code === c) || {}).listPrice || 0) * n,
+    0
+  );
 
 const quoteLinesCardBeforeCart = quoteLinesCard;
 quoteLinesCard = function () {
@@ -5738,25 +6042,32 @@ quoteLinesCard = function () {
   if (html.includes(mark))
     html = html.replace(
       mark,
-      `<button class="btn qt-tool" onclick="openCart()"><span class="ms">shopping_cart</span>Cart${cartCount() ? ` <span class="chip ok">${cartCount()}</span>` : ''}</button>` + mark
+      `<button class="btn qt-tool" onclick="openCart()"><span class="ms">shopping_cart</span>Cart${cartCount() ? ` <span class="chip ok">${cartCount()}</span>` : ''}</button>` +
+        mark
     );
   return html;
 };
 function openCart() {
   const q = S.qd;
-  if (!q || !['Draft', 'Rejected'].includes(q.status)) return toast('Open a draft quote to use the cart');
+  if (!q || !['Draft', 'Rejected'].includes(q.status))
+    return toast('Open a draft quote to use the cart');
   const term = (S.cartQ || '').toLowerCase(),
-    prods = S.products.filter((p) => p.active !== false && (!term || (p.name + ' ' + p.code).toLowerCase().includes(term))),
-    rows = prods
-      .map(
-        (p) =>
-          `<div class="flex items-center gap-2 py-2" style="border-bottom:1px solid var(--bd)"><div class="flex-1 min-w-0"><b>${E(p.name)}</b><div class="mut text-xs">${E(p.code)} · ${M(p.listPrice)}</div></div><button class="btn" aria-label="Less" onclick="cartSet('${E(p.code)}',${(S.cart[p.code] || 0) - 1})">−</button><input class="inp" style="width:64px;text-align:center" type="number" min="0" value="${S.cart[p.code] || 0}" aria-label="Quantity of ${E(p.name)}" onchange="cartSet('${E(p.code)}',this.value)"><button class="btn" aria-label="More" onclick="cartSet('${E(p.code)}',${(S.cart[p.code] || 0) + 1})">+</button></div>`
-      )
-      .join('') || '<p class="mut py-3">No products match.</p>',
+    prods = S.products.filter(
+      (p) => p.active !== false && (!term || (p.name + ' ' + p.code).toLowerCase().includes(term))
+    ),
+    rows =
+      prods
+        .map(
+          (p) =>
+            `<div class="flex items-center gap-2 py-2" style="border-bottom:1px solid var(--bd)"><div class="flex-1 min-w-0"><b>${E(p.name)}</b><div class="mut text-xs">${E(p.code)} · ${M(p.listPrice)}</div></div><button class="btn" aria-label="Less" onclick="cartSet('${E(p.code)}',${(S.cart[p.code] || 0) - 1})">−</button><input class="inp" style="width:64px;text-align:center" type="number" min="0" value="${S.cart[p.code] || 0}" aria-label="Quantity of ${E(p.name)}" onchange="cartSet('${E(p.code)}',this.value)"><button class="btn" aria-label="More" onclick="cartSet('${E(p.code)}',${(S.cart[p.code] || 0) + 1})">+</button></div>`
+        )
+        .join('') || '<p class="mut py-3">No products match.</p>',
     lines = Object.entries(S.cart)
       .map(([c, n]) => {
         const p = S.products.find((x) => x.code === c);
-        return p ? `<div class="flex justify-between gap-2 text-sm py-1"><span>${n} × ${E(p.name)}</span><span>${M(p.listPrice * n)}</span></div>` : '';
+        return p
+          ? `<div class="flex justify-between gap-2 text-sm py-1"><span>${n} × ${E(p.name)}</span><span>${M(p.listPrice * n)}</span></div>`
+          : '';
       })
       .join('');
   $('#modal').innerHTML =
@@ -5978,7 +6289,7 @@ openAccountEditor = function (name) {
 };
 const saveAccountAddressBeforeGst = saveAccountAddress;
 saveAccountAddress = function (e, name) {
-  if (!canEditAddress()) return saveAccountAddressBeforeGst.apply(this, arguments);
+  if (!canEditAddress(name)) return saveAccountAddressBeforeGst.apply(this, arguments);
   const v = Object.fromEntries(new FormData(e.target)),
     gstin = (v.gstin || '').trim().toUpperCase();
   if (gstin && !GSTIN_RX.test(gstin)) {
@@ -6508,8 +6819,14 @@ function invoiceSheetHtml(i) {
     .join('');
   const addr = (t) => `<div style="white-space:pre-wrap">${E(t || '–')}</div>`;
   return (
-    `<div class="inv-sheet doc-sheet text-sm">${docLetterhead(tax ? 'TAX INVOICE' : 'INVOICE', [['Invoice no.', i.invoiceNo], ['Date', fd(new Date(i.sentAt || i.generatedAt || Date.now()).toISOString().slice(0, 10))], ['Due', fd(invDueDate(i))], ['Quotation', i.quoteNo], ['State', co.state || '']])}` +
-    `<div class="grid sm:grid-cols-2 gap-3 mt-3"><div><div class="mut text-xs">Bill to</div><b>${E(i.account)}</b>${addr(cu.address)}${cu.gstin ? `<div>GSTIN: <b>${E(cu.gstin)}</b></div>` : ''}</div><div><div class="mut text-xs">Ship to</div>${addr(cu.shipping || cu.address)}${tax ? `<div class="mt-1">Place of supply: <b>${E(cu.state || co.state || '–')}</b> (${intra ? 'intra-state: CGST + SGST' : 'inter-state: IGST'})</div>` : ''}</div></div>` +
+    `<div class="inv-sheet doc-sheet text-sm">${docLetterhead(tax ? 'TAX INVOICE' : 'INVOICE', [
+      ['Invoice no.', i.invoiceNo],
+      ['Date', fd(new Date(i.sentAt || i.generatedAt || Date.now()).toISOString().slice(0, 10))],
+      ['Due', fd(invDueDate(i))],
+      ['Quotation', i.quoteNo],
+      ['State', co.state || ''],
+    ])}` +
+    `<div class="grid sm:grid-cols-2 gap-3 mt-3"><div><div class="mut text-xs">Bill to</div><b>${E(i.account)}</b>${addr(cu.address)}${cu.gstin ? `<div>GSTIN: <b>${E(cu.gstin)}</b></div>` : ''}${billReceiverHtml(invoiceBillReceiver(i))}</div><div><div class="mut text-xs">Ship to</div>${addr(cu.shipping || cu.address)}${tax ? `<div class="mt-1">Place of supply: <b>${E(cu.state || co.state || '–')}</b> (${intra ? 'intra-state: CGST + SGST' : 'inter-state: IGST'})</div>` : ''}</div></div>` +
     `<div class="overflow-x-auto mt-3"><table class="w-full inv-table"><thead><tr>${head.map((h, k) => th(h, k > 2)).join('')}</tr></thead><tbody>${rows}</tbody></table></div>` +
     `<div class="grid sm:grid-cols-2 gap-4 mt-3"><div>${tax ? `<table class="w-full text-xs"><thead><tr><th class="text-left">HSN/SAC</th><th class="text-right">Taxable</th><th class="text-right">Rate</th><th class="text-right">Tax</th></tr></thead><tbody>${sumRows}</tbody></table>` : ''}</div><div><div class="flex justify-between"><span>Taxable value</span><span>${M(c.taxable)}</span></div>${tax ? (intra ? `<div class="flex justify-between"><span>CGST</span><span>${M(c.cgst)}</span></div><div class="flex justify-between"><span>SGST</span><span>${M(c.sgst)}</span></div>` : `<div class="flex justify-between"><span>IGST</span><span>${M(c.igst)}</span></div>`) : ''}${c.roundOff ? `<div class="flex justify-between"><span>Round off</span><span>${c.roundOff > 0 ? '+' : '−'}₹${Math.abs(c.roundOff).toFixed(2)}</span></div>` : ''}<div class="flex justify-between text-lg font-bold" style="border-top:1px solid var(--bd);margin-top:4px;padding-top:4px"><span>Total</span><span>${M(c.payable)}</span></div>${invPaid(i) ? `<div class="flex justify-between"><span>Received</span><span>${M(invPaid(i))}</span></div><div class="flex justify-between font-bold"><span>Balance due</span><span>${M(invBalance(i))}</span></div>` : ''}</div></div>` +
     `<div class="mt-2"><span class="mut">Amount in words:</span> <b>${rupeesInWords(c.payable)}</b></div>` +
@@ -6551,7 +6868,7 @@ function roleTitle(u) {
   return isSeniorRep(u) ? 'SENIOR REP' : String((u && u.role) || '').toUpperCase();
 }
 // A Senior Rep can create opportunities (for any rep), and sees all opportunities, teams and rep names.
-// Senior Reps can also reassign an opportunity's owner. Editing account addresses stays with Admin and CEO.
+// Senior Reps can also reassign an opportunity's owner.
 function hasSeniorRights() {
   if (['admin', 'ceo'].includes(S.role)) return true;
   return isSeniorRep((S.users || []).find((u) => u.id === S.authUser));
@@ -6562,9 +6879,16 @@ function canAddOpportunity() {
 function canEditOwner() {
   return hasSeniorRights(); // change an opportunity's assigned rep (Senior Rep, Admin, CEO)
 }
-function canEditAddress() {
-  return ['admin', 'ceo'].includes(S.role); // account address and shipping address
+// Account address and shipping address: Admin, CEO and Senior Reps can edit any account;
+// a rep can edit the accounts on their own deals (not teammates' or other teams' accounts).
+// Called without an account name, it answers "can this person edit any addresses at all".
+function canEditAddress(account) {
+  if (hasSeniorRights()) return true;
+  if (S.role !== 'rep') return false;
+  const mine = visibleOpps();
+  return account == null ? mine.length > 0 : mine.some((o) => o.account === account);
 }
+const NO_ADDRESS_MSG = 'You can edit addresses only for accounts on your own deals';
 // Invoices are for Admin and CEO only. A Senior Rep's extra rights are just: add opportunities,
 // edit account addresses and reassign opportunities to any rep (plus seeing all teams).
 function canSeeInvoices() {
@@ -6675,7 +6999,7 @@ function hideInvoiceRefs(text) {
 const BASIC_RIGHT = RIGHT.filter((f) => !['won', 'lost', 'notes', 'desc', 'next'].includes(f[0]));
 const addrRow = (label, key) => (o) => {
   const info = accountInfo(o.account),
-    pen = canEditAddress()
+    pen = canEditAddress(o.account)
       ? `<span class="ms" title="Edit addresses" onclick="openAccountEditor(${E(JSON.stringify(o.account))})">edit</span>`
       : '';
   return sfRow(
@@ -7407,7 +7731,7 @@ V['rep-detail'] = () => {
       sub: o.account + ' · ' + ST[o.stage],
       click: `nav('opp-detail',${o.id})`,
     }));
-  const charts = `<div class="grid lg:grid-cols-3 gap-3 mb-3">${dashCard('Pipeline by stage', 'Open deal value at each stage', dashBars(byStage))}${dashCard('Won revenue by month', 'Last 6 months', dashColumns(months))}${dashCard('Top deals', 'Largest open opportunities', dashBars(topDeals))}</div>`;
+  const charts = `<div class="grid lg:grid-cols-3 gap-3 mb-3">${dashCard('Pipeline by stage', 'Open deal value at each stage', dashList(byStage))}${dashCard('Won revenue by month', 'Last 6 months', dashColumns(months))}${dashCard('Top deals', 'Largest open opportunities', dashList(topDeals))}</div>`;
 
   // ---- the rep's team: compare teammates and list the team's opportunities ----
   const mates = team
@@ -7657,7 +7981,13 @@ function qrSortedItems(q) {
 }
 function qrCycleSort() {
   S.qSort = !S.qSort ? 'name' : S.qSort === 'name' ? 'sub' : '';
-  toast(S.qSort === 'name' ? 'Sorted by product name' : S.qSort === 'sub' ? 'Sorted by subtotal' : 'Original order');
+  toast(
+    S.qSort === 'name'
+      ? 'Sorted by product name'
+      : S.qSort === 'sub'
+        ? 'Sorted by subtotal'
+        : 'Original order'
+  );
   render();
 }
 function qrToggleEdit() {
@@ -7678,9 +8008,7 @@ function qrLines(q, locked) {
       .map((p) => `<option value="${E(p.code)}">${E(p.name)} · ${M(p.listPrice)}</option>`)
       .join(''),
     bundles =
-      typeof priceBook === 'function'
-        ? priceBook().bundles.filter((b) => b.active !== false)
-        : [],
+      typeof priceBook === 'function' ? priceBook().bundles.filter((b) => b.active !== false) : [],
     rows = qrSortedItems(q)
       .map(({ i, k }, n) => {
         const net = i.p * (1 - i.d / 100),
@@ -7740,13 +8068,34 @@ function qrInfo(q, o, d, locked) {
     return qrCard(
       'Quote Information',
       f('Quote name', `<input class="inp" value="${E(d.name)}" onchange="S.qd.name=this.value">`) +
-        f('Expiration date', `<input type="date" class="inp" value="${E(q.exp || '')}" onchange="S.qd.exp=this.value">`) +
-        f('Payment terms', `<select class="inp" onchange="S.qd.terms=this.value">${PAYMENT_TERMS.map((t) => `<option ${t === (q.terms || 'Net 30') ? 'selected' : ''}>${t}</option>`).join('')}</select>`) +
-        f('Prepared for', `<input class="inp" value="${E(d.preparedFor)}" onchange="S.qd.preparedFor=this.value">`) +
-        f('Email', `<input class="inp" type="email" value="${E(d.toEmail)}" placeholder="customer@company.com" onchange="S.qd.toEmail=this.value">`) +
-        f('WhatsApp', `<input class="inp" type="tel" value="${E(d.toPhone)}" placeholder="+91 98765 43210" onchange="S.qd.toPhone=this.value">`) +
-        f('Billing address', `<textarea class="inp" rows="2" onchange="S.qd.address=this.value">${E(d.address)}</textarea>`) +
-        f('Shipping address', `<textarea class="inp" rows="2" onchange="S.qd.shipping=this.value">${E(d.shipping)}</textarea>`) +
+        f(
+          'Expiration date',
+          `<input type="date" class="inp" value="${E(q.exp || '')}" onchange="S.qd.exp=this.value">`
+        ) +
+        f(
+          'Payment terms',
+          `<select class="inp" onchange="S.qd.terms=this.value">${PAYMENT_TERMS.map((t) => `<option ${t === (q.terms || 'Net 30') ? 'selected' : ''}>${t}</option>`).join('')}</select>`
+        ) +
+        f(
+          'Prepared for',
+          `<input class="inp" value="${E(d.preparedFor)}" onchange="S.qd.preparedFor=this.value">`
+        ) +
+        f(
+          'Email',
+          `<input class="inp" type="email" value="${E(d.toEmail)}" placeholder="customer@company.com" onchange="S.qd.toEmail=this.value">`
+        ) +
+        f(
+          'WhatsApp',
+          `<input class="inp" type="tel" value="${E(d.toPhone)}" placeholder="+91 98765 43210" onchange="S.qd.toPhone=this.value">`
+        ) +
+        f(
+          'Billing address',
+          `<textarea class="inp" rows="2" onchange="S.qd.address=this.value">${E(d.address)}</textarea>`
+        ) +
+        f(
+          'Shipping address',
+          `<textarea class="inp" rows="2" onchange="S.qd.shipping=this.value">${E(d.shipping)}</textarea>`
+        ) +
         `<div class="qr-actions"><button class="qr-btn" onclick="qrToggleInfo()">Close</button><button class="qr-btn pri" onclick="storeQuote(S.qd);save();S.qInfoEdit=false;toast('Quote details saved');render()">Save</button></div>`,
       ''
     );
@@ -7772,10 +8121,22 @@ function qrClient(q, o, d) {
       'BILLING ADDRESS',
       `<div class="qr-strong">${E(o.account)}</div><div style="white-space:pre-wrap">${E(d.address || acc.address || '—')}</div>`
     ) +
-      block('EMAIL', d.toEmail ? `<a class="qr-link" href="mailto:${E(d.toEmail)}">${E(d.toEmail)}</a>` : '—') +
+      block(
+        'EMAIL',
+        d.toEmail ? `<a class="qr-link" href="mailto:${E(d.toEmail)}">${E(d.toEmail)}</a>` : '—'
+      ) +
       block(
         'PRIMARY CONTACT',
         `<div class="qr-strong">${E(name || '—')}</div>${title ? `<div>${E(title)}</div>` : ''}${d.toPhone ? `<a class="qr-link" href="tel:${E(d.toPhone)}">${E(d.toPhone)}</a>` : ''}`
+      ) +
+      block(
+        'BILL RECEIVER (KIND ATTENTION)',
+        (billReceiverOf(q)
+          ? billReceiverHtml(billReceiverOf(q), '')
+          : `<div class="mut">Not filled yet — add the person who receives the bill.</div>`) +
+          (canEditBillReceiver(q)
+            ? `<a class="qr-link" onclick="openBillReceiver()">${billReceiverOf(q) ? 'Change' : 'Add bill receiver'}</a>`
+            : '')
       ) +
       (quoteSigner(q) ? block('CUSTOMER SIGNATURE', quoteSignatureHtml(q, '')) : '')
   );
@@ -7783,7 +8144,9 @@ function qrClient(q, o, d) {
 
 // ---------- right column ----------
 function qrApprovals(q, floor, locked) {
-  const hist = (q.history || []).filter((h) => ['Submitted', 'Approved', 'Rejected', 'Escalated'].includes(h.action)),
+  const hist = (q.history || []).filter((h) =>
+      ['Submitted', 'Approved', 'Rejected', 'Escalated'].includes(h.action)
+    ),
     pending = String(q.status).startsWith('Pending'),
     done = ['Approved', 'Sent to client', 'Paid'].includes(q.status),
     rows = [];
@@ -7808,30 +8171,41 @@ function qrApprovals(q, floor, locked) {
       : `<label class="qr-field"><span>Notes for approval <i class="qt-req">*</i></span><textarea id="qr-notes" class="inp" rows="3" placeholder="Explain the discount or pricing so the approver can decide." oninput="S.qd.notes=this.value">${E(q.notes || '')}</textarea></label><div class="qr-sub">${route.approver ? 'Will go to: <b>' + E(route.approver) + '</b>' : ''}${floor.length ? ' · Below minimum price → CEO' : ''}</div>`;
   return qrCard(
     'Approvals',
-    (rows.join('') || (locked ? '' : '')) + notes + (!rows.length && locked ? '<div class="qr-sub">No approval needed.</div>' : ''),
+    (rows.join('') || (locked ? '' : '')) +
+      notes +
+      (!rows.length && locked ? '<div class="qr-sub">No approval needed.</div>' : ''),
     `<span class="qr-pill ${done ? 'ok' : ''}">${count}</span>`
   );
 }
 function qrPdfs(q) {
-  const list = q.pdfs || [];
+  const list = q.pdfs || [],
+    sc = q.signedCopy,
+    signedRow = sc
+      ? `<div class="qr-pdf"><span class="qr-pdfi" style="background:var(--done)">${sc.type === 'application/pdf' ? 'PDF' : 'IMG'}</span><div><b>Signed copy · ${E(sc.signer || '')}</b><div class="qr-sub">Uploaded by the client ${ago(sc.at)} · ${Math.max(1, Math.round(sc.size / 1024))} KB · ${E(sc.name)}</div></div></div><div class="qr-links"><a class="qr-link" onclick="openSignedCopy('${E(q.no)}',false)">View</a><a class="qr-link" onclick="openSignedCopy('${E(q.no)}',true)">Download</a></div>`
+      : '';
   return qrCard(
     'Quote PDFs',
-    list.length
-      ? list
-          .slice()
-          .reverse()
-          .map(
-            (p) =>
-              `<div class="qr-pdf"><span class="qr-pdfi">PDF</span><div><b>${E(p.name)}</b><div class="qr-sub">Created ${ago(p.at)} · ${p.kb} KB</div></div></div><div class="qr-links"><a class="qr-link" onclick="printQuote()">View</a>${quoteIsSendable(q) ? '<a class="qr-link" onclick="openSendQuote()">Email PDF</a>' : ''}</div>`
-          )
-          .join('')
-      : '<div class="qr-sub">No PDF yet. Use “Create PDF”.</div>',
-    `<span class="qr-pill">${list.length}</span>`
+    signedRow +
+      (list.length
+        ? list
+            .slice()
+            .reverse()
+            .map(
+              (p) =>
+                `<div class="qr-pdf"><span class="qr-pdfi">PDF</span><div><b>${E(p.name)}</b><div class="qr-sub">Created ${ago(p.at)} · ${p.kb} KB</div></div></div><div class="qr-links"><a class="qr-link" onclick="printQuote()">View</a>${quoteIsSendable(q) ? '<a class="qr-link" onclick="openSendQuote()">Email PDF</a>' : ''}</div>`
+            )
+            .join('')
+        : sc
+          ? ''
+          : '<div class="qr-sub">No PDF yet. Use “Create PDF”.</div>'),
+    `<span class="qr-pill">${list.length + (sc ? 1 : 0)}</span>`
   );
 }
 function qrActivity(q, o) {
   const ev = [];
-  (q.history || []).forEach((h) => ev.push({ t: h.t, a: `${E(h.action)} · ${E(h.by)}`, n: h.note }));
+  (q.history || []).forEach((h) =>
+    ev.push({ t: h.t, a: `${E(h.action)} · ${E(h.by)}`, n: h.note })
+  );
   (q.sends || []).forEach((s) =>
     ev.push({ t: s.at, a: `Sent by ${s.channel === 'email' ? 'email' : 'WhatsApp'}`, n: s.to })
   );
@@ -7860,15 +8234,20 @@ function qrHeader(q, o, inv, locked) {
   const syncOk = !String(q.status).startsWith('Pending') && q.status !== 'Rejected',
     ok = quoteApproved(q),
     review = canReview(q),
-    menu = `<details class="qr-menu"><summary class="qr-btn" aria-label="More actions"><span class="ms">expand_more</span></summary><div class="qr-pop">` +
+    menu =
+      `<details class="qr-menu"><summary class="qr-btn" aria-label="More actions"><span class="ms">expand_more</span></summary><div class="qr-pop">` +
       `<button ${ok ? '' : 'disabled'} onclick="openSignForm()"><span class="ms">draw</span>Sign</button>` +
       `<button ${ok ? '' : 'disabled'} onclick="openPoForm()"><span class="ms">receipt_long</span>Customer PO</button>` +
       `<button ${quoteIsSendable(q) ? '' : 'disabled'} onclick="openSendQuote()"><span class="ms">send</span>Send to customer</button>` +
       ((q.status === 'Expired' || quoteExpired(q)) && S.role !== 'rep'
         ? `<button onclick="extendQuote()"><span class="ms">event_repeat</span>Extend expiry</button>`
         : '') +
-      (!locked ? `<button onclick="saveQuoteDraft()"><span class="ms">save</span>Save as draft</button>` : '') +
-      (inv && canSeeInvoices() ? `<button onclick="openInvoice('${inv.id}')"><span class="ms">receipt</span>Open ${E(inv.invoiceNo)}</button>` : '') +
+      (!locked
+        ? `<button onclick="saveQuoteDraft()"><span class="ms">save</span>Save as draft</button>`
+        : '') +
+      (inv && canSeeInvoices()
+        ? `<button onclick="openInvoice('${inv.id}')"><span class="ms">receipt</span>Open ${E(inv.invoiceNo)}</button>`
+        : '') +
       `<label class="qr-check" title="${canGiveDiscount() ? '' : 'Only Admin and CEO can change this'}"><input type="checkbox" ${q.showDiscount ? 'checked' : ''} ${canGiveDiscount() ? '' : 'disabled'} onchange="setShowDiscount(this.checked)"> Show discount on bill</label>` +
       `<button onclick="nav('opp-detail')"><span class="ms">arrow_back</span>Back to opportunity</button></div></details>`;
   return `<header class="qr-head"><div class="qr-title"><span class="qr-icon"><span class="ms">description</span></span><div><small>QUOTE</small><h1>${E(q.no)}</h1></div></div><div class="qr-acts">${q.syncedAt ? '<span class="qr-synced"><span class="ms">sync</span>Synced Quote</span>' : ''}${locked ? '' : `<button class="qr-btn" onclick="qrToggleInfo()">Edit</button>`}<button class="qr-btn" onclick="createQuotePdf()">Create PDF</button><button class="qr-btn ${q.syncedAt ? '' : 'pri'}" ${syncOk ? '' : 'disabled'} title="${syncOk ? "Copy this quote's products and total to the opportunity" : 'Not available while the quote is pending or rejected'}" onclick="syncQuote()"><span class="ms">sync</span>${q.syncedAt ? 'Re-sync' : 'Start Sync'}</button>${review ? `<button class="qr-btn bad" onclick="rejectQuote('${E(q.no)}')">Reject</button><button class="qr-btn pri" onclick="approveQuote('${E(q.no)}')">Approve</button>` : ''}${locked ? '' : `<button class="qr-btn pri" onclick="submitQuote()">Submit for Approval</button>`}${menu}</div></header>`;
@@ -7891,13 +8270,20 @@ V.quote = () => {
   const floor = belowProductFloor(q),
     chips = [
       `<span class="qr-pill ok">${E(quoteStatusInfo(q).text)}</span>`,
-      q.label && q.label !== 'Draft' && !locked ? `<span class="qr-pill blue">${E(q.label)}</span>` : '',
+      q.label && q.label !== 'Draft' && !locked
+        ? `<span class="qr-pill blue">${E(q.label)}</span>`
+        : '',
       q.status === 'Expired' || quoteExpired(q) ? '<span class="qr-pill bad">Expired</span>' : '',
-      quoteSigner(q) ? `<span class="qr-pill ok">${quoteSigner(q).via === 'customer' ? 'E-signed by' : 'Signed by'} ${E(quoteSigner(q).name)}</span>` : '',
+      quoteSigner(q)
+        ? `<span class="qr-pill ok">${quoteSigner(q).via === 'customer' ? 'E-signed by' : 'Signed by'} ${E(quoteSigner(q).name)}</span>`
+        : '',
       q.po ? `<span class="qr-pill ok">PO ${E(q.po.no)}</span>` : '',
-      typeof sendQuoteChips === 'function' ? sendQuoteChips(q).replace(/class="chip/g, 'class="qr-pill') : '',
+      typeof sendQuoteChips === 'function'
+        ? sendQuoteChips(q).replace(/class="chip/g, 'class="qr-pill')
+        : '',
     ].join(' ');
-  return `<div class="qr-page"><div class="qr-crumb"><a onclick="nav('opps')">Opportunities</a> › <a onclick="nav('opp-detail')">${E(o.name)}</a> › <span>Quotes</span> › <b>${E(q.no)}</b></div>` +
+  return (
+    `<div class="qr-page"><div class="qr-crumb"><a onclick="nav('opps')">Opportunities</a> › <a onclick="nav('opp-detail')">${E(o.name)}</a> › <span>Quotes</span> › <b>${E(q.no)}</b></div>` +
     qrHeader(q, o, inv, locked) +
     `<div class="qr-strip"><div><small>Quote Number</small><b>${E(q.no)}</b></div><div><small>Account Name</small><b>${acctSpan(o.account)}</b><span>${E(q.name || d.name)}</span></div><div><small>Opportunity</small><a class="qr-link" onclick="nav('opp-detail')">${E(o.name)}</a></div><div class="qr-chips">${chips}</div></div>` +
     qrPath(q) +
@@ -7905,7 +8291,8 @@ V.quote = () => {
     (floor.length && !locked
       ? `<div class="qr-banner qt-banner wr"><span class="ms">warning</span><div><b>Below minimum price</b><div>${floor.map((i) => E(i.n)).join(', ')} — this quote goes to the CEO for approval.</div></div></div>`
       : '') +
-    `<div class="qr-cols"><aside>${qrInfo(q, o, d, locked)}${qrClient(q, o, d)}</aside><main>${qrLines(q, locked)}<div class="qr-two">${qrCard('Primary Address', qrRow('Billing', E(d.address || '—')) + qrRow('Shipping', E(d.shipping || '—')) + qrRow('Entity Name', E(o.account)) + qrRow('Prepared For', E(d.preparedFor || '—')) + qrRow('Payment Terms', E(q.terms || 'Net 30')) + qrRow('Account Executive', E(ownerLabel(o.owner))), '<span class="qr-mut">Account</span>')}${qrFinancial(q, o)}</div>${tncSection(q, locked)}</main><aside>${qrApprovals(q, floor, locked)}${qrPdfs(q)}${qrActivity(q, o)}</aside></div></div>`;
+    `<div class="qr-cols"><aside>${qrInfo(q, o, d, locked)}${qrClient(q, o, d)}</aside><main>${qrLines(q, locked)}<div class="qr-two">${qrCard('Primary Address', qrRow('Billing', E(d.address || '—')) + qrRow('Shipping', E(d.shipping || '—')) + qrRow('Entity Name', E(o.account)) + qrRow('Prepared For', E(d.preparedFor || '—')) + qrRow('Payment Terms', E(q.terms || 'Net 30')) + qrRow('Account Executive', E(ownerLabel(o.owner))), '<span class="qr-mut">Account</span>')}${qrFinancial(q, o)}</div>${tncSection(q, locked)}</main><aside>${qrApprovals(q, floor, locked)}${qrPdfs(q)}${qrActivity(q, o)}</aside></div></div>`
+  );
 };
 
 // "Create PDF": opens the print sheet and keeps a record of each PDF in the Quote PDFs card.
@@ -7964,8 +8351,15 @@ function openNewQuoteForm(o) {
       'info',
       'Quote Information',
       qfField('Quote Name', `<input class="inp" name="name" required value="${E(d.name)}">`, true) +
-        qfField('Expiration Date', `<input type="date" class="inp" name="exp" required value="${D(quoteDefaultsSetting().validityDays)}">`, true) +
-        qfField('Status', `<select class="inp" name="label">${QUOTE_STATUS_CHOICES.map((s) => `<option>${E(s)}</option>`).join('')}</select>`) +
+        qfField(
+          'Expiration Date',
+          `<input type="date" class="inp" name="exp" required value="${D(quoteDefaultsSetting().validityDays)}">`,
+          true
+        ) +
+        qfField(
+          'Status',
+          `<select class="inp" name="label">${QUOTE_STATUS_CHOICES.map((s) => `<option>${E(s)}</option>`).join('')}</select>`
+        ) +
         qfRead('Opportunity', E(o.name)) +
         qfRead('Sales Rep / Owner', E(ownerLabel(o.owner)))
     ) +
@@ -7973,11 +8367,49 @@ function openNewQuoteForm(o) {
       'prep',
       'Prepared For',
       (contacts.length
-        ? qfField('Customer Contact', `<select class="inp" onchange="fillQuoteFormContact(this)"><option value="">Choose a contact…</option>${contactOptions(o.account, contactName)}</select>`, false, true)
+        ? qfField(
+            'Customer Contact',
+            `<select class="inp" onchange="fillQuoteFormContact(this)"><option value="">Choose a contact…</option>${contactOptions(o.account, contactName)}</select>`,
+            false,
+            true
+          )
         : '') +
-        qfField('Prepared For', `<input class="inp" name="preparedFor" value="${E(d.preparedFor)}">`) +
-        qfField('Email', `<input class="inp" type="email" name="toEmail" value="${E(d.toEmail)}" placeholder="customer@company.com">`) +
-        qfField('Phone (WhatsApp)', `<input class="inp" type="tel" name="toPhone" value="${E(d.toPhone)}" placeholder="+91 98765 43210">`)
+        qfField(
+          'Prepared For',
+          `<input class="inp" name="preparedFor" value="${E(d.preparedFor)}">`
+        ) +
+        qfField(
+          'Email',
+          `<input class="inp" type="email" name="toEmail" value="${E(d.toEmail)}" placeholder="customer@company.com">`
+        ) +
+        qfField(
+          'Phone (WhatsApp)',
+          `<input class="inp" type="tel" name="toPhone" value="${E(d.toPhone)}" placeholder="+91 98765 43210">`
+        )
+    ) +
+    qfSection(
+      'bill',
+      'Bill Receiver (prints on quotation & invoice)',
+      qfField(
+        'Receiver Name',
+        `<input class="inp" name="billName" value="${E(billReceiverDraft(d).name)}" placeholder="Person who receives the bill">`
+      ) +
+        qfField(
+          'Designation',
+          `<input class="inp" name="billDesignation" value="${E(billReceiverDraft(d).designation)}" placeholder="e.g. Accounts Manager">`
+        ) +
+        qfField(
+          'Department',
+          `<input class="inp" name="billDepartment" value="${E(billReceiverDraft(d).department)}" placeholder="e.g. Finance">`
+        ) +
+        qfField(
+          'Receiver Phone',
+          `<input class="inp" type="tel" name="billPhone" value="${E(billReceiverDraft(d).phone)}">`
+        ) +
+        qfField(
+          'Receiver Email',
+          `<input class="inp" type="email" name="billEmail" value="${E(billReceiverDraft(d).email)}">`
+        )
     ) +
     qfSection(
       'tot',
@@ -7990,8 +8422,14 @@ function openNewQuoteForm(o) {
     qfSection(
       'addr',
       'Address Information',
-      qfField('Bill To', `<textarea class="inp" name="address" rows="3">${E(d.address)}</textarea>`) +
-        qfField('Ship To', `<textarea class="inp" name="shipping" rows="3">${E(d.shipping)}</textarea>`)
+      qfField(
+        'Bill To',
+        `<textarea class="inp" name="address" rows="3">${E(d.address)}</textarea>`
+      ) +
+        qfField(
+          'Ship To',
+          `<textarea class="inp" name="shipping" rows="3">${E(d.shipping)}</textarea>`
+        )
     ) +
     `</div><footer><button type="button" class="qf-btn" onclick="$('#modal').innerHTML=''">Cancel</button><button type="button" class="qf-btn" onclick="createQuoteFromForm(event,${o.id},true)">Save &amp; New</button><button class="qf-btn pri">Save</button></footer></form></div>`;
   const first = $('#modal input');
@@ -8003,8 +8441,11 @@ createQuoteFromForm = function (e, id, again) {
   if (e && e.preventDefault) e.preventDefault();
   const o = S.opps.find((x) => x.id == id),
     form = (e && e.target && (e.target.form || e.target)) || document.querySelector('#modal form'),
-    v = Object.fromEntries(new FormData(form.tagName === 'FORM' ? form : document.querySelector('#modal form')));
-  if (!o || !(v.name || '').trim() || !v.exp) return toast('Quote name and expiry date are required');
+    v = Object.fromEntries(
+      new FormData(form.tagName === 'FORM' ? form : document.querySelector('#modal form'))
+    );
+  if (!o || !(v.name || '').trim() || !v.exp)
+    return toast('Quote name and expiry date are required');
   const dq = S.quotes.find((x) => x.opp == o.id && x.isDefault && x.status === 'Draft'),
     no = dq ? dq.no : 'Q-' + (1001 + S.quotes.length);
   S.qd = {
@@ -8021,6 +8462,7 @@ createQuoteFromForm = function (e, id, again) {
     toPhone: (v.toPhone || '').trim(),
     address: (v.address || '').trim(),
     shipping: (v.shipping || '').trim(),
+    billTo: billReceiverFromForm(v),
     showDiscount: false,
     items: clone(o.items),
     createdAt: Date.now(),
@@ -8041,6 +8483,110 @@ createQuoteFromForm = function (e, id, again) {
   nav('quote');
 };
 
+// Bill receiver: the person at the client company who receives the quotation and the bill.
+// The rep fills it on the quote; it prints on the quotation and on the invoice made from it.
+
+function billReceiverOf(q) {
+  if (!q) return null;
+  const b = q.billTo || {};
+  if (String(b.name || '').trim()) return b;
+  return null;
+}
+
+// Invoice: its own copy first, then the quote it came from.
+function invoiceBillReceiver(i) {
+  if (i && i.billTo && String(i.billTo.name || '').trim()) return i.billTo;
+  return billReceiverOf(S.quotes.find((q) => q.no === (i && i.quoteNo)));
+}
+
+function billReceiverHtml(r, label) {
+  if (!r) return '';
+  const contact = [r.phone, r.email].filter((x) => String(x || '').trim());
+  return (
+    `<div class="bill-attn">${label === '' ? '' : `<div class="mut text-xs">${label || 'Kind attention (bill receiver)'}</div>`}` +
+    `<b>${E(r.name)}</b>${r.designation ? `<span>, ${E(r.designation)}</span>` : ''}` +
+    (r.department ? `<div>${E(r.department)}</div>` : '') +
+    (contact.length ? `<div>${contact.map(E).join(' · ')}</div>` : '') +
+    `</div>`
+  );
+}
+
+// Starting values for the form: what is saved, else the quote's contact.
+function billReceiverDraft(d) {
+  const b = (d && d.billTo) || {},
+    pf = String((d && d.preparedFor) || '');
+  return {
+    name: b.name ?? pf.replace(/\s*\(.*\)\s*$/, ''),
+    designation: b.designation ?? ((pf.match(/\((.*)\)\s*$/) || [])[1] || ''),
+    department: b.department ?? '',
+    phone: b.phone ?? ((d && d.toPhone) || ''),
+    email: b.email ?? ((d && d.toEmail) || ''),
+  };
+}
+
+// Pop-up the rep uses to fill or change the bill receiver on a quote.
+function openBillReceiver() {
+  const d = S.qd || {},
+    r = billReceiverDraft(d),
+    f = (label, name, type, ph) =>
+      `<label class="block text-sm">${label}<input class="inp" ${type ? `type="${type}"` : ''} name="${name}" value="${E(r[name] || '')}" placeholder="${ph || ''}"></label>`;
+  $('#modal').innerHTML =
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><form class="card p-6 w-full max-w-lg space-y-3" onsubmit="saveBillReceiver(event)">` +
+    `<div class="flex justify-between items-center"><h3 class="text-lg font-bold">Bill receiver</h3><button type="button" class="btn" onclick="$('#modal').innerHTML=''">✕</button></div>` +
+    `<p class="text-sm mut">The person at ${E((S.opps.find((o) => o.id == d.opp) || {}).account || 'the client')} who receives this quotation and the invoice. Printed as “Kind attention”.</p>` +
+    f('Name *', 'name', '', 'e.g. Priya Sharma') +
+    f('Designation', 'designation', '', 'e.g. Accounts Manager') +
+    f('Department', 'department', '', 'e.g. Finance') +
+    `<div class="grid sm:grid-cols-2 gap-3">${f('Phone', 'phone', 'tel', '+91 98765 43210')}${f('Email', 'email', 'email', 'accounts@company.com')}</div>` +
+    `<div class="flex justify-end gap-2"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">Save</button></div></form></div>`;
+  const first = $('#modal input[name="name"]');
+  if (first) first.focus();
+}
+
+function saveBillReceiver(e) {
+  e.preventDefault();
+  const v = Object.fromEntries(new FormData(e.target)),
+    r = {};
+  ['name', 'designation', 'department', 'phone', 'email'].forEach(
+    (k) => (r[k] = String(v[k] || '').trim())
+  );
+  if (!r.name) return toast('Enter the name of the person receiving the bill');
+  const q = S.qd;
+  if (!q) return;
+  q.billTo = r;
+  const stored = S.quotes.find((x) => x.no === q.no);
+  if (stored && stored !== q) stored.billTo = clone(r);
+  // An invoice that has not gone to the client yet picks up the new name too.
+  const inv = S.invoices.find((i) => i.quoteNo === q.no);
+  if (inv && !inv.sentAt) inv.billTo = clone(r);
+  storeQuote(q);
+  if (!save()) return;
+  $('#modal').innerHTML = '';
+  toast('Bill receiver saved');
+  render();
+}
+
+// Values from the New Quote form fields (billName, billDesignation, ...).
+function billReceiverFromForm(v) {
+  const r = {
+    name: String(v.billName || '').trim(),
+    designation: String(v.billDesignation || '').trim(),
+    department: String(v.billDepartment || '').trim(),
+    phone: String(v.billPhone || '').trim(),
+    email: String(v.billEmail || '').trim(),
+  };
+  return r.name ? r : undefined;
+}
+
+// The name is not a price, so it can still change after approval — until the invoice goes out.
+function canEditBillReceiver(q) {
+  if (!q) return false;
+  const o = S.opps.find((x) => x.id == q.opp);
+  if (o && typeof canEditOpp === 'function' && !canEditOpp(o)) return false;
+  const inv = S.invoices.find((i) => i.quoteNo === q.no);
+  return !(inv && inv.sentAt) && q.status !== 'Paid';
+}
+
 // Keeps the client's e-signature in step everywhere in the CRM.
 // The quote page edits a working copy (S.qd). When the client signs from their link (often in another tab or
 // browser), only the stored quote changes, so the copy is refreshed from the stored quote on every render.
@@ -8054,14 +8600,16 @@ const CLIENT_OWNED_QUOTE_KEYS = [
   'views',
   'firstViewedAt',
   'paidOnlineAt',
+  'signedCopy',
 ];
 function adoptClientSignature(q) {
   if (!q || !q.customer || q.customer.status !== 'Accepted' || !q.customer.name) return false;
-  if (q.signedBy === q.customer.name && q.signedAt === q.customer.at && q.signedVia === 'customer')
+  const via = q.customer.via === 'paper' ? 'paper' : 'customer'; // e-signed, or a signed paper copy uploaded
+  if (q.signedBy === q.customer.name && q.signedAt === q.customer.at && q.signedVia === via)
     return false;
   q.signedBy = q.customer.name;
   q.signedAt = q.customer.at;
-  q.signedVia = 'customer';
+  q.signedVia = via;
   q.signedRecordedBy = undefined;
   return true;
 }
@@ -8071,6 +8619,10 @@ function syncOpenQuoteFromStore() {
   const q = S.qd,
     stored = q && (S.quotes || []).find((x) => x.no === q.no);
   if (stored) {
+    if (stored.token && q.token !== stored.token) {
+      q.token = stored.token; // the open copy always uses the link code the client has
+      changed = true;
+    }
     CLIENT_OWNED_QUOTE_KEYS.forEach((k) => {
       if (JSON.stringify(q[k]) !== JSON.stringify(stored[k])) {
         q[k] = stored[k] === undefined ? undefined : clone(stored[k]);
@@ -8094,7 +8646,10 @@ render = function () {
 addEventListener('storage', (e) => {
   if (e.key !== KEY || clientRoute()) return;
   syncOpenQuoteFromStore();
-  if (['quote', 'opp-detail', 'invoice-detail', 'invoices'].includes(location.hash.slice(1)) && S.authUser)
+  if (
+    ['quote', 'opp-detail', 'invoice-detail', 'invoices'].includes(location.hash.slice(1)) &&
+    S.authUser
+  )
     render();
 });
 syncOpenQuoteFromStore();
@@ -8202,7 +8757,8 @@ function savePaySettings(e) {
 // ---------- links and amounts ----------
 const paymentRoute = () => /^#pay\//.test(location.hash);
 const clientRoute = () => customerRoute() || paymentRoute();
-const invoiceOfQuote = (q) => (q && q.invoiceId ? S.invoices.find((i) => i.id === q.invoiceId) : null);
+const invoiceOfQuote = (q) =>
+  q && q.invoiceId ? S.invoices.find((i) => i.id === q.invoiceId) : null;
 const quoteOfInvoice = (i) => S.quotes.find((q) => q.no === i.quoteNo);
 function paymentLink(i) {
   const q = quoteOfInvoice(i);
@@ -8211,7 +8767,10 @@ function paymentLink(i) {
 // what the client can still pay online
 const payableNow = (i) => invBalance(i);
 const canPayOnline = (i) =>
-  !!i && paySettings().enabled && i.status !== 'Paid' && Object.values(paySettings().methods).some(Boolean);
+  !!i &&
+  paySettings().enabled &&
+  i.status !== 'Paid' &&
+  Object.values(paySettings().methods).some(Boolean);
 
 // The client's tab only writes the shared records, never the sales team's open pages and drafts.
 const CLIENT_WRITE_KEYS = ['quotes', 'invoices', 'opps', 'acts', 'popups'];
@@ -8224,7 +8783,10 @@ save = function () {
       if (S[k] !== undefined) stored[k] = S[k];
     });
     localStorage.setItem(KEY, JSON.stringify(stored));
-  } catch (e) {}
+    return true;
+  } catch (e) {
+    return storageWriteFailed(e);
+  }
 };
 
 // The invoice goes to the client automatically when they pay before it was formally submitted.
@@ -8255,12 +8817,17 @@ function settleInvoiceStatus(i) {
 function notifyTeam(kind, i, extra = {}) {
   const q = quoteOfInvoice(i),
     creator = q && S.users.find((u) => u.name === q.createdBy);
-  ['admin', 'ceo'].forEach((role) => queuePopup({ kind, inv: i.id, toRole: role, by: 'customer', ...extra }));
+  ['admin', 'ceo'].forEach((role) =>
+    queuePopup({ kind, inv: i.id, toRole: role, by: 'customer', ...extra })
+  );
   if (creator && creator.role === 'rep')
     queuePopup({ kind, inv: i.id, toUser: creator.id, by: 'customer', ...extra });
 }
 const txnId = (prefix) =>
-  prefix + '_' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 7).toUpperCase();
+  prefix +
+  '_' +
+  Date.now().toString(36).toUpperCase() +
+  Math.random().toString(36).slice(2, 7).toUpperCase();
 
 // Record a payment made by the client through the payment page.
 function recordClientPayment(i, pay) {
@@ -8304,7 +8871,8 @@ function renderPaymentPage() {
   app.className = 'min-h-screen p-3 md:p-6 max-w-3xl mx-auto';
   const q = quoteByToken(location.hash.slice(5)),
     i = invoiceOfQuote(q);
-  const shell = (body) => `<div class="pay-wrap">${body}<p class="pay-secure"><span class="ms">lock</span>Secure payment page · ${E(companyInfo().name || 'Ceph CRM')}</p></div>`;
+  const shell = (body) =>
+    `<div class="pay-wrap">${body}<p class="pay-secure"><span class="ms">lock</span>Secure payment page · ${E(companyInfo().name || 'Ceph CRM')}</p></div>`;
   if (!q || !i) {
     app.innerHTML = shell(
       `<div class="card p-6 text-center"><span class="ms" style="font-size:40px;color:var(--mut)">link_off</span><h1 class="text-xl font-bold mt-2">Payment link not available</h1><p class="mut mt-2">${q ? 'The invoice for this quotation is not ready yet.' : 'This payment link is not valid.'} Please contact the sender.</p></div>`
@@ -8315,7 +8883,11 @@ function renderPaymentPage() {
     due = payableNow(i),
     co = companyInfo(),
     contact = [co.email, co.phone].filter(Boolean).map(E).join(' · '),
-    head = `<div class="card p-4 md:p-6 doc-sheet">${docLetterhead('PAYMENT', [['Invoice', i.invoiceNo], ['Quotation', i.quoteNo], ['Due date', fd(invDueDate(i))]])}<div class="pay-sum"><div><div class="mut text-xs">Billed to</div><b>${E(i.account)}</b></div><div><div class="mut text-xs">Invoice total</div><b>${M(invPayable(i))}</b></div><div><div class="mut text-xs">Paid</div><b>${M(invPaid(i))}</b></div><div class="pay-due"><div class="mut text-xs">Amount due</div><b>${M(due)}</b></div></div></div>`;
+    head = `<div class="card p-4 md:p-6 doc-sheet">${docLetterhead('PAYMENT', [
+      ['Invoice', i.invoiceNo],
+      ['Quotation', i.quoteNo],
+      ['Due date', fd(invDueDate(i))],
+    ])}<div class="pay-sum"><div><div class="mut text-xs">Billed to</div><b>${E(i.account)}</b></div><div><div class="mut text-xs">Invoice total</div><b>${M(invPayable(i))}</b></div><div><div class="mut text-xs">Paid</div><b>${M(invPaid(i))}</b></div><div class="pay-due"><div class="mut text-xs">Amount due</div><b>${M(due)}</b></div></div></div>`;
 
   if (PAY.receipt) {
     const r = (i.payments || []).find((x) => x.id === PAY.receipt);
@@ -8365,7 +8937,23 @@ function payMethodBody(i, q, due) {
   if (PAY.method === 'card')
     return `<form class="pay-form" onsubmit="payByCard(event)" autocomplete="on"><label class="block">Card number<div class="pay-card-num"><input class="inp" name="num" inputmode="numeric" autocomplete="cc-number" placeholder="1234 5678 9012 3456" maxlength="23" required oninput="cardNumInput(this)"><span id="card-brand" class="pay-brand"></span></div></label><label class="block">Name on card<input class="inp" name="name" autocomplete="cc-name" required placeholder="As printed on the card"></label><div class="grid grid-cols-2 gap-3"><label class="block">Expiry (MM/YY)<input class="inp" name="exp" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/YY" maxlength="5" required oninput="cardExpInput(this)"></label><label class="block">CVV<input class="inp" name="cvv" type="password" inputmode="numeric" autocomplete="cc-csc" placeholder="•••" maxlength="4" required oninput="this.value=this.value.replace(/\\D/g,'')"></label></div><div id="pay-err" class="pay-err" role="alert"></div>${btn('Pay ' + M(due))}<p class="mut text-xs">Your card details are never stored. Only the card type and last 4 digits are kept on the receipt.</p></form>`;
   if (PAY.method === 'netbanking')
-    return `<form class="pay-form" onsubmit="payByBank(event)"><div class="pay-bank-grid">${PAY_BANKS.slice(0, 6).map((b) => `<label class="pay-bank-opt"><input type="radio" name="bank" value="${E(b)}" onchange="this.form.other.value=''"><span>${E(b)}</span></label>`).join('')}</div><label class="block">Other bank<select class="inp" name="other" onchange="if(this.value)[...this.form.bank].forEach(r=>r.checked=false)"><option value="">Choose a bank</option>${PAY_BANKS.slice(6).map((b) => `<option>${E(b)}</option>`).join('')}</select></label><div id="pay-err" class="pay-err" role="alert"></div>${btn('Pay ' + M(due))}<p class="mut text-xs">You will sign in to your bank to approve the payment.</p></form>`;
+    return `<form class="pay-form" onsubmit="payByBank(event)"><div class="pay-bank-grid">${PAY_BANKS.slice(
+      0,
+      6
+    )
+      .map(
+        (b) =>
+          `<label class="pay-bank-opt"><input type="radio" name="bank" value="${E(b)}" onchange="this.form.other.value=''"><span>${E(b)}</span></label>`
+      )
+      .join(
+        ''
+      )}</div><label class="block">Other bank<select class="inp" name="other" onchange="if(this.value)[...this.form.bank].forEach(r=>r.checked=false)"><option value="">Choose a bank</option>${PAY_BANKS.slice(
+      6
+    )
+      .map((b) => `<option>${E(b)}</option>`)
+      .join(
+        ''
+      )}</select></label><div id="pay-err" class="pay-err" role="alert"></div>${btn('Pay ' + M(due))}<p class="mut text-xs">You will sign in to your bank to approve the payment.</p></form>`;
   return `<form class="pay-form" onsubmit="payByWallet(event)"><div class="pay-bank-grid">${PAY_WALLETS.map((w) => `<label class="pay-bank-opt"><input type="radio" name="wallet" value="${E(w)}" required><span>${E(w)}</span></label>`).join('')}</div><div id="pay-err" class="pay-err" role="alert"></div>${btn('Pay ' + M(due))}</form>`;
 }
 function copyText(t, msg) {
@@ -8404,7 +8992,12 @@ function cardNumInput(el) {
   payError('');
   const d = el.value.replace(/\D/g, '').slice(0, 19),
     brand = cardBrand(d);
-  el.value = brand === 'Amex' ? d.replace(/^(\d{4})(\d{0,6})(\d{0,5}).*/, (m, a, b, c) => [a, b, c].filter(Boolean).join(' ')) : d.replace(/(\d{4})(?=\d)/g, '$1 ');
+  el.value =
+    brand === 'Amex'
+      ? d.replace(/^(\d{4})(\d{0,6})(\d{0,5}).*/, (m, a, b, c) =>
+          [a, b, c].filter(Boolean).join(' ')
+        )
+      : d.replace(/(\d{4})(?=\d)/g, '$1 ');
   const b = document.getElementById('card-brand');
   if (b) b.textContent = brand;
 }
@@ -8425,7 +9018,8 @@ function currentPayInvoice() {
 function gatewayRun(label, onDone) {
   if (PAY.busy) return;
   PAY.busy = true;
-  $('#modal').innerHTML = `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.45)"><div class="card p-6 w-full max-w-sm text-center"><div class="pay-spin" aria-hidden="true"></div><b class="block mt-3">${E(label)}</b><p class="mut text-sm mt-1">Please do not close or refresh this page.</p><p class="pay-test-inline mt-3">Test mode</p></div></div>`;
+  $('#modal').innerHTML =
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.45)"><div class="card p-6 w-full max-w-sm text-center"><div class="pay-spin" aria-hidden="true"></div><b class="block mt-3">${E(label)}</b><p class="mut text-sm mt-1">Please do not close or refresh this page.</p><p class="pay-test-inline mt-3">Test mode</p></div></div>`;
   setTimeout(() => {
     $('#modal').innerHTML = '';
     PAY.busy = false;
@@ -8437,7 +9031,13 @@ function finishGatewayPayment(method, ref) {
   if (!i) return;
   const due = payableNow(i);
   if (due <= 0) return renderPaymentPage();
-  const entry = recordClientPayment(i, { amount: due, method, ref, note: 'Paid online (test mode)', gateway: 'test' });
+  const entry = recordClientPayment(i, {
+    amount: due,
+    method,
+    ref,
+    note: 'Paid online (test mode)',
+    gateway: 'test',
+  });
   PAY.receipt = entry.id;
   renderPaymentPage();
   scrollTo(0, 0);
@@ -8447,7 +9047,9 @@ function payByCard(e) {
   const v = Object.fromEntries(new FormData(e.target)),
     num = String(v.num || '').replace(/\D/g, ''),
     brand = cardBrand(num) || 'Card',
-    [mm, yy] = String(v.exp || '').split('/').map((x) => +x),
+    [mm, yy] = String(v.exp || '')
+      .split('/')
+      .map((x) => +x),
     now = new Date(),
     cvvLen = brand === 'Amex' ? 4 : 3;
   if (!luhnOk(num)) return payError('Check the card number');
@@ -8472,7 +9074,9 @@ function payByBank(e) {
   const f = e.target,
     bank = (f.querySelector('input[name=bank]:checked') || {}).value || f.other.value;
   if (!bank) return payError('Choose your bank');
-  gatewayRun(`Connecting to ${bank}…`, () => finishGatewayPayment(`Net banking · ${bank}`, txnId('pay')));
+  gatewayRun(`Connecting to ${bank}…`, () =>
+    finishGatewayPayment(`Net banking · ${bank}`, txnId('pay'))
+  );
 }
 function payByWallet(e) {
   e.preventDefault();
@@ -8492,7 +9096,9 @@ function payReceiptCard(i, r, withActions) {
     ['Balance after this payment', M(r.balanceAfter ?? invBalance(i))],
   ]
     .map(([a, b]) => `<div class="pay-row"><span class="mut">${a}</span><span>${b}</span></div>`)
-    .join('')}</div>${r.gateway === 'test' ? '<p class="pay-test-inline mt-2">Test mode payment · no money moved</p>' : ''}${withActions ? `<div class="flex justify-center gap-2 mt-4 flex-wrap"><button class="btn" onclick="printPayReceipt('${E(i.id)}','${E(r.id)}')"><span class="ms">download</span>Download receipt</button>${payableNow(i) > 0.5 ? `<button class="btn btn-p" onclick="PAY.receipt=null;renderPaymentPage()">Pay remaining ${M(payableNow(i))}</button>` : ''}</div>` : ''}</div>`;
+    .join(
+      ''
+    )}</div>${r.gateway === 'test' ? '<p class="pay-test-inline mt-2">Test mode payment · no money moved</p>' : ''}${withActions ? `<div class="flex justify-center gap-2 mt-4 flex-wrap"><button class="btn" onclick="printPayReceipt('${E(i.id)}','${E(r.id)}')"><span class="ms">download</span>Download receipt</button>${payableNow(i) > 0.5 ? `<button class="btn btn-p" onclick="PAY.receipt=null;renderPaymentPage()">Pay remaining ${M(payableNow(i))}</button>` : ''}</div>` : ''}</div>`;
 }
 function showPayReceipt(pid) {
   PAY.receipt = pid;
@@ -8502,7 +9108,15 @@ function printPayReceipt(invId, pid) {
   const i = S.invoices.find((x) => x.id === invId),
     r = i && (i.payments || []).find((x) => x.id === pid);
   if (!i || !r) return;
-  $('#modal').innerHTML = `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><div class="card p-6 w-full max-w-xl max-h-full overflow-auto doc-sheet">${docLetterhead('PAYMENT RECEIPT', [['Receipt', 'RCPT-' + String(r.id).slice(3).toUpperCase()], ['Invoice', i.invoiceNo], ['Date', fd(r.date)]])}<div class="mb-2"><div class="mut text-xs">Received from</div><b>${E(i.account)}</b></div>${payReceiptCard(i, r, false)}<div class="doc-foot">This is a computer generated receipt.</div><div class="flex justify-end gap-2 mt-4 no-print"><button class="btn" onclick="$('#modal').innerHTML=''">Close</button><button class="btn btn-p" onclick="window.print()">Print / Save PDF</button></div></div></div>`;
+  $('#modal').innerHTML =
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><div class="card p-6 w-full max-w-xl max-h-full overflow-auto doc-sheet">${docLetterhead(
+      'PAYMENT RECEIPT',
+      [
+        ['Receipt', 'RCPT-' + String(r.id).slice(3).toUpperCase()],
+        ['Invoice', i.invoiceNo],
+        ['Date', fd(r.date)],
+      ]
+    )}<div class="mb-2"><div class="mut text-xs">Received from</div><b>${E(i.account)}</b></div>${payReceiptCard(i, r, false)}<div class="doc-foot">This is a computer generated receipt.</div><div class="flex justify-end gap-2 mt-4 no-print"><button class="btn" onclick="$('#modal').innerHTML=''">Close</button><button class="btn btn-p" onclick="window.print()">Print / Save PDF</button></div></div></div>`;
 }
 
 // ---------- routing for the client page ----------
@@ -8547,7 +9161,12 @@ function copyPaymentLink(invId) {
 const reminderTextBeforePay = reminderText;
 reminderText = function (i) {
   const t = reminderTextBeforePay.apply(this, arguments);
-  return canPayOnline(i) ? t.replace('Kindly arrange the payment at the earliest.', `Kindly arrange the payment at the earliest. You can pay online (card, net banking, wallet):\n${paymentLink(i)}`) : t;
+  return canPayOnline(i)
+    ? t.replace(
+        'Kindly arrange the payment at the earliest.',
+        `Kindly arrange the payment at the earliest. You can pay online (card, net banking, wallet):\n${paymentLink(i)}`
+      )
+    : t;
 };
 // Invoice page: payment link and badges on online payments.
 const invoiceDetailBeforePay = V['invoice-detail'];
@@ -8559,8 +9178,15 @@ V['invoice-detail'] = function () {
   // badge the online rows in the payments table
   (i.payments || []).forEach((p) => {
     if (!p.online) return;
-    const tag = p.pending ? ' <span class="chip wr">Not confirmed</span>' : p.gateway === 'test' ? ' <span class="chip">Online · test</span>' : ' <span class="chip ok">Online</span>';
-    html = html.replace(`<td>${E(p.method)}</td><td>${E(p.ref || '–')}</td>`, `<td>${E(p.method)}${tag}</td><td>${E(p.ref || '–')}</td>`);
+    const tag = p.pending
+      ? ' <span class="chip wr">Not confirmed</span>'
+      : p.gateway === 'test'
+        ? ' <span class="chip">Online · test</span>'
+        : ' <span class="chip ok">Online</span>';
+    html = html.replace(
+      `<td>${E(p.method)}</td><td>${E(p.ref || '–')}</td>`,
+      `<td>${E(p.method)}${tag}</td><td>${E(p.ref || '–')}</td>`
+    );
   });
   if (admin && canPayOnline(i))
     html = html.replace(
@@ -8573,8 +9199,7 @@ V['invoice-detail'] = function () {
 // Pop-ups for the team about online payments.
 const showBillPopupBeforePay = showBillPopup;
 showBillPopup = function (p) {
-  if (p.kind !== 'bill-online')
-    return showBillPopupBeforePay.apply(this, arguments);
+  if (p.kind !== 'bill-online') return showBillPopupBeforePay.apply(this, arguments);
   const i = S.invoices.find((x) => x.id === p.inv),
     pay = i && (i.payments || []).find((x) => x.id === p.pay);
   if (!i) return showNextPopup();
@@ -8585,9 +9210,13 @@ showBillPopup = function (p) {
     lines: [
       pay ? `${E(pay.method)} · Ref <code>${E(pay.ref)}</code> · ${whenText(pay.at)}` : '',
       `Balance due now ${M(invBalance(i))}.`,
-      pay && pay.gateway === 'test' ? '<span class="mut">Test mode payment: no money moved.</span>' : '',
+      pay && pay.gateway === 'test'
+        ? '<span class="mut">Test mode payment: no money moved.</span>'
+        : '',
     ],
-    actions: canSeeInvoices() ? [{ label: `Open ${i.invoiceNo}`, js: `openInvoice('${E(i.id)}')` }] : [],
+    actions: canSeeInvoices()
+      ? [{ label: `Open ${i.invoiceNo}`, js: `openInvoice('${E(i.id)}')` }]
+      : [],
   });
 };
 
@@ -8995,3 +9624,332 @@ openQuoteRecord = function (no) {
   if (q && !teamViewAllows(oppById(q.opp))) return;
   return openQuoteRecordBeforeTeamView.apply(this, arguments);
 };
+
+// Reps share an invoice with the client after Admin or CEO approves.
+//
+// Flow: the rep asks for approval on their quote page -> Admin and CEO get a pop-up (and a banner on the
+// invoice page) to approve or reject -> once approved, the rep sends the client the invoice link by email
+// or WhatsApp. On that link the client can view and download the invoice PDF and, if turned on, pay online.
+// Admin and CEO can also allow sharing without a request.
+// Stored on the invoice: i.share = { status: 'pending' | 'approved' | 'rejected', requestedBy, requestedByUid,
+// requestedAt, decidedBy, decidedAt, note }.
+
+const canApproveInvoiceShare = () => ['admin', 'ceo'].includes(S.role);
+const invoiceById = (id) => S.invoices.find((x) => x.id === id);
+const ownsInvoiceDeal = (i) => visibleOpps().some((o) => o.id == i.opp);
+function repOfInvoice(i) {
+  const o = S.opps.find((x) => x.id == i.opp);
+  return o && (S.users || []).find((u) => u.role === 'rep' && u.ownerCode === o.owner);
+}
+const canShareInvoice = (i) =>
+  !!i &&
+  (canApproveInvoiceShare() || (ownsInvoiceDeal(i) && (i.share || {}).status === 'approved'));
+
+function requestInvoiceShare(id) {
+  const i = invoiceById(id);
+  if (!i) return;
+  if (!ownsInvoiceDeal(i)) return toast('You can only share invoices for your own deals');
+  if ((i.share || {}).status === 'pending')
+    return toast('Already waiting for Admin / CEO approval');
+  if ((i.share || {}).status === 'approved') return openShareInvoice(id);
+  i.share = {
+    status: 'pending',
+    requestedBy: roleNow().name,
+    requestedByUid: S.authUser,
+    requestedAt: Date.now(),
+  };
+  logOpp(
+    i.opp,
+    'sync',
+    `${roleNow().name} asked Admin / CEO to approve sharing invoice ${i.invoiceNo} with the client`
+  );
+  ['admin', 'ceo'].forEach((r) =>
+    queuePopup({ kind: 'bill-share-req', inv: i.id, toRole: r, by: S.authUser })
+  );
+  save();
+  toast('Sent to Admin and CEO for approval');
+  render();
+}
+function decideInvoiceShare(id, ok, note = '') {
+  if (!canApproveInvoiceShare()) return toast('Only Admin or CEO can approve this');
+  const i = invoiceById(id);
+  if (!i) return;
+  const prev = i.share || {};
+  i.share = {
+    ...prev,
+    status: ok ? 'approved' : 'rejected',
+    decidedBy: roleNow().name,
+    decidedAt: Date.now(),
+    note: String(note || '').trim(),
+  };
+  logOpp(
+    i.opp,
+    'sync',
+    `${roleNow().name} ${ok ? 'approved' : 'rejected'} sharing invoice ${i.invoiceNo} with the client${i.share.note ? ': ' + i.share.note : ''}`
+  );
+  const rep = prev.requestedByUid ? { id: prev.requestedByUid } : repOfInvoice(i);
+  if (rep)
+    queuePopup({
+      kind: ok ? 'bill-share-ok' : 'bill-share-no',
+      inv: i.id,
+      toUser: rep.id,
+      by: S.authUser,
+    });
+  save();
+  $('#modal').innerHTML = '';
+  toast(ok ? 'Approved: the rep can now share this invoice' : 'Request rejected');
+  render();
+}
+function openRejectInvoiceShare(id) {
+  const i = invoiceById(id);
+  if (!i) return;
+  $('#modal').innerHTML =
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><form class="card p-5 w-full max-w-md space-y-3" onsubmit="event.preventDefault();decideInvoiceShare('${E(i.id)}',false,this.elements.note.value)"><h2 class="text-lg font-bold">Reject sharing ${E(i.invoiceNo)}</h2>` +
+    `<label class="block">Reason (shown to the rep)<textarea class="inp mt-1" name="note" rows="3" maxlength="200" placeholder="e.g. Wait until the PO arrives"></textarea></label>` +
+    `<div class="flex justify-end gap-2"><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">Reject</button></div></form></div>`;
+  $('#modal textarea').focus();
+}
+
+// ---------- the share dialog (rep after approval; Admin / CEO any time) ----------
+function invoiceShareMessage(i) {
+  const q = quoteOfInvoice(i),
+    co = companyInfo().name || (S.settings.company || {}).name || 'our team',
+    first =
+      String((q && q.preparedFor) || '')
+        .replace(/\s*\(.*\)\s*$/, '')
+        .split(' ')[0] || 'there';
+  return `Hello ${first},\n\nPlease find invoice ${i.invoiceNo} for ${i.account}.\nAmount due: ${M(invBalance(i))}\nDue date: ${fd(invDueDate(i))}\n\nView and download the invoice${canPayOnline(i) ? ' (and pay online)' : ''} here:\n${paymentLink(i)}\n\nRegards,\n${roleNow().name}\n${co}`;
+}
+function openShareInvoice(id) {
+  const i = invoiceById(id);
+  if (!i) return;
+  if (!canShareInvoice(i))
+    return toast('Admin or CEO must approve before this invoice can be shared');
+  const q = quoteOfInvoice(i);
+  if (!q) return toast('This invoice has no quotation to link to');
+  const ch = S.invChan === 'whatsapp' ? 'whatsapp' : 'email',
+    o = S.opps.find((x) => x.id == i.opp) || {};
+  $('#modal').innerHTML =
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><form class="card p-5 w-full max-w-lg max-h-full overflow-auto space-y-3" onsubmit="doShareInvoice(event,'${E(i.id)}')"><h2 class="text-lg font-bold">Share invoice ${E(i.invoiceNo)} with the client</h2>` +
+    `<div class="flex gap-2"><button type="button" class="btn ${ch === 'email' ? 'btn-p' : ''}" onclick="S.invChan='email';openShareInvoice('${E(i.id)}')"><span class="ms">mail</span>Email</button><button type="button" class="btn ${ch === 'whatsapp' ? 'btn-p' : ''}" onclick="S.invChan='whatsapp';openShareInvoice('${E(i.id)}')"><span class="ms">chat</span>WhatsApp</button></div>` +
+    (o.account && contactsOfAccount(o.account).length
+      ? `<label class="block">Contact<select class="inp" onchange="const c=S.contacts.find(x=>x[0]===this.value);if(c){this.form.elements.to.value=${ch === 'email' ? 'c[3]' : 'c[4]'}||''}"><option value="">Choose a contact…</option>${contactOptions(o.account, '')}</select></label>`
+      : '') +
+    `<input type="hidden" name="chan" value="${ch}">` +
+    (ch === 'email'
+      ? `<label class="block">To (email) *<input class="inp" name="to" type="email" required value="${E(q.toEmail || '')}" placeholder="accounts@company.com"></label><label class="block">Subject<input class="inp" name="subject" value="${E(`Invoice ${i.invoiceNo} – ${i.account}`)}"></label>`
+      : `<label class="block">WhatsApp number *<input class="inp" name="to" type="tel" required value="${E(q.toPhone || '')}" placeholder="+91 98765 43210"></label>`) +
+    `<label class="block">Message<textarea class="inp" name="msg" rows="9">${E(invoiceShareMessage(i))}</textarea></label>` +
+    `<p class="mut text-xs">This opens your ${ch === 'email' ? 'email app' : 'WhatsApp'} with the message filled in. On the link the client can view and download the invoice PDF${canPayOnline(i) ? ' and pay online' : ''}.</p>` +
+    `<div class="flex justify-end gap-2 flex-wrap"><button type="button" class="btn" onclick="copyText(paymentLink(invoiceById('${E(i.id)}')),'Invoice link copied')"><span class="ms">link</span>Copy link</button><button type="button" class="btn" onclick="$('#modal').innerHTML=''">Cancel</button><button class="btn btn-p">${ch === 'email' ? 'Open email' : 'Open WhatsApp'}</button></div></form></div>`;
+  const t = $('#modal [name=to]');
+  if (t && !t.value) t.focus();
+}
+function doShareInvoice(e, id) {
+  e.preventDefault();
+  const i = invoiceById(id),
+    v = Object.fromEntries(new FormData(e.target)),
+    to = (v.to || '').trim();
+  if (!i || !to || !canShareInvoice(i)) return;
+  if (v.chan === 'email' && !/^\S+@\S+\.\S+$/.test(to)) return toast('Enter a valid email address');
+  if (v.chan === 'whatsapp' && phoneDigits(to).length < 11)
+    return toast('Enter the number with country code');
+  const url =
+    v.chan === 'email'
+      ? `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(v.subject || '')}&body=${encodeURIComponent(v.msg || '')}`
+      : `https://wa.me/${phoneDigits(to)}?text=${encodeURIComponent(v.msg || '')}`;
+  i.sends = [...(i.sends || []), { channel: v.chan, to, at: Date.now(), by: roleNow().name }];
+  if (!['Paid', 'Partly paid', 'Overdue'].includes(i.status)) i.status = 'Submitted to client';
+  i.sentAt = i.sentAt || Date.now();
+  const q = quoteOfInvoice(i);
+  if (q && q.status !== 'Paid') q.status = 'Sent to client';
+  if (q) quoteToken(q);
+  if (!save() || (q && !quoteLinkSaved(q)))
+    return toast(
+      'Could not save (browser storage is full), so the invoice link would not open for the client. Nothing was sent.'
+    );
+  logOpp(
+    i.opp,
+    v.chan === 'email' ? 'mail' : 'sync',
+    `Invoice ${i.invoiceNo} shared with ${to} by ${v.chan === 'email' ? 'email' : 'WhatsApp'} (${roleNow().name})`
+  );
+  save();
+  $('#modal').innerHTML = '';
+  const a = document.createElement('a');
+  a.href = url;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  toast(`Invoice ready to send to ${to}`);
+  render();
+}
+
+// ---------- Invoice card on the quote page ----------
+function invoiceShareCard(q) {
+  const i = q && q.invoiceId ? invoiceById(q.invoiceId) : null;
+  if (!i) return '';
+  const s = i.share || {},
+    id = E(i.id),
+    when = (t) => (t ? ago(t) : ''),
+    admin = canApproveInvoiceShare();
+  let body = '',
+    pill = '';
+  if (admin) {
+    if (s.status === 'pending') {
+      pill = '<span class="qr-pill wr">Approval needed</span>';
+      body = `<div class="qr-sub">${E(s.requestedBy)} asked ${when(s.requestedAt)} to share this invoice with the client.</div><div class="qr-links mt-2"><a class="qr-link" onclick="decideInvoiceShare('${id}',true)">Approve</a><a class="qr-link" onclick="openRejectInvoiceShare('${id}')">Reject</a><a class="qr-link" onclick="openShareInvoice('${id}')">Share myself</a></div>`;
+    } else {
+      pill = s.status === 'approved' ? '<span class="qr-pill ok">Rep can share</span>' : '';
+      body = `<div class="qr-sub">${s.status === 'approved' ? `Approved for the rep by ${E(s.decidedBy)} ${when(s.decidedAt)}.` : s.status === 'rejected' ? `Sharing rejected by ${E(s.decidedBy)}${s.note ? ': ' + E(s.note) : ''}.` : 'The rep cannot share it until you allow it.'}</div><div class="qr-links mt-2">${s.status === 'approved' ? '' : `<a class="qr-link" onclick="decideInvoiceShare('${id}',true)">Allow rep to share</a>`}<a class="qr-link" onclick="openShareInvoice('${id}')">Share with client</a><a class="qr-link" onclick="openInvoice('${id}')">Open invoice</a></div>`;
+    }
+  } else if (ownsInvoiceDeal(i)) {
+    if (s.status === 'approved') {
+      pill = '<span class="qr-pill ok">Approved</span>';
+      body = `<div class="qr-sub">Approved by ${E(s.decidedBy)} ${when(s.decidedAt)}.${(i.sends || []).length ? ` Last shared ${when(i.sends[i.sends.length - 1].at)}.` : ''}</div><button class="btn btn-p mt-2" onclick="openShareInvoice('${id}')"><span class="ms">send</span>Share with client</button>`;
+    } else if (s.status === 'pending') {
+      pill = '<span class="qr-pill wr">Waiting</span>';
+      body = `<div class="qr-sub">Waiting for Admin / CEO approval · requested ${when(s.requestedAt)}.</div>`;
+    } else {
+      pill = s.status === 'rejected' ? '<span class="qr-pill bad">Not approved</span>' : '';
+      body = `<div class="qr-sub">${s.status === 'rejected' ? `Not approved by ${E(s.decidedBy)}${s.note ? ': ' + E(s.note) : ''}. You can ask again.` : 'Admin or CEO must approve before you can share this invoice with the client.'}</div><button class="btn mt-2" onclick="requestInvoiceShare('${id}')"><span class="ms">approval</span>Request approval to share</button>`;
+    }
+  } else return '';
+  return qrCard(
+    'Invoice',
+    `<div class="qr-pdf"><span class="qr-pdfi">INV</span><div><b>${E(i.invoiceNo)}</b><div class="qr-sub">${M(invPayable(i))} · ${E(i.status)}</div></div></div>${body}`,
+    pill
+  );
+}
+const qrPdfsBeforeShare = qrPdfs;
+qrPdfs = function (q) {
+  return invoiceShareCard(q) + qrPdfsBeforeShare.apply(this, arguments);
+};
+
+// Invoice page (Admin / CEO): approve or reject a pending request, and a Share button.
+const invoiceDetailBeforeShare = V['invoice-detail'];
+V['invoice-detail'] = function () {
+  let html = invoiceDetailBeforeShare.apply(this, arguments);
+  const i = invoiceById(S.currentInvoice);
+  if (!i || !canSeeInvoices()) return html;
+  const s = i.share || {},
+    id = E(i.id),
+    banner =
+      s.status === 'pending'
+        ? `<div class="qt-banner wr mb-3"><span class="ms">approval</span><div class="flex-1"><b>${E(s.requestedBy)} wants to share this invoice with the client</b><div>Requested ${ago(s.requestedAt)}</div></div><div class="flex gap-2 flex-wrap"><button class="btn btn-p" onclick="decideInvoiceShare('${id}',true)">Approve</button><button class="btn" onclick="openRejectInvoiceShare('${id}')">Reject</button></div></div>`
+        : s.status === 'approved'
+          ? `<div class="qt-banner ok mb-3"><span class="ms">verified</span><div class="flex-1"><b>The rep can share this invoice with the client</b><div>Approved by ${E(s.decidedBy)} ${ago(s.decidedAt)}</div></div></div>`
+          : '';
+  html = html.replace(
+    '<button class="btn" onclick="openInvoiceSheet(',
+    `<button class="btn" onclick="openShareInvoice('${id}')"><span class="ms">send</span>Share with client</button>${s.status === 'approved' ? '' : `<button class="btn" onclick="decideInvoiceShare('${id}',true)"><span class="ms">approval</span>Allow rep to share</button>`}<button class="btn" onclick="openInvoiceSheet(`
+  );
+  return banner + html;
+};
+
+// Pop-ups: Admin / CEO get the request; the rep hears back.
+const showBillPopupBeforeShare = showBillPopup;
+showBillPopup = function (p) {
+  if (!['bill-share-req', 'bill-share-ok', 'bill-share-no'].includes(p.kind))
+    return showBillPopupBeforeShare.apply(this, arguments);
+  const i = invoiceById(p.inv);
+  if (!i) return showNextPopup();
+  const s = i.share || {},
+    id = i.id;
+  if (p.kind === 'bill-share-req') {
+    if (s.status !== 'pending') return showNextPopup(); // already decided by the other approver
+    return showPopup({
+      tone: 'wr',
+      icon: 'approval',
+      title: `${E(s.requestedBy)} wants to share ${E(i.invoiceNo)}`,
+      lines: [
+        `${E(i.account)} · ${M(invPayable(i))}`,
+        'Approve so the rep can send the invoice link to the client?',
+      ],
+      actions: [
+        { label: 'Approve', js: `decideInvoiceShare('${id}',true)` },
+        { label: 'Reject', js: `openRejectInvoiceShare('${id}')` },
+        { label: 'Open invoice', js: `openInvoice('${id}')` },
+      ],
+    });
+  }
+  const q = quoteOfInvoice(i);
+  return showPopup({
+    tone: p.kind === 'bill-share-ok' ? 'ok' : 'err',
+    icon: p.kind === 'bill-share-ok' ? 'verified' : 'block',
+    title:
+      p.kind === 'bill-share-ok'
+        ? `You can share ${E(i.invoiceNo)} now`
+        : `Sharing ${E(i.invoiceNo)} was not approved`,
+    lines: [
+      `${E(i.account)} · approved or reviewed by ${E(s.decidedBy || '')}`,
+      p.kind === 'bill-share-no' && s.note ? `Reason: ${E(s.note)}` : '',
+    ],
+    actions:
+      p.kind === 'bill-share-ok'
+        ? [{ label: 'Share with client', js: `openShareInvoice('${id}')` }]
+        : q
+          ? [{ label: `Open ${q.no}`, js: `openQuoteRecord('${E(q.no)}')` }]
+          : [],
+  });
+};
+
+// ---------- client payment page: download the invoice as a PDF ----------
+function payDownloadPdf() {
+  const q = quoteByToken(location.hash.slice(5)),
+    i = invoiceOfQuote(q);
+  if (!i) return;
+  $('#modal').innerHTML =
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><div class="card p-6 w-full max-w-4xl max-h-full overflow-auto">${invoiceSheetHtml(i)}<div class="flex justify-end gap-2 mt-4 no-print"><button class="btn" onclick="$('#modal').innerHTML=''">Close</button><button class="btn btn-p" onclick="printInvoiceForClient()"><span class="ms">picture_as_pdf</span>Save as PDF / Print</button></div></div></div>`;
+  printInvoiceForClient();
+}
+function printInvoiceForClient() {
+  const q = quoteByToken(location.hash.slice(5)),
+    i = invoiceOfQuote(q),
+    t = document.title;
+  if (i) document.title = `${i.invoiceNo} Invoice`;
+  const back = () => {
+    document.title = t;
+    removeEventListener('afterprint', back);
+  };
+  addEventListener('afterprint', back);
+  window.print();
+}
+const renderPaymentPageBeforePdf = renderPaymentPage;
+renderPaymentPage = function () {
+  renderPaymentPageBeforePdf.apply(this, arguments);
+  const i = invoiceOfQuote(quoteByToken(location.hash.slice(5))),
+    app = $('#app');
+  if (!i || !app || app.querySelector('#pay-pdf')) return;
+  app.insertAdjacentHTML(
+    'afterbegin',
+    `<div id="pay-pdf" class="flex flex-wrap items-center gap-2 mb-2 no-print"><span class="mut text-sm flex-1">Invoice ${E(i.invoiceNo)} from ${E(companyInfo().name || 'Ceph CRM')}</span><button type="button" class="btn" onclick="payDownloadPdf()"><span class="ms">picture_as_pdf</span>Download invoice PDF</button></div>`
+  );
+};
+
+// Printing / "Save as PDF".
+// A pop-up sheet (quote, GST invoice, receipt) prints on its own. With no pop-up open, the page itself
+// prints (opportunity "Printable view", Ctrl+P, customer quote and payment pages). Without this, the
+// general print rule (body > *:not(#modal)) hid the page wrapper and the PDF came out blank.
+function setPrintMode() {
+  const modal = document.getElementById('modal'),
+    sheetOpen = !!(modal && modal.textContent.trim());
+  document.body.classList.toggle('print-page', !sheetOpen);
+}
+addEventListener('beforeprint', setPrintMode);
+addEventListener('afterprint', () => document.body.classList.remove('print-page'));
+
+// Customer quote link: "Download PDF" names the file after the quotation (e.g. "Q-1001 Quotation").
+function cqDownloadPdf() {
+  const q = typeof quoteByToken === 'function' ? quoteByToken(location.hash.slice(4)) : null,
+    title = document.title;
+  if (q) document.title = `${q.no} Quotation`;
+  setPrintMode();
+  const back = () => {
+    document.title = title;
+    removeEventListener('afterprint', back);
+  };
+  addEventListener('afterprint', back);
+  window.print();
+}

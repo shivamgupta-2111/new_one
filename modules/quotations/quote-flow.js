@@ -13,7 +13,9 @@ S.tncRequests = S.tncRequests || [];
 
 const isAdminOrCeo = () => ['admin', 'ceo'].includes(S.role);
 const standardTnc = () => S.settings.tnc.text;
-const effectiveTnc = (q) => (q && q.tnc ? q.tnc : standardTnc());
+function effectiveTnc(q) {
+  return q && q.tnc ? q.tnc : standardTnc();
+}
 const pendingTnc = (q) => S.tncRequests.find((r) => r.quoteNo === q.no && r.status === 'Pending');
 const lastTncDecision = (q) =>
   S.tncRequests
@@ -221,7 +223,15 @@ function printQuote() {
     o = cur();
   if (!q || !o) return;
   $('#modal').innerHTML =
-    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><div class="card p-6 w-full max-w-3xl max-h-full overflow-auto doc-sheet">${docLetterhead('QUOTATION', [['Quote no.', q.no], ['Date', fd(new Date(q.createdAt || Date.now()).toISOString().slice(0, 10))], ['Valid until', fd(q.exp)], ['Status', q.status]])}<div class="doc-for"><div><div class="mut text-xs">Prepared for</div><b>${E(q.preparedFor || o.account)}</b><div>${E(o.account)}</div></div><div class="text-right"><div class="mut text-xs">Subject</div><b>${E(q.name || o.name || '')}</b></div></div>` +
+    `<div class="fixed inset-0 z-40 grid place-items-center p-4" style="background:rgba(0,0,0,.5)"><div class="card p-6 w-full max-w-3xl max-h-full overflow-auto doc-sheet">${docLetterhead(
+      'QUOTATION',
+      [
+        ['Quote no.', q.no],
+        ['Date', fd(new Date(q.createdAt || Date.now()).toISOString().slice(0, 10))],
+        ['Valid until', fd(q.exp)],
+        ['Status', q.status],
+      ]
+    )}<div class="doc-for"><div><div class="mut text-xs">Prepared for</div><b>${E(q.preparedFor || o.account)}</b><div>${E(o.account)}</div>${billReceiverHtml(billReceiverOf(q))}</div><div class="text-right"><div class="mut text-xs">Subject</div><b>${E(q.name || o.name || '')}</b></div></div>` +
     `<div class="grid sm:grid-cols-2 gap-3 mt-3 text-sm"><div><div class="mut text-xs">Billing address</div><div style="white-space:pre-wrap">${E(q.address || '–')}</div></div><div><div class="mut text-xs">Shipping address</div><div style="white-space:pre-wrap">${E(q.shipping || '–')}</div></div></div>` +
     `<div class="my-4">${billLinesTable(q.items, !!q.showDiscount)}</div><div class="text-right text-lg font-bold">Grand total ${M(quoteTotal(q))}</div>` +
     `<div class="mt-4"><b>Terms &amp; conditions</b><div style="white-space:pre-wrap" class="text-sm">${E(effectiveTnc(q))}</div></div>` +
@@ -414,6 +424,11 @@ function ensureDefaultQuotes() {
 const storeQuoteBeforeDefault = storeQuote;
 storeQuote = function (q) {
   delete q.isDefault; // once someone saves a quote it is no longer the auto-filled default
+  const was = S.quotes.find((x) => x.no === q.no);
+  if (was)
+    ['token', 'signMode', 'sends', 'sentAt', 'signedCopy', 'billTo'].forEach((k) => {
+      if (q[k] === undefined && was[k] !== undefined) q[k] = clone(was[k]);
+    });
   return storeQuoteBeforeDefault.apply(this, arguments);
 };
 const renderBeforeDefaultQuote = render;

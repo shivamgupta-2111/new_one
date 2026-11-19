@@ -3,7 +3,7 @@
 const BASIC_RIGHT = RIGHT.filter((f) => !['won', 'lost', 'notes', 'desc', 'next'].includes(f[0]));
 const addrRow = (label, key) => (o) => {
   const info = accountInfo(o.account),
-    pen = canEditAddress()
+    pen = canEditAddress(o.account)
       ? `<span class="ms" title="Edit addresses" onclick="openAccountEditor(${E(JSON.stringify(o.account))})">edit</span>`
       : '';
   return sfRow(

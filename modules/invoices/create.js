@@ -20,6 +20,7 @@ function newInvoice(q) {
       terms: q.terms || 'Net 30',
       tnc: effectiveTnc(q),
       showDiscount: !!q.showDiscount,
+      billTo: q.billTo && q.billTo.name ? clone(q.billTo) : undefined,
       generatedAt: Date.now(),
       status: 'Ready to submit',
       currency: 'INR',

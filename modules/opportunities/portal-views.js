@@ -12,6 +12,16 @@ function dashBars(rows, tone = '', fmt = M) {
     )
     .join('')}</div>`;
 }
+// Plain list (no bars): rows = [{ label, value, sub, click }] shown as name, detail and amount.
+function dashList(rows, fmt = M) {
+  if (!rows.length) return '<p class="mut mt-3">Nothing to show yet.</p>';
+  return `<div class="dl">${rows
+    .map(
+      (r) =>
+        `<div class="dl-row${r.click ? ' r' : ''}" ${r.click ? `onclick="${r.click}"` : ''}><div class="dl-label"><div class="dl-name">${E(r.label)}</div>${r.sub ? `<div class="dl-sub">${E(r.sub)}</div>` : ''}</div><div class="dl-val">${fmt(r.value)}</div></div>`
+    )
+    .join('')}</div>`;
+}
 // Columns over time: cols = [{ label, value }]. Labels only on the latest and the highest column.
 function dashColumns(cols, fmt = M) {
   const mx = Math.max(1, ...cols.map((c) => c.value)),
@@ -86,8 +96,8 @@ V.home = () => {
   return `<div class="mb-4 flex flex-wrap items-end gap-3"><div class="flex-1"><h1 class="text-2xl font-bold">Good ${now.getHours() < 12 ? 'morning' : now.getHours() < 17 ? 'afternoon' : 'evening'}, ${E(roleNow().name)}</h1><p class="mut">${open.length} active deals · ${S.tasks.length} open tasks · ${pending.length} quotations awaiting approval${canSeeInvoices() ? ` · ${invCount} invoices` : ''}${rep && scope === 'team' ? ` · showing ${E(oppTeamName({ owner: roleNow().owner }) || 'your team')}` : ''}</p></div>${scopeToggle}</div>
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">${kp('Open pipeline', M(pipe), open.length + ' active deals')}${kp('Weighted forecast', M(weighted), 'Stage-weighted expected revenue', pipe ? (weighted / pipe) * 100 : 0)}${kp('Closed won revenue', M(won), wonDeals.length + (wonDeals.length === 1 ? ' won deal' : ' won deals'))}${kp('Win rate', winRate + '%', `${wonDeals.length} won of ${wonDeals.length + lostDeals.length} closed`, winRate)}</div>
 <!--dash-activity-->
-<div class="grid lg:grid-cols-2 gap-3 mb-3">${dashCard('Pipeline by stage', 'Open deal value at each stage · click to open the list', dashBars(byStage))}${dashCard('Won revenue by month', 'Closed won deals by close month, last 6 months', dashColumns(months))}</div>
-<div class="grid lg:grid-cols-2 gap-3 mb-3">${dashCard('Top deals', 'Five largest open opportunities', dashBars(top.map((o) => ({ label: o.name, value: o.amount, sub: o.account + ' · ' + ST[o.stage], click: `nav('opp-detail',${o.id})` }))))}${dashCard('<span class="inline-flex items-center gap-1"><span class="ms" style="color:var(--warn)">warning</span>Churn watchlist</span>', `${riskAll.length} ${riskAll.length === 1 ? 'deal' : 'deals'} at risk · renewals, support and high-risk flags`, churnBody)}</div>
+<div class="grid lg:grid-cols-2 gap-3 mb-3">${dashCard('Pipeline by stage', 'Open deal value at each stage · click to open the list', dashList(byStage))}${dashCard('Won revenue by month', 'Closed won deals by close month, last 6 months', dashColumns(months))}</div>
+<div class="grid lg:grid-cols-2 gap-3 mb-3">${dashCard('Top deals', 'Five largest open opportunities', dashList(top.map((o) => ({ label: o.name, value: o.amount, sub: o.account + ' · ' + ST[o.stage], click: `nav('opp-detail',${o.id})` }))))}${dashCard('<span class="inline-flex items-center gap-1"><span class="ms" style="color:var(--warn)">warning</span>Churn watchlist</span>', `${riskAll.length} ${riskAll.length === 1 ? 'deal' : 'deals'} at risk · renewals, support and high-risk flags`, churnBody)}</div>
 <!--dash-board-->
 <div class="grid lg:grid-cols-2 gap-3"><div class="card p-4"><b>Closing soon</b>${table(
     ['Deal', 'Account', 'Amount', 'Close'],
